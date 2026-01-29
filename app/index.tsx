@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { FileText, Home, MapPin } from 'lucide-react-native';
+import { FileText, Home, MapPin, Users } from 'lucide-react-native';
 import React from 'react';
 import { Image, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
@@ -125,6 +125,15 @@ export default function LandingScreen() {
           <Text style={landingStyles.infoText}>
             Not sure where to start? Our team is here to help guide you through every step.
           </Text>
+          
+          <TouchableOpacity
+            style={landingStyles.teamButton}
+            onPress={() => router.push('/team')}
+            activeOpacity={0.8}
+          >
+            <Users color="#2C5F2D" size={20} />
+            <Text style={landingStyles.teamButtonText}>Meet Our Team</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
