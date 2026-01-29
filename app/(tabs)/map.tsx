@@ -1,8 +1,10 @@
 import * as Location from "expo-location";
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker } from "react-native-maps";
 
+import { mapStyles } from '@/constants/styles';
 
 interface House {
   id: string;
@@ -14,7 +16,10 @@ interface House {
   longitude: number;
   status: string;
   type: string;
+  primaryPhoto?: string;
+  photos?: { href: string }[];
 }
+
 // Mock data for testing
 const MOCK_HOUSES = [
   {
@@ -126,6 +131,11 @@ const MOCK_HOUSES = [
 
 
 export default function HomeScreen() {
+  const params = useLocalSearchParams();
+  const userType = params.userType || 'buyer';
+  
+  console.log('User type:', userType);
+
   const [location, setLocation] = useState<Location.LocationObject | null>(null,);
   const [houses, setHouses] = useState<House[]>([]);
   const [loading, setLoading] = useState(false);
@@ -253,68 +263,68 @@ const renderPhotoModal = () => {
         setCurrentPhotoIndex(0);
       }}
     >
-      <View style={styles.modalContainer}>
+      <View style={mapStyles.modalContainer}>
         {/* Header */}
-        <View style={styles.modalHeader}>
+        <View style={mapStyles.modalHeader}>
           <TouchableOpacity 
             onPress={() => {
               setSelectedHouse(null);
               setCurrentPhotoIndex(0);
             }}
-            style={styles.closeButton}
+            style={mapStyles.closeButton}
           >
-            <Text style={styles.closeButtonText}>✕</Text>
+            <Text style={mapStyles.closeButtonText}>✕</Text>
           </TouchableOpacity>
-          <Text style={styles.modalTitle}>{selectedHouse.address}</Text>
+          <Text style={mapStyles.modalTitle}>{selectedHouse.address}</Text>
         </View>
         
         {/* Photo viewer */}
         {photos.length > 0 ? (
-          <View style={styles.photoContainer}>
+          <View style={mapStyles.photoContainer}>
             <Image 
               source={{ uri: photos[currentPhotoIndex].href }}
-              style={styles.photo}
+              style={mapStyles.photo}
               resizeMode="cover"
             />
             
             {/* Photo navigation */}
             {photos.length > 1 && (
-              <View style={styles.photoNavigation}>
+              <View style={mapStyles.photoNavigation}>
                 <TouchableOpacity 
                   onPress={() => setCurrentPhotoIndex(Math.max(0, currentPhotoIndex - 1))}
                   disabled={currentPhotoIndex === 0}
-                  style={[styles.navButton, currentPhotoIndex === 0 && styles.navButtonDisabled]}
+                  style={[mapStyles.navButton, currentPhotoIndex === 0 && mapStyles.navButtonDisabled]}
                 >
-                  <Text style={styles.navButtonText}>←</Text>
+                  <Text style={mapStyles.navButtonText}>←</Text>
                 </TouchableOpacity>
                 
-                <Text style={styles.photoCounter}>
+                <Text style={mapStyles.photoCounter}>
                   {currentPhotoIndex + 1} / {photos.length}
                 </Text>
                 
                 <TouchableOpacity 
                   onPress={() => setCurrentPhotoIndex(Math.min(photos.length - 1, currentPhotoIndex + 1))}
                   disabled={currentPhotoIndex === photos.length - 1}
-                  style={[styles.navButton, currentPhotoIndex === photos.length - 1 && styles.navButtonDisabled]}
+                  style={[mapStyles.navButton, currentPhotoIndex === photos.length - 1 && mapStyles.navButtonDisabled]}
                 >
-                  <Text style={styles.navButtonText}>→</Text>
+                  <Text style={mapStyles.navButtonText}>→</Text>
                 </TouchableOpacity>
               </View>
             )}
           </View>
         ) : (
-          <View style={styles.noPhotoContainer}>
-            <Text style={styles.noPhotoText}>No photos available</Text>
+          <View style={mapStyles.noPhotoContainer}>
+            <Text style={mapStyles.noPhotoText}>No photos available</Text>
           </View>
         )}
         
         {/* Property details */}
-        <View style={styles.detailsContainer}>
-          <Text style={styles.price}>${selectedHouse.price?.toLocaleString() || 'N/A'}</Text>
-          <Text style={styles.details}>
+        <View style={mapStyles.detailsContainer}>
+          <Text style={mapStyles.price}>${selectedHouse.price?.toLocaleString() || 'N/A'}</Text>
+          <Text style={mapStyles.details}>
             {selectedHouse.beds || '?'} beds • {selectedHouse.baths || '?'} baths
           </Text>
-          <Text style={styles.status}>Status: {selectedHouse.status?.replace('_', ' ')}</Text>
+          <Text style={mapStyles.status}>Status: {selectedHouse.status?.replace('_', ' ')}</Text>
         </View>
       </View>
     </Modal>
@@ -323,59 +333,65 @@ const renderPhotoModal = () => {
 
 
   return (
-    <View style={styles.container}>
+    <View style={mapStyles.container}>
       {renderPhotoModal()}
       {loading && (
-        <View style={styles.loadingContainer}>
+        <View style={mapStyles.loadingContainer}>
           <ActivityIndicator size="large" color="#0000ff" />
           <Text>Loading houses...</Text>
         </View>
       )}
-      <MapView
-        style={styles.map}
-        initialRegion={initialRegion}
-        showsUserLocation={true}
-        onRegionChangeComplete={(region) => {
-          // Save the current map region when user moves the map
-          setLocation({
-            coords: {
-              latitude: region.latitude,
-              longitude: region.longitude,
-              altitude: null,
-              accuracy: null,
-              altitudeAccuracy: null,
-              heading: null,
-              speed: null,
-            },
-            timestamp: Date.now(),
-          });
-        }}
-      >
-        {houses.map((house) => (
-          <Marker
-            key={house.id}
-            coordinate={{
-              latitude: house.latitude,
-              longitude: house.longitude,
-            }}
-            pinColor={getPinColor(house.status)}
-            onPress={() => {
-              setSelectedHouse(house);
-              setCurrentPhotoIndex(0);
-            }}
-          />
-        ))}
-      </MapView>
+      {Platform.OS === 'web' ? (
+        <View style={mapStyles.map}>
+          <Text style={mapStyles.webMessage}>Map view is not available on web. Please use the mobile app to view the map.</Text>
+        </View>
+      ) : (
+        <MapView
+          style={mapStyles.map}
+          initialRegion={initialRegion}
+          showsUserLocation={true}
+          onRegionChangeComplete={(region) => {
+            // Save the current map region when user moves the map
+            setLocation({
+              coords: {
+                latitude: region.latitude,
+                longitude: region.longitude,
+                altitude: null,
+                accuracy: null,
+                altitudeAccuracy: null,
+                heading: null,
+                speed: null,
+              },
+              timestamp: Date.now(),
+            });
+          }}
+        >
+          {houses.map((house) => (
+            <Marker
+              key={house.id}
+              coordinate={{
+                latitude: house.latitude,
+                longitude: house.longitude,
+              }}
+              pinColor={getPinColor(house.status)}
+              onPress={() => {
+                setSelectedHouse(house);
+                setCurrentPhotoIndex(0);
+              }}
+            />
+          ))}
+        </MapView>
+      )}
 
       <TouchableOpacity 
-        style={styles.searchButton}
+        style={mapStyles.searchButton}
         onPress={() => {
           if (location) {
             fetchHouses(location.coords.latitude, location.coords.longitude);
           }
         }}
       >
-        <Text style={styles.searchButtonText}>Search This Area</Text>
+        <Text style={mapStyles.searchButtonText}>Search This Area</Text>
       </TouchableOpacity>
     </View>
   );
@@ -447,6 +463,14 @@ const styles = StyleSheet.create({
   map: {
     width: '100%',
     height: '100%',
+  },
+  webMessage: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    textAlign: 'center',
+    fontSize: 18,
+    color: '#666',
   },
   
   // Loading
