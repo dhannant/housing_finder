@@ -1,18 +1,18 @@
 import { useRouter } from 'expo-router';
-import { Users, Phone, Mail, ChevronRight } from 'lucide-react-native';
+import { ChevronRight, Mail, Phone, Users } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
   Image,
-  SafeAreaView,
-  StyleSheet,
   Linking,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
-import { teamMembers, TeamMember } from '@/constants/team-data';
+import { TeamMember, teamMembers } from '@/constants/team-data';
 
 export default function TeamScreen() {
   const router = useRouter();
@@ -36,10 +36,8 @@ export default function TeamScreen() {
         <View style={styles.headerContent}>
           <Users color="#2C5F2D" size={32} />
           <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>Meet Our Team</Text>
-            <Text style={styles.headerSubtitle}>
-              Award-winning real estate professionals
-            </Text>
+            <Text style={styles.headerTitle}>{"Meet Our Team"}</Text>
+            <Text style={styles.headerSubtitle}>{"Award-winning real estate professionals"}</Text>
           </View>
         </View>
       </View>
@@ -47,13 +45,11 @@ export default function TeamScreen() {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={styles.introSection}>
           <Text style={styles.introText}>
-            With more than 30 years of experience in real estate and deep roots in the North
-            Georgia area, the Leading Edge Real Estate team is continuously impressing satisfied
-            clients.
+            {"With more than 30 years of experience in real estate and deep roots in the North" +
+            " Georgia area, the Leading Edge Real Estate team is continuously impressing satisfied " +
+            "clients."}
           </Text>
-          <Text style={styles.awardText}>
-            🏆 2020 White County Readers' Choice Award Winner
-          </Text>
+          <Text style={styles.awardText}>{"🏆 2020 White County Readers' Choice Award Winner"}</Text>
         </View>
 
         {teamMembers.map((member) => (
@@ -68,22 +64,18 @@ export default function TeamScreen() {
         ))}
 
         <View style={styles.contactSection}>
-          <Text style={styles.contactTitle}>Ready to Work With Us?</Text>
+          <Text style={styles.contactTitle}>{"Ready to Work With Us?"}</Text>
           <TouchableOpacity
             style={styles.contactButton}
-            onPress={() => Linking.openURL('tel:+17062002210')}
-          >
+            onPress={() => Linking.openURL('tel:+17062002210')}>
             <Phone color="#FFFFFF" size={20} />
-            <Text style={styles.contactButtonText}>(706) 200-2210</Text>
+            <Text style={styles.contactButtonText}>{"(706) 200-2210"}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.contactButton, styles.emailButton]}
-            onPress={() => Linking.openURL('mailto:info@leadingedgega.com')}
-          >
+            onPress={() => Linking.openURL('mailto:info@leadingedgega.com')}>
             <Mail color="#2C5F2D" size={20} />
-            <Text style={[styles.contactButtonText, styles.emailButtonText]}>
-              info@leadingedgega.com
-            </Text>
+            <Text style={[styles.contactButtonText, styles.emailButtonText]}>{"info@leadingedgega.com"}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -136,13 +128,13 @@ function TeamMemberCard({ member, isExpanded, onToggle, onCall, onEmail }: TeamM
           {onCall && (
             <TouchableOpacity style={styles.actionButton} onPress={onCall}>
               <Phone color="#2C5F2D" size={18} />
-              <Text style={styles.actionButtonText}>Call</Text>
+              <Text style={styles.actionButtonText}>{"Call"}</Text>
             </TouchableOpacity>
           )}
           {onEmail && (
             <TouchableOpacity style={styles.actionButton} onPress={onEmail}>
               <Mail color="#2C5F2D" size={18} />
-              <Text style={styles.actionButtonText}>Email</Text>
+              <Text style={styles.actionButtonText}>{"Email"}</Text>
             </TouchableOpacity>
           )}
         </View>

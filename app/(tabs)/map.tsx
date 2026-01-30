@@ -1,7 +1,7 @@
 import * as Location from "expo-location";
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, Platform, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker } from "react-native-maps";
 
 import { mapStyles } from '@/constants/styles';
@@ -139,8 +139,8 @@ export default function HomeScreen() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null,);
   const [houses, setHouses] = useState<House[]>([]);
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState(null);
-  const [selectedHouse, setSelectedHouse] = useState(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [useMockData, setUseMockData] = useState(true); // Set to true to use fake data
 
@@ -237,10 +237,10 @@ export default function HomeScreen() {
   };
 
   const initialRegion = {
-    latitude: location?.coords.latitude || 34.0522,
-    longitude: location?.coords.longitude || -118.2437,
-    latitudeDelta: 0.1,
-    longitudeDelta: 0.1,
+    latitude: location?.coords.latitude || 34.23,
+    longitude: location?.coords.longitude || -83.48,
+    latitudeDelta: 0.5,
+    longitudeDelta: 0.5,
   };
   // userLocation.coords.latitude, userLocation.coords.longitude
 
@@ -254,25 +254,16 @@ const renderPhotoModal = () => {
     : [];
   
   return (
-    <Modal
-      visible={selectedHouse !== null}
+    <Modal visible={selectedHouse !== null}
       animationType="slide"
       transparent={false}
-      onRequestClose={() => {
-        setSelectedHouse(null);
-        setCurrentPhotoIndex(0);
-      }}
-    >
+      onRequestClose={() => {setSelectedHouse(null); setCurrentPhotoIndex(0);}}>
       <View style={mapStyles.modalContainer}>
         {/* Header */}
         <View style={mapStyles.modalHeader}>
           <TouchableOpacity 
-            onPress={() => {
-              setSelectedHouse(null);
-              setCurrentPhotoIndex(0);
-            }}
-            style={mapStyles.closeButton}
-          >
+            onPress={() => {setSelectedHouse(null); setCurrentPhotoIndex(0);}}
+            style={mapStyles.closeButton}>
             <Text style={mapStyles.closeButtonText}>✕</Text>
           </TouchableOpacity>
           <Text style={mapStyles.modalTitle}>{selectedHouse.address}</Text>
@@ -281,11 +272,7 @@ const renderPhotoModal = () => {
         {/* Photo viewer */}
         {photos.length > 0 ? (
           <View style={mapStyles.photoContainer}>
-            <Image 
-              source={{ uri: photos[currentPhotoIndex].href }}
-              style={mapStyles.photo}
-              resizeMode="cover"
-            />
+            <Image source={{ uri: photos[currentPhotoIndex].href }} style={mapStyles.photo} resizeMode="cover"/>
             
             {/* Photo navigation */}
             {photos.length > 1 && (
@@ -293,8 +280,7 @@ const renderPhotoModal = () => {
                 <TouchableOpacity 
                   onPress={() => setCurrentPhotoIndex(Math.max(0, currentPhotoIndex - 1))}
                   disabled={currentPhotoIndex === 0}
-                  style={[mapStyles.navButton, currentPhotoIndex === 0 && mapStyles.navButtonDisabled]}
-                >
+                  style={[mapStyles.navButton, currentPhotoIndex === 0 && mapStyles.navButtonDisabled]}>
                   <Text style={mapStyles.navButtonText}>←</Text>
                 </TouchableOpacity>
                 
@@ -305,8 +291,7 @@ const renderPhotoModal = () => {
                 <TouchableOpacity 
                   onPress={() => setCurrentPhotoIndex(Math.min(photos.length - 1, currentPhotoIndex + 1))}
                   disabled={currentPhotoIndex === photos.length - 1}
-                  style={[mapStyles.navButton, currentPhotoIndex === photos.length - 1 && mapStyles.navButtonDisabled]}
-                >
+                  style={[mapStyles.navButton, currentPhotoIndex === photos.length - 1 && mapStyles.navButtonDisabled]}>
                   <Text style={mapStyles.navButtonText}>→</Text>
                 </TouchableOpacity>
               </View>
@@ -395,257 +380,4 @@ const renderPhotoModal = () => {
       </TouchableOpacity>
     </View>
   );
-}
-
-
-
-
-// STYLE STUFF
-// Define constants at the top of your file (after imports)
-const COLORS = {
-  primary: '#007AFF',
-  white: '#FFFFFF',
-  black: '#000000',
-  gray: '#666666',
-  lightGray: '#f0f0f0',
-  border: '#ddd',
-  text: '#333',
 };
-
-const SPACING = {
-  xs: 5,
-  sm: 10,
-  md: 15,
-  lg: 20,
-  xl: 30,
-};
-
-const BORDER_RADIUS = {
-  sm: 8,
-  md: 10,
-  lg: 20,
-  round: 25,
-};
-
-const SHADOWS = {
-  small: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-};
-
-// Then use them in styles:
-// const styles = StyleSheet.create({
-//   filterButton: {
-//     flex: 1,
-//     backgroundColor: COLORS.white,
-//     padding: SPACING.md,
-//     marginHorizontal: SPACING.xs,
-//     borderRadius: BORDER_RADIUS.sm,
-//     alignItems: 'center',
-//     ...SHADOWS.small,
-//   },
-//   filterButtonActive: {
-//     backgroundColor: COLORS.primary,
-//   },
-  // ... etc
-// });
-const styles = StyleSheet.create({
-  // Container & Layout
-  container: {
-    flex: 1,
-  },
-  
-  // Map
-  map: {
-    width: '100%',
-    height: '100%',
-  },
-  webMessage: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    textAlign: 'center',
-    fontSize: 18,
-    color: '#666',
-  },
-  
-  // Loading
-  loadingContainer: {
-    position: 'absolute',
-    top: 100,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 1,
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 10,
-    marginHorizontal: 50,
-  },
-  
-  // Filters
-  filterContainer: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    right: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    zIndex: 2,
-  },
-  filterButton: {
-    flex: 1,
-    backgroundColor: 'white',
-    padding: 12,
-    marginHorizontal: 5,
-    borderRadius: 8,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  filterButtonActive: {
-    backgroundColor: '#007AFF',
-  },
-  filterText: {
-    color: '#333',
-    fontWeight: '600',
-  },
-  filterTextActive: {
-    color: 'white',
-  },
-  
-  // Search Button
-  searchButton: {
-    position: 'absolute',
-    bottom: 30,
-    left: 20,
-    right: 20,
-    backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  searchButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  
-  // Modal - Container
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'white',
-  },
-  
-  // Modal - Header
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    paddingTop: 50,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-  },
-  closeButton: {
-    padding: 10,
-  },
-  closeButtonText: {
-    fontSize: 24,
-    color: '#007AFF',
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    flex: 1,
-    marginLeft: 10,
-  },
-  
-  // Modal - Photos
-  photoContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  photo: {
-    width: '100%',
-    height: '100%',
-  },
-  photoNavigation: {
-    position: 'absolute',
-    bottom: 20,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 20,
-  },
-  navButton: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  navButtonDisabled: {
-    backgroundColor: 'rgba(255,255,255,0.3)',
-  },
-  navButtonText: {
-    fontSize: 24,
-    color: '#000',
-  },
-  photoCounter: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  noPhotoContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-  },
-  noPhotoText: {
-    fontSize: 18,
-    color: '#666',
-  },
-  
-  // Modal - Details
-  detailsContainer: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#ddd',
-  },
-  price: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#007AFF',
-    marginBottom: 10,
-  },
-  details: {
-    fontSize: 18,
-    color: '#333',
-    marginBottom: 5,
-  },
-  status: {
-    fontSize: 16,
-    color: '#666',
-    textTransform: 'capitalize',
-  },
-});
