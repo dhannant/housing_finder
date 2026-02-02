@@ -3,6 +3,8 @@ import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Image, Modal, Platform, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker } from "react-native-maps";
+import type { PropertyFilterOptions } from "../property_filters";
+import PropertyFilters from "../property_filters";
 
 import { mapStyles } from '@/constants/styles';
 
@@ -131,6 +133,9 @@ const MOCK_HOUSES = [
 
 
 export default function HomeScreen() {
+    // Filter modal state
+    const [filterVisible, setFilterVisible] = useState(false);
+    const [activeFilters, setActiveFilters] = useState<PropertyFilterOptions>({});
   const params = useLocalSearchParams();
   const userType = params.userType || 'buyer';
   
@@ -138,6 +143,9 @@ export default function HomeScreen() {
 
   const [location, setLocation] = useState<Location.LocationObject | null>(null,);
   const [houses, setHouses] = useState<House[]>([]);
+
+  // This will hold the filtered houses for display
+  const [filteredHouses, setFilteredHouses] = useState<House[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
@@ -167,11 +175,11 @@ export default function HomeScreen() {
     if (useMockData) {
       setTimeout(() => {
         // Only show for_sale and pending properties
-        const filteredHouses = MOCK_HOUSES.filter(h => h.status === 'for_sale' || h.status === 'pending');
-        
-        setHouses(filteredHouses);
+        const filtered = MOCK_HOUSES.filter(h => h.status === 'for_sale' || h.status === 'pending');
+        setHouses(filtered);
+        setFilteredHouses(applyFilters(filtered, activeFilters));
         setLoading(false);
-        console.log(`Loaded ${filteredHouses.length} mock houses`);
+        console.log(`Loaded ${filtered.length} mock houses`);
       }, 500);
       return;
     }
@@ -209,6 +217,7 @@ export default function HomeScreen() {
             primaryPhoto: property.primary_photo?.href || null, // Add this line
           }));
         setHouses(properties);
+        setFilteredHouses(applyFilters(properties, activeFilters));
         console.log(`Loaded ${properties.length} houses`);
       }
     } catch (error) {
@@ -218,6 +227,29 @@ export default function HomeScreen() {
       setLoading(false);
     }
   };
+
+  // Apply filters to the house list
+  function applyFilters(houses: House[], filters: PropertyFilterOptions): House[] {
+    return houses.filter((house) => {
+      if (filters.minBedrooms !== undefined && house.beds < filters.minBedrooms) return false;
+      if (filters.maxBedrooms !== undefined && house.beds > filters.maxBedrooms) return false;
+      if (filters.minBathrooms !== undefined && house.baths < filters.minBathrooms) return false;
+      if (filters.maxBathrooms !== undefined && house.baths > filters.maxBathrooms) return false;
+      if (filters.minPrice !== undefined && house.price < filters.minPrice) return false;
+      if (filters.maxPrice !== undefined && house.price > filters.maxPrice) return false;
+      if (filters.minSquareFeet !== undefined && (house as any).squareFeet < filters.minSquareFeet) return false;
+      if (filters.maxSquareFeet !== undefined && (house as any).squareFeet > filters.maxSquareFeet) return false;
+      if (filters.minLotSize !== undefined && (house as any).lotSize < filters.minLotSize) return false;
+      if (filters.maxLotSize !== undefined && (house as any).lotSize > filters.maxLotSize) return false;
+      return true;
+    });
+  }
+
+  // When filters are applied from the modal
+  function handleApplyFilters(filters: PropertyFilterOptions) {
+    setActiveFilters(filters);
+    setFilteredHouses(applyFilters(houses, filters));
+  }
 
   const getPinColor = (status: string) => {
     switch (status) {
@@ -319,6 +351,22 @@ const renderPhotoModal = () => {
 
   return (
     <View style={mapStyles.container}>
+      {/* Filter Button Floating at Top */}
+      <View style={{ position: 'absolute', top: 60, left: 20, right: 20, zIndex: 1, flexDirection: 'row', justifyContent: 'flex-end' }}>
+        <TouchableOpacity
+          style={{ backgroundColor: '#fff', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 25, flexDirection: 'row', alignItems: 'center', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84 }}
+          onPress={() => setFilterVisible(true)}
+        >
+          <Text style={{ fontSize: 18, marginRight: 8 }}>⚙️</Text>
+          <Text style={{ fontSize: 16, fontWeight: '600', color: '#333' }}>Filters</Text>
+          {Object.keys(activeFilters).length > 0 && (
+            <View style={{ backgroundColor: '#007AFF', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginLeft: 8, minWidth: 20, alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>{Object.keys(activeFilters).length}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
       {renderPhotoModal()}
       {loading && (
         <View style={mapStyles.loadingContainer}>
@@ -351,7 +399,7 @@ const renderPhotoModal = () => {
             });
           }}
         >
-          {houses.map((house) => (
+          {filteredHouses.map((house) => (
             <Marker
               key={house.id}
               coordinate={{
@@ -378,6 +426,14 @@ const renderPhotoModal = () => {
       >
         <Text style={mapStyles.searchButtonText}>Search This Area</Text>
       </TouchableOpacity>
+
+      {/* Filter Modal */}
+      <PropertyFilters
+        visible={filterVisible}
+        onClose={() => setFilterVisible(false)}
+        onApply={handleApplyFilters}
+        initialFilters={activeFilters}
+      />
     </View>
   );
 };

@@ -1,6 +1,5 @@
 import { useRouter } from 'expo-router';
 import { FileText, Home, MapPin, Users } from 'lucide-react-native';
-import React from 'react';
 import { Image, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 import { landingStyles } from '@/constants/styles';
@@ -8,6 +7,7 @@ import { landingStyles } from '@/constants/styles';
 export default function LandingScreen() {
   const router = useRouter();
 
+  // Handles user selection for each main action button
   const handleSelection = (type: 'buy' | 'sell' | 'preapproval' | 'geolocate') => {
     console.log(`User selected: ${type}`);
     
@@ -24,8 +24,11 @@ export default function LandingScreen() {
   };
 
   return (
+    // Main safe area for the landing screen
     <SafeAreaView style={landingStyles.container}>
+      {/* Scrollable content for the landing page */}
       <ScrollView contentContainerStyle={landingStyles.scrollContent}>
+        {/* Header with logo and login button */}
         <View style={landingStyles.header}>
           <View style={landingStyles.logoContainer}>
             <View style={landingStyles.logoIcon}>
@@ -36,18 +39,22 @@ export default function LandingScreen() {
               <Text style={landingStyles.logoSubtitle}>Real Estate</Text>
             </View>
           </View>
-          <TouchableOpacity style={landingStyles.loginButton}>
+          {/* Login button (navigates to login screen) */}
+          <TouchableOpacity style={landingStyles.loginButton} onPress={() => router.push('/login')}>
             <Text style={landingStyles.loginButtonText}>Login</Text>
           </TouchableOpacity>
         </View>
 
+        {/* Welcome section with logo and subtitle */}
         <View style={landingStyles.welcomeSection}>
           <Text style={landingStyles.welcomeTitle}> {"Welcome to"} </Text>
           <Image source={require('@/assets/images/LE_logo.png')} style={{width: 200, height: 90, marginBottom: 24}} />
           <Text style={landingStyles.welcomeSubtitle}> {"North Georgia's trusted real estate partner"} </Text>
         </View>
 
+        {/* Main action buttons for user flows */}
         <View style={landingStyles.buttonsContainer}>
+          {/* Buy button */}
           <TouchableOpacity
             style={[landingStyles.actionButton, landingStyles.buyButton]}
             onPress={() => handleSelection('buy')}
@@ -65,6 +72,7 @@ export default function LandingScreen() {
             <Text style={landingStyles.arrow}>→</Text>
           </TouchableOpacity>
 
+          {/* Sell button */}
           <TouchableOpacity
             style={[landingStyles.actionButton, landingStyles.sellButton]}
             onPress={() => handleSelection('sell')}
@@ -82,6 +90,7 @@ export default function LandingScreen() {
             <Text style={landingStyles.arrow}>→</Text>
           </TouchableOpacity>
 
+          {/* Pre-approval button */}
           <TouchableOpacity
             style={[landingStyles.actionButton, landingStyles.preapprovalButton]}
             onPress={() => handleSelection('preapproval')}
@@ -99,6 +108,7 @@ export default function LandingScreen() {
             <Text style={landingStyles.arrow}>→</Text>
           </TouchableOpacity>
 
+          {/* Geolocate button */}
           <TouchableOpacity
             style={[landingStyles.actionButton, landingStyles.geolocateButton]}
             onPress={() => handleSelection('geolocate')}
@@ -117,9 +127,11 @@ export default function LandingScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Info section with team link */}
         <View style={landingStyles.infoSection}>
           <Text style={landingStyles.infoText}>{"Not sure where to start? Our team is here to help guide you through every step."}</Text>
           
+          {/* Meet Our Team button */}
           <TouchableOpacity
             style={landingStyles.teamButton}
             onPress={() => router.push('/team')}
@@ -131,6 +143,7 @@ export default function LandingScreen() {
         </View>
       </ScrollView>
 
+      {/* Footer with copyright */}
       <View style={landingStyles.footer}>
         <Text style={landingStyles.footerText}>{"© 2026 Leading Edge Real Estate. All rights reserved."}</Text>
       </View>

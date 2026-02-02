@@ -1,15 +1,7 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-} from 'react-native';
-// You'll need to install this: npm install @react-native-community/slider
 import Slider from '@react-native-community/slider';
+import { Picker } from '@react-native-picker/picker';
+import React, { useState } from 'react';
+import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, } from 'react-native';
 
 // This defines what our filter options look like
 // The ? means "optional" - you don't have to include every filter
@@ -30,7 +22,7 @@ interface PropertyFilterOptions {
 interface PropertyFiltersProps {
   visible: boolean;                                    // Is the filter modal open?
   onClose: () => void;                                 // Function to close the modal
-  onApply: (filters: PropertyFilterOptions) => void;  // Function to apply filters
+  onApply: (filters: PropertyFilterOptions) => void;   // Function to apply filters
   initialFilters?: PropertyFilterOptions;              // Starting filter values (optional)
 }
 
@@ -45,13 +37,77 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
   // useState is a React hook that lets us store and update data
   const [filters, setFilters] = useState<PropertyFilterOptions>(initialFilters);
 
-  // Helper function to update a single filter value
-  // For example: updateFilter('minBedrooms', 3)
+  // Warning state for min/max validation...
+  const [minMaxWarning, setMinMaxWarning] = useState<{ name: string; message: string }>({ name: '', message: '' });
+
+  // Helper function to update a single filter value with validation rules
   const updateFilter = (filterName: keyof PropertyFilterOptions, value: any) => {
-    setFilters((currentFilters) => ({
-      ...currentFilters,        // Keep all existing filters
-      [filterName]: value,      // Update just this one filter
-    }));
+    setFilters((currentFilters) => {
+      let newFilters = Object.assign({}, currentFilters);  // Create a copy of current filters
+      // Price validation
+      if (filterName === 'minPrice') {
+        if (currentFilters.maxPrice !== undefined && value > currentFilters.maxPrice) {
+          setMinMaxWarning({ name: 'minPrice', message: 'Minimum price cannot be above maximum price' });
+          return currentFilters;
+        } else {
+          setMinMaxWarning({ name: '', message: '' });
+          newFilters.minPrice = value;
+        }
+      } else if (filterName === 'maxPrice') {
+        if (currentFilters.minPrice !== undefined && value < currentFilters.minPrice) {
+          setMinMaxWarning({ name: 'maxPrice', message: 'Maximum price cannot be below minimum price' });
+          return currentFilters;
+        } else {
+          setMinMaxWarning({ name: '', message: '' });
+          newFilters.maxPrice = value;
+        }
+      }
+      // Square Feet validation
+      else if (filterName === 'minSquareFeet') {
+        if (currentFilters.maxSquareFeet !== undefined && value > currentFilters.maxSquareFeet) {
+          setMinMaxWarning({ name: 'minSquareFeet', message: 'Minimum square feet cannot be above maximum square feet' });
+          return currentFilters;
+        } else {
+          setMinMaxWarning({ name: '', message: '' });
+          newFilters.minSquareFeet = value;
+        }
+      } else if (filterName === 'maxSquareFeet') {
+        if (currentFilters.minSquareFeet !== undefined && value < currentFilters.minSquareFeet) {
+          setMinMaxWarning({ name: 'maxSquareFeet', message: 'Maximum square feet cannot be below minimum square feet' });
+          return currentFilters;
+        } else {
+          setMinMaxWarning({ name: '', message: '' });
+          newFilters.maxSquareFeet = value;
+        }
+      }
+      // Lot Size validation
+      else if (filterName === 'minLotSize') {
+        if (currentFilters.maxLotSize !== undefined && value > currentFilters.maxLotSize) {
+          setMinMaxWarning({ name: 'minLotSize', message: 'Minimum lot size cannot be above maximum lot size' });
+          return currentFilters;
+        } else {
+          setMinMaxWarning({ name: '', message: '' });
+          newFilters.minLotSize = value;
+        }
+      } else if (filterName === 'maxLotSize') {
+        if (currentFilters.minLotSize !== undefined && value < currentFilters.minLotSize) {
+          setMinMaxWarning({ name: 'maxLotSize', message: 'Maximum lot size cannot be below minimum lot size' });
+          return currentFilters;
+        } else {
+          setMinMaxWarning({ name: '', message: '' });
+          newFilters.maxLotSize = value;
+        }
+      } else if (filterName === 'minBedrooms') {
+        newFilters.minBedrooms = value;
+      } else if (filterName === 'maxBedrooms') {
+        newFilters.maxBedrooms = value;
+      } else if (filterName === 'minBathrooms') {
+        newFilters.minBathrooms = value;
+      } else if (filterName === 'maxBathrooms') {
+        newFilters.maxBathrooms = value;
+      }
+      return newFilters;
+    });
   };
 
   // When user clicks "Apply Filters" button
@@ -107,7 +163,17 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
                 {/* Minimum bedrooms input */}
                 <View style={styles.inputContainer}>
                   <Text style={styles.inputLabel}>Min</Text>
-                  <TextInput
+                  <Picker selectedValue={filters.minBedrooms}
+                    style={styles.input}
+                    onValueChange={value => updateFilter('minBedrooms', value)}>
+                    <Picker.Item label="Any" value={undefined} />
+                    <Picker.Item label="1" value={1} />
+                    <Picker.Item label="2" value={2} />
+                    <Picker.Item label="3" value={3} />
+                    <Picker.Item label="4" value={4} />
+                    <Picker.Item label="5" value={5} />
+                  </Picker>
+                  {/* <TextInput
                     style={styles.input}
                     keyboardType="numeric"
                     value={filters.minBedrooms?.toString() || ''}
@@ -117,7 +183,7 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
                       updateFilter('minBedrooms', value);
                     }}
                     placeholder="0"
-                  />
+                  /> */}
                 </View>
 
                 <Text style={styles.rangeSeparator}>to</Text>
@@ -125,7 +191,17 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
                 {/* Maximum bedrooms input */}
                 <View style={styles.inputContainer}>
                   <Text style={styles.inputLabel}>Max</Text>
-                  <TextInput
+                  <Picker selectedValue={filters.maxBedrooms}
+                    style={styles.input}
+                    onValueChange={value => updateFilter('maxBedrooms', value)}>
+                    <Picker.Item label="Any" value={undefined} />
+                    <Picker.Item label="1" value={1} />
+                    <Picker.Item label="2" value={2} />
+                    <Picker.Item label="3" value={3} />
+                    <Picker.Item label="4" value={4} />
+                    <Picker.Item label="5+" value={5} />
+                  </Picker>
+                  {/* <TextInput
                     style={styles.input}
                     keyboardType="numeric"
                     value={filters.maxBedrooms?.toString() || ''}
@@ -134,7 +210,7 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
                       updateFilter('maxBedrooms', value);
                     }}
                     placeholder="Any"
-                  />
+                  /> */}
                 </View>
               </View>
             </View>
@@ -147,7 +223,8 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
                 {/* Minimum bathrooms input */}
                 <View style={styles.inputContainer}>
                   <Text style={styles.inputLabel}>Min</Text>
-                  <TextInput
+
+                  {/* <TextInput
                     style={styles.input}
                     keyboardType="numeric"
                     value={filters.minBathrooms?.toString() || ''}
@@ -157,7 +234,7 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
                       updateFilter('minBathrooms', value);
                     }}
                     placeholder="0"
-                  />
+                  /> */}
                 </View>
 
                 <Text style={styles.rangeSeparator}>to</Text>
@@ -197,6 +274,11 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
               {/* Minimum Price Slider */}
               <View style={styles.sliderSection}>
                 <Text style={styles.sliderLabel}>Minimum Price</Text>
+                {minMaxWarning.name === 'minPrice' && minMaxWarning.message ? (
+                  <View style={{ backgroundColor: '#FFF9C4', padding: 8, borderRadius: 4, marginBottom: 4 }}>
+                    <Text style={{ color: '#B8860B' }}>{minMaxWarning.message}</Text>
+                  </View>
+                ) : null}
                 <Slider
                   style={styles.slider}
                   minimumValue={0}
@@ -224,6 +306,11 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
               {/* Maximum Price Slider */}
               <View style={styles.sliderSection}>
                 <Text style={styles.sliderLabel}>Maximum Price</Text>
+                {minMaxWarning.name === 'maxPrice' && minMaxWarning.message ? (
+                  <View style={{ backgroundColor: '#FFF9C4', padding: 8, borderRadius: 4, marginBottom: 4 }}>
+                    <Text style={{ color: '#B8860B' }}>{minMaxWarning.message}</Text>
+                  </View>
+                ) : null}
                 <Slider
                   style={styles.slider}
                   minimumValue={0}
@@ -267,11 +354,16 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
               {/* Minimum Square Feet Slider */}
               <View style={styles.sliderSection}>
                 <Text style={styles.sliderLabel}>Minimum Square Feet</Text>
+                {minMaxWarning.name === 'minSquareFeet' && minMaxWarning.message ? (
+                  <View style={{ backgroundColor: '#FFF9C4', padding: 8, borderRadius: 4, marginBottom: 4 }}>
+                    <Text style={{ color: '#B8860B' }}>{minMaxWarning.message}</Text>
+                  </View>
+                ) : null}
                 <Slider
                   style={styles.slider}
                   minimumValue={0}
                   maximumValue={10000}
-                  step={100}
+                  step={250}
                   value={filters.minSquareFeet || 0}
                   onValueChange={(value) => updateFilter('minSquareFeet', value)}
                   minimumTrackTintColor="#007AFF"
@@ -294,11 +386,16 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
               {/* Maximum Square Feet Slider */}
               <View style={styles.sliderSection}>
                 <Text style={styles.sliderLabel}>Maximum Square Feet</Text>
+                {minMaxWarning.name === 'maxSquareFeet' && minMaxWarning.message ? (
+                  <View style={{ backgroundColor: '#FFF9C4', padding: 8, borderRadius: 4, marginBottom: 4 }}>
+                    <Text style={{ color: '#B8860B' }}>{minMaxWarning.message}</Text>
+                  </View>
+                ) : null}
                 <Slider
                   style={styles.slider}
                   minimumValue={0}
                   maximumValue={10000}
-                  step={100}
+                  step={250}
                   value={filters.maxSquareFeet || 10000}
                   onValueChange={(value) => updateFilter('maxSquareFeet', value)}
                   minimumTrackTintColor="#007AFF"
@@ -337,6 +434,11 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
               {/* Minimum Lot Size Slider */}
               <View style={styles.sliderSection}>
                 <Text style={styles.sliderLabel}>Minimum Lot Size</Text>
+                {minMaxWarning.name === 'minLotSize' && minMaxWarning.message ? (
+                  <View style={{ backgroundColor: '#FFF9C4', padding: 8, borderRadius: 4, marginBottom: 4 }}>
+                    <Text style={{ color: '#B8860B' }}>{minMaxWarning.message}</Text>
+                  </View>
+                ) : null}
                 <Slider
                   style={styles.slider}
                   minimumValue={0}
@@ -364,6 +466,11 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
               {/* Maximum Lot Size Slider */}
               <View style={styles.sliderSection}>
                 <Text style={styles.sliderLabel}>Maximum Lot Size</Text>
+                {minMaxWarning.name === 'maxLotSize' && minMaxWarning.message ? (
+                  <View style={{ backgroundColor: '#FFF9C4', padding: 8, borderRadius: 4, marginBottom: 4 }}>
+                    <Text style={{ color: '#B8860B' }}>{minMaxWarning.message}</Text>
+                  </View>
+                ) : null}
                 <Slider
                   style={styles.slider}
                   minimumValue={0}
