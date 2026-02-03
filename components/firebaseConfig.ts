@@ -14,6 +14,7 @@ const firebaseConfig = {
   authDomain: 'leading-edge-realty-app.firebaseapp.com',
   projectId: 'leading-edge-realty-app',
   storageBucket: 'leading-edge-realty-app.appspot.com',
+//   storagebucket: 'leading-edge-realty-app.firebasestorage.app',
   messagingSenderId: '743617242604',
   appId: '1:743617242604:web:46756324a80c3781cfccc9',
 //   measurementId: "G-WNYQL0V2MK"

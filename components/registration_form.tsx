@@ -1,7 +1,8 @@
 import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import { useState } from 'react';
 import { Button, StyleSheet, Text, TextInput, View } from 'react-native';
-import { auth } from './firebaseConfig';
+import { auth, db } from './firebaseConfig';
 
 export default function RegisterForm() {
   const [email, setEmail] = useState('');
@@ -31,20 +32,45 @@ function formatPhoneNumber(value: string) {
   return formatted;
 }
 
-  const handleRegister = async () => {
-    setError('');
-    setSuccess('');
-    try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      setSuccess('Registration successful!');
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
+/**
+ * Handles user registration by creating a new user with email and password authentication,
+ * then saving additional user information to Firestore.
+ *
+ * Steps:
+ * 1. Registers the user using Firebase Auth.
+ * 2. Stores extra user details (first name, last name, phone number, email, creation date) in Firestore.
+ * 3. Sets success or error messages based on the operation outcome.
+ *
+ * @async
+ * @returns {Promise<void>} Resolves when registration and Firestore write are complete.
+ */
+const handleRegister = async () => {
+  setError('');
+  setSuccess('');
+  try {
+    // Step 1: Register user with Auth
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    // Step 2: Save extra info to Firestore
+    await setDoc(doc(db, 'users', user.uid), {
+      firstName,
+      lastName,
+      phoneNumber,
+      email: user.email,
+      createdAt: new Date()
+    });
+
+    setSuccess('Registration successful!');
+  } catch (err: any) {
+    setError(err.message);
+    console.log('Firebase registration error:', err);
+  }
+};
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Registe44r</Text>
+      <Text style={styles.title}>Register</Text>
       <TextInput 
         style={styles.input}
         placeholder="First Name"
