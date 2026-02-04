@@ -84,7 +84,7 @@ export default function LoginScreen() {
         <Button title={loading ? 'Please wait...' : 'Login'} onPress={handleLogin} disabled={loading} />
         {message ? <Text style={styles.message}>{message}</Text> : null}
         <Text style={{ marginTop: 16, textAlign: 'center' }}>
-          Don't have an account?{' '}
+          Don&apos;t have an account?{' '}
           <Text style={{ color: '#007AFF' }} onPress={() => router.push('/register')}>Register</Text></Text>
 
       </View>

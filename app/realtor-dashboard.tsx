@@ -1,7 +1,7 @@
 import { auth, db } from '@/components/firebaseConfig';
 import { useRouter } from 'expo-router';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import { Briefcase, Mail, Phone, User } from 'lucide-react-native';
+import { Briefcase, Mail, User } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
