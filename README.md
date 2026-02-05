@@ -42,9 +42,29 @@ To learn more about developing your project with Expo, look at the following res
 - [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
 - [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
 
-## Join the community
 
-Join our community of developers creating universal apps.
+## Backend & API Integrations
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### Vercel (Serverless Backend API)
+- The `/api` directory contains serverless functions deployed to [Vercel](https://vercel.com/).
+- Used for securely proxying third-party API requests and caching results.
+- Deploy manually with the Vercel CLI or connect a repo for automatic deployments.
+- Set environment variables (API keys, Firebase credentials) in the Vercel dashboard.
+
+### Firebase & Firestore
+- Firebase Authentication is used for user registration and login.
+- Firestore is used for storing user data, app settings, and caching property search results.
+- Firebase Admin SDK is used in Vercel serverless functions for secure backend access.
+- Store your Firebase credentials as environment variables (never in client code).
+
+### RapidAPI (Realtor API)
+- Property data is fetched from a Realtor API via [RapidAPI](https://rapidapi.com/).
+- API requests are proxied through Vercel serverless functions to keep your RapidAPI key secret.
+- Results can be cached in Firestore to reduce API calls and improve performance.
+
+#### Example API Flow
+1. App requests property data from `/api/proxy` endpoint (hosted on Vercel).
+2. The function checks Firestore for cached results.
+3. If not cached, it fetches from RapidAPI, stores the result in Firestore, and returns it to the app.
+
+---

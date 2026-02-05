@@ -150,7 +150,7 @@ export default function HomeScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  const [useMockData, setUseMockData] = useState(true); // Set to true to use fake data
+  const [useMockData, setUseMockData] = useState(false); // Set to true to use fake data
 
   useEffect(() => {
     (async () => {
@@ -184,45 +184,25 @@ export default function HomeScreen() {
       return;
     }
     try {
-      const response = await fetch(
-        `https://realtor.p.rapidapi.com/search/forsale/coordinates?latitude=${lat}&longitude=${lon}&radius=10&limit=50`,
-        {
-          method: "GET",
-          headers: {
-            "X-RapidAPI-Key":
-              "93c0958df4msh56736edc202a76fp1e073cjsn1d1cbbeb3239",
-            "X-RapidAPI-Host": "realtor16.p.rapidapi.com",
-          },
-        },
-      );
+      // Call your Vercel API endpoint instead of RapidAPI directly
+      const response = await fetch('https://realtor16.p.rapidapi.com/search/forsale?location=commerce%2C%20ga&search_radius=0');
+      const result = await response.json();
+      console.log("API Response:", result);
 
-      const data = await response.json();
-      console.log("API Response:", data);
-
-      // Parse the response based on the actual structure
-      if (data.properties && data.properties.length > 0) {
-        const properties = data.properties
-          .filter((property: any) => property.location?.address?.coordinate)
-          .map((property: any) => ({
-            id: property.property_id,
-            price: property.list_price,
-            address: property.location?.address?.line || 'Address not available',
-            beds: property.description?.beds,
-            baths: property.description?.baths,
-            latitude: property.location.address.coordinate.lat,
-            longitude: property.location.address.coordinate.lon,
-            status: property.status,
-            type: property.description?.type,
-            photos: property.photos || [], // Add this line
-            primaryPhoto: property.primary_photo?.href || null, // Add this line
-          }));
-        setHouses(properties);
-        setFilteredHouses(applyFilters(properties, activeFilters));
-        console.log(`Loaded ${properties.length} houses`);
+      // Use the already-formatted properties array from the backend
+      const data = result.data;
+      if (data && data.properties && data.properties.length > 0) {
+        setHouses(data.properties);
+        setFilteredHouses(applyFilters(data.properties, activeFilters));
+        console.log(`Loaded ${data.properties.length} houses from Vercel API`);
+      } else {
+        setHouses([]);
+        setFilteredHouses([]);
+        console.log('No properties found from Vercel API');
       }
     } catch (error) {
-      console.error("Error fetching houses:", error);
-      Alert.alert("Error", "Failed to fetch houses from API");
+      console.error("Error fetching houses from Vercel API:", error);
+      Alert.alert("Error", "Failed to fetch houses from Vercel API");
     } finally {
       setLoading(false);
     }
