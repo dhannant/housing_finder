@@ -2,6 +2,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { useState } from 'react';
 import { Button, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { auth, db } from './firebaseConfig';
 
 export default function RegisterForm() {
@@ -12,6 +13,7 @@ export default function RegisterForm() {
   const [firstName, setFirstName] = useState<string>('');
   const [lastName, setLastName] = useState<string>('');
   const [phoneNumber, setPhoneNumber] = useState<string>('');
+  const [role, setRole] = useState<'Client' | 'Realtor'>('Client');
 
 
 function formatPhoneNumber(value: string) {
@@ -38,7 +40,7 @@ function formatPhoneNumber(value: string) {
  *
  * Steps:
  * 1. Registers the user using Firebase Auth.
- * 2. Stores extra user details (first name, last name, phone number, email, creation date) in Firestore.
+ * 2. Stores extra user details (first name, last name, phone number, email, role, creation date) in Firestore.
  * 3. Sets success or error messages based on the operation outcome.
  *
  * @async
@@ -58,6 +60,7 @@ const handleRegister = async () => {
       lastName,
       phoneNumber,
       email: user.email,
+      role,
       createdAt: new Date()
     });
 
@@ -97,6 +100,17 @@ const handleRegister = async () => {
         keyboardType='phone-pad'
         maxLength={14}
       />
+      <View style={styles.pickerContainer}>
+        <Text style={styles.pickerLabel}>I am a:</Text>
+        <Picker
+          selectedValue={role}
+          style={styles.picker}
+          onValueChange={(itemValue) => setRole(itemValue as 'Client' | 'Realtor')}
+        >
+          <Picker.Item label="Client" value="Client" />
+          <Picker.Item label="Realtor" value="Realtor" />
+        </Picker>
+      </View>
       <TextInput
         style={styles.input}
         placeholder="Email"
@@ -156,5 +170,22 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     padding: 10,
     marginBottom: 12,
-  }
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 4,
+    marginBottom: 12,
+  },
+  pickerLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  picker: {
+    height: 50,
+  },
 });
