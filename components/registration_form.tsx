@@ -1,11 +1,12 @@
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { useState } from 'react';
+import { useRouter } from 'expo-router';
 import { Button, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { auth, db } from './firebaseConfig';
 
 export default function RegisterForm() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -13,7 +14,7 @@ export default function RegisterForm() {
   const [firstName, setFirstName] = useState<string>('');
   const [lastName, setLastName] = useState<string>('');
   const [phoneNumber, setPhoneNumber] = useState<string>('');
-  const [role, setRole] = useState<'Client' | 'Realtor'>('Client');
+  const [role, setRole] = useState<'Client' | 'Agent'>('Client'); // Will be set automatically
 
 
 function formatPhoneNumber(value: string) {
@@ -32,6 +33,13 @@ function formatPhoneNumber(value: string) {
     formatted += match[3] ? `-${match[3]}` : '';
   }
   return formatted;
+}
+
+// Helper to determine role based on email domain
+function getRoleFromEmail(email: string): 'Client' | 'Agent' {
+  // Accepts any domain like leadingedge*.com (e.g., leadingedgega.com, leadingedgeatl.com)
+  const match = email.trim().toLowerCase().match(/@leadingedge[a-z0-9-]*\.com$/);
+  return match ? 'Agent' : 'Client';
 }
 
 /**
@@ -54,17 +62,25 @@ const handleRegister = async () => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
-    // Step 2: Save extra info to Firestore
+    // Step 2: Determine role from email
+    const detectedRole = getRoleFromEmail(user.email || email);
+    setRole(detectedRole);
+
+    // Step 3: Save extra info to Firestore
     await setDoc(doc(db, 'users', user.uid), {
       firstName,
       lastName,
       phoneNumber,
       email: user.email,
-      role,
+      role: detectedRole,
       createdAt: new Date()
     });
 
     setSuccess('Registration successful!');
+    // Redirect to login after a short delay
+    setTimeout(() => {
+      router.replace('/login');
+    }, 1200);
   } catch (err: any) {
     setError(err.message);
     console.log('Firebase registration error:', err);
@@ -100,17 +116,7 @@ const handleRegister = async () => {
         keyboardType='phone-pad'
         maxLength={14}
       />
-      <View style={styles.pickerContainer}>
-        <Text style={styles.pickerLabel}>I am a:</Text>
-        <Picker
-          selectedValue={role}
-          style={styles.picker}
-          onValueChange={(itemValue) => setRole(itemValue as 'Client' | 'Realtor')}
-        >
-          <Picker.Item label="Client" value="Client" />
-          <Picker.Item label="Realtor" value="Realtor" />
-        </Picker>
-      </View>
+      {/* Role selection removed; now set automatically based on email */}
       <TextInput
         style={styles.input}
         placeholder="Email"
@@ -119,6 +125,9 @@ const handleRegister = async () => {
         autoCapitalize="none"
         keyboardType="email-address"
       />
+      <Text style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
+        Role will be set automatically based on your email domain.
+      </Text>
       <TextInput
         style={styles.input}
         placeholder="Password"

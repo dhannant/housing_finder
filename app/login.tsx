@@ -28,8 +28,8 @@ export default function LoginScreen() {
         setMessage('Login successful!');
         
         // Route based on user role
-        if (userRole === 'Realtor') {
-          router.push('/realtor-dashboard');
+        if (userRole === 'Agent') {
+          router.push('/agent-dashboard');
         } else {
           router.push('/client-dashboard');
         }

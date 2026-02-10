@@ -67,10 +67,7 @@ export default function ClientDashboard() {
       
       const realtorsList: Realtor[] = [];
       querySnapshot.forEach((doc) => {
-        realtorsList.push({
-          id: doc.id,
-          ...doc.data(),
-        } as Realtor);
+        realtorsList.push({id: doc.id,...doc.data(),} as Realtor);
       });
       
       setRealtors(realtorsList);
