@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { useState } from 'react';
 import { Alert, Button, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { auth } from '../components/firebaseConfig';
+import { auth, db } from '../components/firebaseConfig';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -15,9 +16,27 @@ export default function LoginScreen() {
     setMessage('');
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      setMessage('Login successful!');
-      // You can navigate to the home screen or dashboard here
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      // Fetch user role from Firestore
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const userRole = userData.role;
+        
+        setMessage('Login successful!');
+        
+        // Route based on user role
+        if (userRole === 'Realtor') {
+          router.push('/realtor-dashboard');
+        } else {
+          router.push('/client-dashboard');
+        }
+      } else {
+        setMessage('User data not found');
+        setLoading(false);
+      }
     } catch (err: any) {
       if (err.code === 'auth/user-not-found') {
         Alert.alert(
@@ -65,7 +84,7 @@ export default function LoginScreen() {
         <Button title={loading ? 'Please wait...' : 'Login'} onPress={handleLogin} disabled={loading} />
         {message ? <Text style={styles.message}>{message}</Text> : null}
         <Text style={{ marginTop: 16, textAlign: 'center' }}>
-          Don't have an account?{' '}
+          Don&apos;t have an account?{' '}
           <Text style={{ color: '#007AFF' }} onPress={() => router.push('/register')}>Register</Text></Text>
 
       </View>
