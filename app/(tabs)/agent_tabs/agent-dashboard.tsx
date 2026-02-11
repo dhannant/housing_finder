@@ -1,8 +1,9 @@
 import { auth, db } from "@/components/firebaseConfig";
+import { useAssignedClients, useUnassignedClients, useUserData } from "@/hooks/useFunctions";
+import { formatDate } from "@/utils/functions";
 import { useRouter } from "expo-router";
-import { addDoc, collection, getDocs, query, updateDoc, where } from "firebase/firestore";
+import { addDoc, collection, doc, updateDoc } from "firebase/firestore";
 import { Briefcase, Mail, User } from "lucide-react-native";
-import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface ClientRequest {
@@ -33,136 +34,28 @@ interface UserData {
 
 export default function RealtorDashboard() {
 	const router = useRouter();
-	const [loading, setLoading] = useState(true);
-	const [clientRequests, setClientRequests] = useState<ClientRequest[]>([]);
-	const [userData, setUserData] = useState<UserData | null>(null);
-	const [availableClients, setAvailableClients] = useState<AvailableClients[]>([]);
+	const user = auth.currentUser;
+	const { data: userData, loading: userLoading } = useUserData(user?.uid || null);
+	const { data: clientRequests = [], refetch: refetchClientRequests } = useAssignedClients(user?.uid || null);
+	const { data: availableClients = [], refetch: refetchAvailableClients } = useUnassignedClients();
 
-	// once the screen loads, useEffect will trigger and call the fetchUserData, fetchClientRequests, and fetchAvailableClients functions to populate the dashboard with the relevant data for the logged in agent
-	useEffect(() => {
-		fetchUserData();
-		fetchClientRequests();
-		fetchAvailableClients();
-	}, []);
-
-	// Fetches the current user's data from Firestore and sets it in state for use in the dashboard (e.g., displaying the agent's name in the welcome message).
-	const fetchUserData = async () => {
-		try {
-			const user = auth.currentUser;
-			if (user) {
-				const userDoc = await getDocs(query(collection(db, "users"), where("__name__", "==", user.uid)));
-				if (!userDoc.empty) {
-					const data = userDoc.docs[0].data() as UserData;
-					setUserData(data);
-				}
-			}
-		} catch (error) {
-			console.error("Error fetching user data:", error);
-		}
-	};
-
-	// Fetches client-agent requests from Firestore that are assigned to the logged-in agent and sets them in state to be displayed in the dashboard.
-	const fetchClientRequests = async () => {
-		try {
-			const user = auth.currentUser;
-			if (!user) return;
-
-			const requestsRef = collection(db, "clientRequests");
-			const q = query(requestsRef, where("realtorId", "==", user.uid));
-			const querySnapshot = await getDocs(q);
-
-			const requests: ClientRequest[] = [];
-			querySnapshot.forEach((doc) => {
-				requests.push({ id: doc.id, ...doc.data() } as ClientRequest);
-			});
-
-			// Sort by creation date, newest first
-			requests.sort((a, b) => {
-				const dateA = a.createdAt?.toDate?.() || new Date(0);
-				const dateB = b.createdAt?.toDate?.() || new Date(0);
-				return dateB.getTime() - dateA.getTime();
-			});
-
-			setClientRequests(requests);
-		} catch (error) {
-			console.error("Error fetching client requests:", error);
-			Alert.alert("Error", "Failed to load client requests");
-		} finally {
-			setLoading(false);
-		}
-	};
-
-	// Fetches clients from Firestore that do not currently have an assigned agent and sets them in state to be displayed in the "Available Clients" section of the dashboard.
-	const fetchAvailableClients = async () => {
-		try {
-			const user = auth.currentUser;
-			if (!user) return;
-
-			// Pull ALL users with a "client" role
-			const unassignedClientsRef = collection(db, "users");
-			const clientsQuery = query(unassignedClientsRef, where("role", "==", "Client"));
-			const clientsSnapshot = await getDocs(clientsQuery);
-
-			const availableClients: AvailableClients[] = [];
-
-			// For each client, check if they have an assigned realtor (checking the clientRequest collection)
-			for (const clientDoc of clientsSnapshot.docs) {
-				const clientData = clientDoc.data();
-				const clientId = clientDoc.id;
-
-				// check the clientRequests collection for this clientID
-				const requestsRef = collection(db, "clientRequests");
-				const requestsQuery = query(requestsRef, where("clientId", "==", clientId));
-				const requestsSnapshot = await getDocs(requestsQuery);
-
-				// If there are no requests OR requests are unassigned, add the clientID to the availableClients list
-				const hasAssignedAgent = requestsSnapshot.docs.some((reqDoc) => reqDoc.data().realtorId && reqDoc.data().realtorId !== "");
-				if (!hasAssignedAgent) {
-					availableClients.push({ id: clientId, ...clientData } as AvailableClients);
-				}
-			}
-
-			setAvailableClients(availableClients);
-
-			// Sort by creation date, newest first
-			availableClients.sort((a, b) => {
-				const dateA = a.createdAt?.toDate?.() || new Date(0);
-				const dateB = b.createdAt?.toDate?.() || new Date(0);
-				return dateB.getTime() - dateA.getTime();
-			});
-		} catch (error) {
-			console.error("Error fetching available clients:", error);
-			Alert.alert("Error", "Failed to load available clients");
-		} finally {
-			setLoading(false);
-		}
-	};
-
-	// Assign client to agent
-	//this function is called when the agent clicks the "Assign Client" button on an available client.
-	// It creates a new clientRequest document in Firestore to establish the relationship between the agent and client, then refreshes the lists to reflect the changes.
 	const handleAssignClient = async (clientId: string) => {
 		try {
-			const user = auth.currentUser;
 			if (!user) return;
-			// Create a new clientRequest document to assign the client to the agent
 			await addDoc(collection(db, "clientRequests"), { clientId, realtorId: user.uid, status: "Approved", createdAt: new Date() });
-			await fetchClientRequests();
-			await fetchAvailableClients();
+			await refetchClientRequests();
+			await refetchAvailableClients();
 		} catch (error) {
 			console.error("Error assigning client:", error);
 			Alert.alert("Error", "Failed to assign client");
 		}
 	};
 
-	// Release client handler (removes the agent - client relationship, making the client available again)
 	const handleReleaseClient = async (clientId: string) => {
 		try {
-			// Remove agent assignment from user document
 			const clientRef = doc(db, "users", clientId);
-			await updateDoc(clientRef, { agentId: "" }); // Or null, as your schema requires
-			setAvailableClients((prev) => prev.filter((client) => client.id !== clientId));
-			await fetchAvailableClients(); // Refresh the list to reflect changes
+			await updateDoc(clientRef, { agentId: "" });
+			await refetchAvailableClients();
 			Alert.alert("Client released!");
 		} catch (error) {
 			Alert.alert("Error", "Failed to release client");
@@ -186,13 +79,7 @@ export default function RealtorDashboard() {
 		}
 	};
 
-	const formatDate = (timestamp: any) => {
-		if (!timestamp) return "Unknown date";
-		const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-		return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
-	};
-
-	if (loading) {
+	if (userLoading) {
 		return (
 			<SafeAreaView style={styles.container}>
 				<View style={styles.loadingContainer}>
@@ -231,7 +118,7 @@ export default function RealtorDashboard() {
 				contentContainerStyle={styles.scrollContent}>
 				<View style={styles.statsCard}>
 					<Text style={styles.statsTitle}>Client Requests</Text>
-					<Text style={styles.statsNumber}>{clientRequests.length}</Text>
+					<Text style={styles.statsNumber}>{clientRequests?.length || 0}</Text>
 					<Text style={styles.statsSubtitle}>Total requests received</Text>
 				</View>
 
@@ -240,7 +127,7 @@ export default function RealtorDashboard() {
 					<Text style={styles.sectionDescription}>These are clients who have requested to work with you.</Text>
 				</View>
 
-				{clientRequests.length === 0 ? (
+				{clientRequests?.length === 0 ? (
 					<View style={styles.emptyState}>
 						<User
 							color="#CCCCCC"
@@ -251,7 +138,7 @@ export default function RealtorDashboard() {
 					</View>
 				) : (
 					<View style={styles.requestsContainer}>
-						{clientRequests.map((request) => (
+						{clientRequests?.map((request: ClientRequest) => (
 							<View
 								key={request.id}
 								style={styles.requestCard}>
@@ -272,29 +159,27 @@ export default function RealtorDashboard() {
 								</View>
 
 								<View style={styles.requestDetails}>
-									<View style={styles.detailRow}>
+									<TouchableOpacity
+										style={styles.detailRow}
+										onPress={() => handleEmail(request.clientEmail)}>
 										<Mail
 											color="#666666"
 											size={16}
 										/>
 										<Text style={styles.detailText}>{request.clientEmail}</Text>
-									</View>
+									</TouchableOpacity>
 								</View>
 
 								<View style={styles.requestActions}>
 									<TouchableOpacity
 										style={styles.actionButton}
-										onPress={() => handleEmail(request.clientEmail)}>
-										<Mail
-											color="#2C5F2D"
-											size={18}
-										/>
-										<Text style={styles.actionButtonText}>Email</Text>
+										onPress={() => handleAssignClient(request.clientId)}>
+										<Text style={styles.actionButtonText}>Approve Request</Text>
 									</TouchableOpacity>
 
 									<TouchableOpacity
 										style={styles.actionButton}
-										onPress={() => handleReleaseClient(request.id)}>
+										onPress={() => handleReleaseClient(request.clientId)}>
 										<Text style={styles.actionButtonText}>Release Client</Text>
 									</TouchableOpacity>
 								</View>
@@ -310,7 +195,7 @@ export default function RealtorDashboard() {
 					</Text>
 				</View>
 
-				{availableClients.length === 0 ? (
+				{availableClients?.length === 0 ? (
 					<View style={styles.emptyState}>
 						<User
 							color="#CCCCCC"
@@ -321,7 +206,7 @@ export default function RealtorDashboard() {
 					</View>
 				) : (
 					<View style={styles.requestsContainer}>
-						{availableClients.map((client) => (
+						{availableClients?.map((client: AvailableClients) => (
 							<View
 								key={client.id}
 								style={styles.requestCard}>
@@ -433,15 +318,7 @@ const styles = StyleSheet.create({
 		justifyContent: "space-between",
 		alignItems: "center",
 	},
-	actionButton: {
-		flexDirection: "row",
-		alignItems: "center",
-		paddingVertical: 8,
-		paddingHorizontal: 16,
-		borderRadius: 8,
-		backgroundColor: "#F0F7F0",
-		marginRight: 12,
-	},
+	actionButton: { flexDirection: "row", alignItems: "center", paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "#F0F7F0" },
 	actionButtonText: { fontSize: 14, fontWeight: "600", color: "#2C5F2D", marginLeft: 6 },
 	navigateButton: {
 		backgroundColor: "#007AFF",

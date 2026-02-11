@@ -1,8 +1,9 @@
 import { auth, db } from "@/components/firebaseConfig";
+import { useAssignedRealtor, useRealtors, useUserData } from "@/hooks/useFunctions";
 import { useRouter } from "expo-router";
-import { addDoc, collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import { addDoc, collection } from "firebase/firestore";
 import { UserCircle } from "lucide-react-native";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface Realtor {
@@ -23,69 +24,25 @@ interface UserData {
 
 export default function ClientDashboard() {
 	const router = useRouter();
-	const [loading, setLoading] = useState(true);
-	const [realtors, setRealtors] = useState<Realtor[]>([]);
-	const [selectedRealtorId, setSelectedRealtorId] = useState<string | null>(null);
-	const [userData, setUserData] = useState<UserData | null>(null);
+	const user = auth.currentUser;
+	const { data: userData } = useUserData(user?.uid || null);
+	const { data: realtors = [], loading } = useRealtors();
+	const { data: assignedRealtorId } = useAssignedRealtor(user?.uid || null);
 	const [requesting, setRequesting] = useState(false);
 
-	useEffect(() => {
-		fetchUserData();
-		fetchRealtors();
-	}, []);
-
-	const fetchUserData = async () => {
-		try {
-			const user = auth.currentUser;
-			if (user) {
-				const userDoc = await getDoc(doc(db, "users", user.uid));
-				if (userDoc.exists()) {
-					const data = userDoc.data() as UserData;
-					setUserData(data);
-					setSelectedRealtorId(data.selectedRealtorId || null);
-				}
-			}
-		} catch (error) {
-			console.error("Error fetching user data:", error);
-		}
-	};
-
-	const fetchRealtors = async () => {
-		try {
-			const usersRef = collection(db, "users");
-			const q = query(usersRef, where("role", "==", "Agent"));
-			const querySnapshot = await getDocs(q);
-
-			const realtorsList: Realtor[] = [];
-			querySnapshot.forEach((doc) => {
-				realtorsList.push({ id: doc.id, ...doc.data() } as Realtor);
-			});
-
-			setRealtors(realtorsList);
-		} catch (error) {
-			console.error("Error fetching realtors:", error);
-			Alert.alert("Error", "Failed to load realtors");
-		} finally {
-			setLoading(false);
-		}
-	};
-
-	/**
-	 * Allows client to request a specific realtor.  This creates a client request in firestore (clientRequests collection) that the realtor
-	 * can the view and accept.
-	 * @param {string} realtorId - The ID of the realtor being requested.
-	 * @returns {Promise<void>} Resolves when the request is sent and state is updated.
-	 */
 	const handleSelectRealtor = async (realtorId: string) => {
+		if (assignedRealtorId) {
+			Alert.alert("Already Requested", "You already have an active request with a realtor");
+			return;
+		}
+
 		setRequesting(true);
 		try {
-			const user = auth.currentUser;
 			if (!user) {
 				Alert.alert("Error", "You must be logged in");
 				return;
 			}
 
-			// Create a client request for the realtor
 			await addDoc(collection(db, "clientRequests"), {
 				clientId: user.uid,
 				clientName: `${userData?.firstName} ${userData?.lastName}`,
@@ -95,7 +52,6 @@ export default function ClientDashboard() {
 				createdAt: new Date(),
 			});
 
-			setSelectedRealtorId(realtorId);
 			Alert.alert("Success", "Your request has been sent to the realtor!");
 		} catch (error) {
 			console.error("Error selecting realtor:", error);
@@ -105,9 +61,6 @@ export default function ClientDashboard() {
 		}
 	};
 
-	/**
-	 * Logs the user out by signing out from Firebase Auth and redirecting to the home screen.
-	 */
 	const handleLogout = async () => {
 		try {
 			await auth.signOut();
@@ -167,7 +120,7 @@ export default function ClientDashboard() {
 					</View>
 				) : (
 					<View style={styles.realtorsContainer}>
-						{realtors.map((realtor) => (
+						{realtors.map((realtor: Realtor) => (
 							<View
 								key={realtor.id}
 								style={styles.realtorCard}>
@@ -187,18 +140,18 @@ export default function ClientDashboard() {
 									</View>
 								</View>
 
-								<TouchableOpacity
-									style={[
-										styles.selectButton,
-										selectedRealtorId === realtor.id && styles.selectedButton,
-										requesting && styles.disabledButton,
-									]}
-									onPress={() => handleSelectRealtor(realtor.id)}
-									disabled={requesting || selectedRealtorId === realtor.id}>
-									<Text style={[styles.selectButtonText, selectedRealtorId === realtor.id && styles.selectedButtonText]}>
-										{selectedRealtorId === realtor.id ? "Request Sent" : "Select Realtor"}
-									</Text>
-								</TouchableOpacity>
+								{!assignedRealtorId ? (
+									<TouchableOpacity
+										style={[styles.selectButton, requesting && styles.disabledButton]}
+										onPress={() => handleSelectRealtor(realtor.id)}
+										disabled={requesting}>
+										<Text style={styles.selectButtonText}>Select Realtor</Text>
+									</TouchableOpacity>
+								) : (
+									<View style={styles.requestSentBadge}>
+										<Text style={styles.requestSentText}>Request Sent</Text>
+									</View>
+								)}
 							</View>
 						))}
 					</View>
@@ -261,10 +214,10 @@ const styles = StyleSheet.create({
 	realtorEmail: { fontSize: 14, color: "#666666", marginBottom: 2 },
 	realtorPhone: { fontSize: 14, color: "#666666" },
 	selectButton: { backgroundColor: "#2C5F2D", paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8, alignItems: "center" },
-	selectedButton: { backgroundColor: "#4CAF50" },
 	disabledButton: { opacity: 0.6 },
 	selectButtonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" },
-	selectedButtonText: { color: "#FFFFFF" },
+	requestSentBadge: { backgroundColor: "#4CAF50", paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8, alignItems: "center" },
+	requestSentText: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" },
 	navigateButton: {
 		backgroundColor: "#007AFF",
 		marginHorizontal: 16,
