@@ -24,11 +24,11 @@ export default function RootLayout() {
 					options={{ title: "Register" }}
 				/>
 				<Stack.Screen
-					name="(tabs)/client_tabs/client-dashboard"
+					name="client-dashboard"
 					options={{ title: "Client Dashboard", headerShown: false }}
 				/>
 				<Stack.Screen
-					name="(tabs)/agent_tabs/agent-dashboard"
+					name="agent-dashboard"
 					options={{ title: "Agent Dashboard", headerShown: false }}
 				/>
 				<Stack.Screen

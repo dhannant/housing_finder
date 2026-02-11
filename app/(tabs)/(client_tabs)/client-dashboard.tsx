@@ -1,33 +1,18 @@
 import { auth, db } from "@/components/firebaseConfig";
 import { useAssignedRealtor, useRealtors, useUserData } from "@/hooks/useFunctions";
+import { RealtorData } from "@/utils/interfaces";
 import { useRouter } from "expo-router";
 import { addDoc, collection } from "firebase/firestore";
 import { UserCircle } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-interface Realtor {
-	id: string;
-	firstName: string;
-	lastName: string;
-	email: string;
-	phoneNumber?: string;
-}
-
-interface UserData {
-	firstName: string;
-	lastName: string;
-	email: string;
-	role: string;
-	selectedRealtorId?: string;
-}
-
 export default function ClientDashboard() {
 	const router = useRouter();
 	const user = auth.currentUser;
 	const { data: userData } = useUserData(user?.uid || null);
 	const { data: realtors = [], loading } = useRealtors();
-	const { data: assignedRealtorId } = useAssignedRealtor(user?.uid || null);
+	const { data: assignedRealtorId, refetch: refetchAssignedRealtor } = useAssignedRealtor(user?.uid || null);
 	const [requesting, setRequesting] = useState(false);
 
 	const handleSelectRealtor = async (realtorId: string) => {
@@ -35,23 +20,14 @@ export default function ClientDashboard() {
 			Alert.alert("Already Requested", "You already have an active request with a realtor");
 			return;
 		}
-
 		setRequesting(true);
 		try {
 			if (!user) {
 				Alert.alert("Error", "You must be logged in");
 				return;
 			}
-
-			await addDoc(collection(db, "clientRequests"), {
-				clientId: user.uid,
-				clientName: `${userData?.firstName} ${userData?.lastName}`,
-				clientEmail: userData?.email,
-				realtorId: realtorId,
-				status: "pending",
-				createdAt: new Date(),
-			});
-
+			await addDoc(collection(db, "clientRequests"), { clientId: user.uid, realtorId: realtorId, status: "Pending", createdAt: new Date() });
+			await refetchAssignedRealtor();
 			Alert.alert("Success", "Your request has been sent to the realtor!");
 		} catch (error) {
 			console.error("Error selecting realtor:", error);
@@ -114,13 +90,13 @@ export default function ClientDashboard() {
 					</Text>
 				</View>
 
-				{realtors.length === 0 ? (
+				{!realtors || realtors.length === 0 ? (
 					<View style={styles.emptyState}>
 						<Text style={styles.emptyStateText}>No realtors available at the moment.</Text>
 					</View>
 				) : (
 					<View style={styles.realtorsContainer}>
-						{realtors.map((realtor: Realtor) => (
+						{realtors.map((realtor: RealtorData) => (
 							<View
 								key={realtor.id}
 								style={styles.realtorCard}>
