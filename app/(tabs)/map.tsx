@@ -130,12 +130,10 @@ const MOCK_HOUSES = [
   },
 ];
 
-
-
 export default function HomeScreen() {
-    // Filter modal state
-    const [filterVisible, setFilterVisible] = useState(false);
-    const [activeFilters, setActiveFilters] = useState<PropertyFilterOptions>({});
+  // Filter modal state
+  const [filterVisible, setFilterVisible] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<PropertyFilterOptions>({});
   const params = useLocalSearchParams();
   const userType = params.userType || 'buyer';
   
@@ -150,7 +148,7 @@ export default function HomeScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  const [useMockData, setUseMockData] = useState(false); // Set to true to use fake data
+  const [useMockData, setUseMockData] = useState(true); // Set to true to use fake data
 
   useEffect(() => {
     (async () => {

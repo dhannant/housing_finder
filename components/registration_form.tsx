@@ -1,7 +1,7 @@
+import { useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { useState } from 'react';
-import { useRouter } from 'expo-router';
 import { Button, StyleSheet, Text, TextInput, View } from 'react-native';
 import { auth, db } from './firebaseConfig';
 
@@ -112,7 +112,7 @@ const handleRegister = async () => {
         // here we need to convert number to string for TextInput
         value={phoneNumber?.toString() || ''}
         // but unlike email and password, we convert string back to number
-        onChangeText={text => setPhoneNumber(formatPhoneNumber(text))}
+        onChangeText={(text: string) => setPhoneNumber(formatPhoneNumber(text))}
         keyboardType='phone-pad'
         maxLength={14}
       />

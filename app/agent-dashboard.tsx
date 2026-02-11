@@ -1,6 +1,6 @@
 import { auth, db } from '@/components/firebaseConfig';
 import { useRouter } from 'expo-router';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import { Briefcase, Mail, User } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import {
@@ -25,6 +25,15 @@ interface ClientRequest {
   createdAt: any;
 }
 
+interface AvailableClients {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  createdAt: any;
+}
+
 interface UserData {
   firstName: string;
   lastName: string;
@@ -37,12 +46,16 @@ export default function RealtorDashboard() {
   const [loading, setLoading] = useState(true);
   const [clientRequests, setClientRequests] = useState<ClientRequest[]>([]);
   const [userData, setUserData] = useState<UserData | null>(null);
+  const [availableClients, setAvailableClients] = useState<AvailableClients[]>([]);
 
+  // once the screen loads, useEffect will trigger and call the fetchUserData, fetchClientRequests, and fetchAvailableClients functions to populate the dashboard with the relevant data for the logged in agent
   useEffect(() => {
     fetchUserData();
     fetchClientRequests();
+    fetchAvailableClients();
   }, []);
 
+  // Fetches the current user's data from Firestore and sets it in state for use in the dashboard (e.g., displaying the agent's name in the welcome message).
   const fetchUserData = async () => {
     try {
       const user = auth.currentUser;
@@ -60,6 +73,7 @@ export default function RealtorDashboard() {
     }
   };
 
+  // Fetches client-agent requests from Firestore that are assigned to the logged-in agent and sets them in state to be displayed in the dashboard.
   const fetchClientRequests = async () => {
     try {
       const user = auth.currentUser;
@@ -90,6 +104,69 @@ export default function RealtorDashboard() {
       Alert.alert('Error', 'Failed to load client requests');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetches clients from Firestore that do not currently have an assigned agent and sets them in state to be displayed in the "Available Clients" section of the dashboard.
+  const fetchAvailableClients = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      // Pull ALL users with a "client" role
+      const unassignedClientsRef = collection(db, 'users');
+      const clientsQuery = query(unassignedClientsRef, where('role', '==', 'Client'));
+      const clientsSnapshot = await getDocs(clientsQuery);
+
+      const availableClients: AvailableClients[] = [];
+
+      // For each client, check if they have an assigned realtor (checking the clientRequest collection)
+      for (const clientDoc of clientsSnapshot.docs) {
+        const clientData = clientDoc.data();
+        const clientId = clientDoc.id;
+
+        // check the clientRequests collection for this clientID
+        const requestsRef = collection(db, 'clientRequests');
+        const requestsQuery = query(requestsRef, where('clientId', '==', clientId));
+        const requestsSnapshot = await getDocs(requestsQuery);
+
+        // If there are no requests OR requests are unassigned, add the clientID to the availableClients list
+        const hasAssignedAgent = requestsSnapshot.docs.some((reqDoc) => reqDoc.data().realtorId && reqDoc.data().realtorId !== '');
+        if (!hasAssignedAgent) {
+          availableClients.push({
+            id: clientId,
+            ...clientData,
+          } as AvailableClients);
+        }
+      }
+
+      setAvailableClients(availableClients);
+      
+      // Sort by creation date, newest first
+      availableClients.sort((a, b) => {
+        const dateA = a.createdAt?.toDate?.() || new Date(0);
+        const dateB = b.createdAt?.toDate?.() || new Date(0);
+        return dateB.getTime() - dateA.getTime();
+      });
+    } catch (error) {
+      console.error('Error fetching available clients:', error);
+      Alert.alert('Error', 'Failed to load available clients');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Release client handler (removes the agent - client relationship, making the client available again)
+  const handleReleaseClient = async (clientId: string) => {
+    try {
+      // Remove agent assignment from user document
+      const clientRef = doc(db, 'users', clientId);
+      await updateDoc(clientRef, { agentId: '' }); // Or null, as your schema requires
+      setAvailableClients(prev => prev.filter(client => client.id !== clientId));
+      await fetchAvailableClients(); // Refresh the list to reflect changes
+      Alert.alert('Client released!');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to release client');
     }
   };
 
@@ -139,9 +216,9 @@ export default function RealtorDashboard() {
         <View style={styles.headerContent}>
           <Briefcase color="#2C5F2D" size={32} />
           <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>Realtor Dashboard</Text>
+            <Text style={styles.headerTitle}>Agent Dashboard</Text>
             <Text style={styles.headerSubtitle}>
-              Welcome, {userData?.firstName || 'Realtor'}!
+              Welcome, {userData?.firstName || 'Agent'}!
             </Text>
           </View>
         </View>
@@ -190,8 +267,7 @@ export default function RealtorDashboard() {
                     style={[
                       styles.statusBadge,
                       request.status === 'pending' && styles.pendingBadge,
-                    ]}
-                  >
+                    ]}>
                     <Text style={styles.statusText}>
                       {request.status.toUpperCase()}
                     </Text>
@@ -208,8 +284,7 @@ export default function RealtorDashboard() {
                 <View style={styles.requestActions}>
                   <TouchableOpacity
                     style={styles.actionButton}
-                    onPress={() => handleEmail(request.clientEmail)}
-                  >
+                    onPress={() => handleEmail(request.clientEmail)}>
                     <Mail color="#2C5F2D" size={18} />
                     <Text style={styles.actionButtonText}>Email</Text>
                   </TouchableOpacity>
@@ -219,10 +294,57 @@ export default function RealtorDashboard() {
           </View>
         )}
 
+        <View style = {styles.section}>
+          <Text style={styles.sectionTitle}>Available Clients</Text>
+          <Text style={styles.sectionDescription}>
+            New clients below do not currently have an agent assigned. Reach out to them to offer your services!
+          </Text>
+        </View>
+
+        {availableClients.length === 0 ? (
+          <View style={styles.emptyState}>
+            <User color="#CCCCCC" size={48} />
+            <Text style={styles.emptyStateText}>No available clients.</Text>
+            <Text style={styles.emptyStateSubtext}>
+              Clients will appear here when they are not assigned to an agent.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.requestsContainer}>
+            {availableClients.map((client) => (
+              <View key={client.id} style={styles.requestCard}>
+                <View style={styles.requestHeader}>
+                  <View style={styles.clientAvatar}>
+                    <User color="#FFFFFF" size={24} />
+                  </View>
+                  <View style={styles.requestInfo}>
+                    <Text style={styles.clientName}>{client.firstName} {client.lastName}</Text>
+                    <Text style={styles.requestDate}>
+                      {formatDate(client.createdAt)}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.requestDetails}>
+                  <View style={styles.detailRow}>
+                    <Mail color="#666666" size={16} />
+                    <Text style={styles.detailText}>{client.email}</Text>
+                  </View>
+                </View>
+                <View style={styles.requestActions}>
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleReleaseClient(client.id)}>
+                    <Text style={styles.actionButtonText}>Release Client</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
         <TouchableOpacity
           style={styles.navigateButton}
-          onPress={() => router.push('/(tabs)/map')}
-        >
+          onPress={() => router.push('/(tabs)/map')}>
           <Text style={styles.navigateButtonText}>View Properties</Text>
         </TouchableOpacity>
       </ScrollView>

@@ -62,7 +62,7 @@ export default function ClientDashboard() {
   const fetchRealtors = async () => {
     try {
       const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('role', '==', 'Realtor'));
+      const q = query(usersRef, where('role', '==', 'Agent'));
       const querySnapshot = await getDocs(q);
       
       const realtorsList: Realtor[] = [];
