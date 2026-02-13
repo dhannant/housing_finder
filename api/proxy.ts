@@ -81,6 +81,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 	// Parse properties from response (handles multiple possible response shapes)
 	const rawResults =
+		(apiData?.data?.results && Array.isArray(apiData.data.results) && apiData.data.results) ||  // RealtyUS actual path
 		(apiData?.properties && Array.isArray(apiData.properties) && apiData.properties) ||
 		(apiData?.data?.home_search?.results && Array.isArray(apiData.data.home_search.results) && apiData.data.home_search.results) ||
 		(apiData?.data?.home_search?.properties && Array.isArray(apiData.data.home_search.properties) && apiData.data.home_search.properties) ||
