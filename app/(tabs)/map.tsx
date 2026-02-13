@@ -148,7 +148,7 @@ export default function HomeScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  const [useMockData, setUseMockData] = useState(true); // Set to true to use fake data
+  const [useMockData, setUseMockData] = useState(false); // Set to true to use fake data
 
   useEffect(() => {
     (async () => {
@@ -183,13 +183,18 @@ export default function HomeScreen() {
     }
     try {
       // Call your Vercel API endpoint instead of RapidAPI directly
-      const response = await fetch('https://realtor16.p.rapidapi.com/search/forsale?location=commerce%2C%20ga&search_radius=0');
+      const response = await fetch("/api/proxy?search=commerce%2C%20ga");
       const result = await response.json();
       console.log("API Response:", result);
 
       // Use the already-formatted properties array from the backend
       const data = result.data;
       if (data && data.properties && data.properties.length > 0) {
+        // Log detailed structure for reference
+        console.log(`Total properties: ${data.properties.length}`);
+        console.log("Sample property (first item):", JSON.stringify(data.properties[0], null, 2));
+        console.log("Response keys:", Object.keys(data));
+        
         setHouses(data.properties);
         setFilteredHouses(applyFilters(data.properties, activeFilters));
         console.log(`Loaded ${data.properties.length} houses from Vercel API`);

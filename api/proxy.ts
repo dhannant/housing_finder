@@ -1,91 +1,178 @@
-// api/proxy.ts
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { cert, getApps, initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+// import { createHash } from "crypto";
+// import { cert, getApps, initializeApp } from "firebase-admin/app";
+// import { getFirestore } from "firebase-admin/firestore";
 
-// Use dynamic import for node-fetch to support CommonJS (Vercel default)
-// const fetch = (...args) => import('node-fetch').then(mod => mod.default(...args));
-const fetch: any = (...args) => import('node-fetch').then(mod => mod.default(...args));
-// const fetch: typeof import('node-fetch') = (...args: [RequestInfo, RequestInit?]) =>
-//   import('node-fetch').then(mod => mod.default(...args));
+const fetch: any = (...args: any[]) => import("node-fetch").then((mod: any) => mod.default(...args));
 
 // Initialize Firebase Admin SDK (only once)
-if (!getApps().length) {
-  initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-  });
-}
-const db = getFirestore();
+// if (!getApps().length) {
+// 	initializeApp({
+// 		credential: cert({
+// 			projectId: process.env.FIREBASE_PROJECT_ID,
+// 			clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+// 			privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+// 		}),
+// 	});
+// }
+// const db = getFirestore();
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { search } = req.query;
-  if (!search) {
-    return res.status(400).json({ error: 'Missing search parameter' });
-  }
+	// Parse location parameter (supports both ?search= and ?location=)
+	const searchParam = typeof req.query.search === "string" ? req.query.search.trim() : "";
+	const locationParam = typeof req.query.location === "string" ? req.query.location.trim() : "";
+	const locationInput = locationParam || searchParam;
+	if (!locationInput) {
+		return res.status(400).json({ error: "Missing search or location parameter" });
+	}
 
-  // 1. Check Firestore cache
-  const cacheRef = db.collection('properties_cache').doc(String(search));
-  const cacheDoc = await cacheRef.get();
-  if (cacheDoc.exists) {
-    console.log('Returning data from Firestore cache');
-  }
+	// Auto-format location string (e.g., "commerce, ga" -> "city:commerce,GA")
+	const locationValue = locationInput.includes(":") ? locationInput : `city:${locationInput}`;
+	const params = new URLSearchParams({ location: locationValue });
 
-  console.log('Firestore cache is empty');
-  // 2. Fetch from RapidAPI (currently hardcoded for Commerce, GA)
-  // In production, update to use search/location parameter dynamically
-  const rapidApiUrl = 'https://realtor16.p.rapidapi.com/search/forsale?location=commerce%2C%20ga&search_radius=0';
-  console.log('RapidAPI request URL:', rapidApiUrl);
-  console.log('RapidAPI request headers:', {
-    'X-RapidAPI-Key': process.env.RAPIDAPI_KEY,
-    'X-RapidAPI-Host': 'realtor16.p.rapidapi.com',
-  });
-  const rapidApiRes = await fetch(rapidApiUrl, {
-    headers: {
-      'X-RapidAPI-Key': process.env.RAPIDAPI_KEY!,
-      'X-RapidAPI-Host': 'realtor16.p.rapidapi.com',
-    },
-  });
+	// Whitelist all supported realty-us API parameters
+	const allowedParams = [
+		"zoneId",
+		"resultsPerPage",
+		"page",
+		"sortBy",
+		"expandSearchArea",
+		"propertyType",
+		"prices",
+		"bedrooms",
+		"bathrooms",
+		"homeSize",
+		"lotSize",
+		"homeAge",
+		"hidePendingContingent",
+		"newConstructionOnly",
+		"hideHomesNotYetBuilt",
+		"foreclosuresOnly",
+		"hideForeclosures",
+		"seniorCommunityOnly",
+		"openHousesOnly",
+		"priceRecentlyReducedOnly",
+		"virtualToursOnly",
+		"threeDtoursOnly",
+		"maxHoaFeesPerMonth",
+		"showHomesWhereHoaIsNotKnown",
+		"daysOnRealtor",
+		"garageParking",
+		"heatingCooling",
+		"homeFeatures",
+		"lotFeatures",
+		"communityFeatures",
+		"nycAmenities",
+		"minListDate",
+		"maxListDate",
+	];
 
-  if (!rapidApiRes.ok) {
-    const errorText = await rapidApiRes.text();
-    console.error('RapidAPI request failed:', errorText);
-    return res.status(rapidApiRes.status).json({ error: 'RapidAPI request failed', details: errorText });
-  }
+	// Add any additional parameters from request query
+	allowedParams.forEach((key) => {
+		const value = req.query[key];
+		if (typeof value === "string" && value.trim() !== "") {
+			params.set(key, value.trim());
+		} else if (Array.isArray(value) && value[0]?.trim()) {
+			params.set(key, value[0].trim());
+		}
+	});
 
-  const apiData = await rapidApiRes.json();
-  console.log('Raw RapidAPI response:', JSON.stringify(apiData, null, 2));
+	// // Generate cache key: hash the query string for short doc IDs
+	// const cacheKey = params.toString();
+	// const queryHash = createHash("md5").update(cacheKey).digest("hex").substring(0, 16);
+	// const pageNum = parseInt(String(req.query.page)) || 1;
 
-  // Try to parse both properties[] and agents[] for debugging
-  let properties: any[] = [];
-  if (apiData.properties && Array.isArray(apiData.properties)) {
-    properties = apiData.properties.map((property: any) => ({
-      id: property.property_id,
-      price: property.list_price,
-      address: property.location?.address?.line || 'Address not available',
-      beds: property.description?.beds,
-      baths: property.description?.baths,
-      latitude: property.location?.address?.coordinate?.lat,
-      longitude: property.location?.address?.coordinate?.lon,
-      status: property.status,
-      type: property.description?.type,
-      photos: property.photos || [],
-      primaryPhoto: property.primary_photo?.href || null,
-    }));
-    console.log('Parsed properties:', properties.length);
-  } else if (apiData.data?.search_agents?.agents && Array.isArray(apiData.data.search_agents.agents)) {
-    // If the response is for agents, log the count and a sample
-    console.log('Parsed agents:', apiData.data.search_agents.agents.length);
-    console.log('Sample agent:', JSON.stringify(apiData.data.search_agents.agents[0], null, 2));
-  } else {
-    console.warn('No properties or agents found in API response.');
-  }
+	// // Check Firestore cache first: properties_cache/{hash}/pages/page_{pageNum}
+	// const parentRef = db.collection("properties_cache").doc(queryHash);
+	// const pageRef = parentRef.collection("pages").doc(`page_${pageNum}`);
 
-  // Store the formatted data in Firestore
-  await cacheRef.set({ properties });
+	// const cachedPage = await pageRef.get();
+	// if (cachedPage.exists) {
+	// 	console.log(`[properties] Cache hit for query ${queryHash} page ${pageNum}`);
+	// 	return res.status(200).json({ source: "cache", data: cachedPage.data() });
+	// }
 
-  return res.status(200).json({ source: 'api', data: { properties } });
+	// Fetch from RealtyUS API
+	const rapidApiUrl = `https://realty-us.p.rapidapi.com/properties/search-buy?${params.toString()}`;
+
+	const rapidApiRes = await fetch(rapidApiUrl, {
+		headers: {
+			"X-RapidAPI-Key": process.env.RAPIDAPI_KEY!,
+			"X-RapidAPI-Host": "realty-us.p.rapidapi.com",
+		},
+	});
+
+	if (!rapidApiRes.ok) {
+		const errorText = await rapidApiRes.text();
+		return res.status(rapidApiRes.status).json({ error: "RapidAPI request failed", details: errorText });
+	}
+
+	const apiData = await rapidApiRes.json();
+
+	// Parse properties from response (handles multiple possible response shapes)
+	const rawResults =
+		(apiData?.properties && Array.isArray(apiData.properties) && apiData.properties) ||
+		(apiData?.data?.home_search?.results && Array.isArray(apiData.data.home_search.results) && apiData.data.home_search.results) ||
+		(apiData?.data?.home_search?.properties && Array.isArray(apiData.data.home_search.properties) && apiData.data.home_search.properties) ||
+		[];
+
+	// Normalize property data to consistent format
+	const properties = rawResults.map((property: any) => {
+		const latitude =
+			property.location?.address?.coordinate?.lat ??
+			property.location?.coordinates?.lat ??
+			property.location?.latitude ??
+			property.latitude ??
+			null;
+		const longitude =
+			property.location?.address?.coordinate?.lon ??
+			property.location?.coordinates?.lon ??
+			property.location?.longitude ??
+			property.longitude ??
+			null;
+
+		return {
+			id: property.property_id ?? property.id ?? property.listing_id ?? "",
+			price: property.list_price ?? property.price ?? property.price?.list_price ?? property.price?.value ?? null,
+			address:
+				property.location?.address?.line ||
+				property.address?.line ||
+				property.location?.address ||
+				property.address ||
+				"Address not available",
+			beds: property.description?.beds ?? property.beds ?? null,
+			baths: property.description?.baths ?? property.baths ?? null,
+			latitude,
+			longitude,
+			status: property.status ?? property.status_code ?? null,
+			type: property.description?.type ?? property.prop_type ?? property.type ?? null,
+			photos: property.photos || property.photos?.list || [],
+			primaryPhoto:
+				property.primary_photo?.href ||
+				property.primary_photo ||
+				property.thumbnail ||
+				property.photos?.[0]?.href ||
+				null,
+		};
+	});
+
+	// // Store page data in Firestore cache
+	// await pageRef.set({ properties, pageNum, updatedAt: new Date().toISOString() });
+
+	// // Store metadata on parent doc (only if first page or doc doesn't exist)
+	// const parentDoc = await parentRef.get();
+	// if (!parentDoc.exists || pageNum === 1) {
+	// 	await parentRef.set(
+	// 		{
+	// 			queryString: cacheKey,
+	// 			totalResults: apiData?.total || null,
+	// 			totalPages: apiData?.totalPages || null,
+	// 			updatedAt: new Date().toISOString(),
+	// 		},
+	// 		{ merge: true }
+	// 	);
+	// }
+
+	// console.log(`[properties] Cached query ${queryHash} page ${pageNum}`);
+	return res.status(200).json({ source: "api", data: { properties } });
 }
