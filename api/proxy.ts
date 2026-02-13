@@ -1,21 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-// import { createHash } from "crypto";
-// import { cert, getApps, initializeApp } from "firebase-admin/app";
-// import { getFirestore } from "firebase-admin/firestore";
 
 const fetch: any = (...args: any[]) => import("node-fetch").then((mod: any) => mod.default(...args));
-
-// Initialize Firebase Admin SDK (only once)
-// if (!getApps().length) {
-// 	initializeApp({
-// 		credential: cert({
-// 			projectId: process.env.FIREBASE_PROJECT_ID,
-// 			clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-// 			privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-// 		}),
-// 	});
-// }
-// const db = getFirestore();
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
 	// Parse location parameter (supports both ?search= and ?location=)
@@ -76,21 +61,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 			params.set(key, value[0].trim());
 		}
 	});
-
-	// // Generate cache key: hash the query string for short doc IDs
-	// const cacheKey = params.toString();
-	// const queryHash = createHash("md5").update(cacheKey).digest("hex").substring(0, 16);
-	// const pageNum = parseInt(String(req.query.page)) || 1;
-
-	// // Check Firestore cache first: properties_cache/{hash}/pages/page_{pageNum}
-	// const parentRef = db.collection("properties_cache").doc(queryHash);
-	// const pageRef = parentRef.collection("pages").doc(`page_${pageNum}`);
-
-	// const cachedPage = await pageRef.get();
-	// if (cachedPage.exists) {
-	// 	console.log(`[properties] Cache hit for query ${queryHash} page ${pageNum}`);
-	// 	return res.status(200).json({ source: "cache", data: cachedPage.data() });
-	// }
 
 	// Fetch from RealtyUS API
 	const rapidApiUrl = `https://realty-us.p.rapidapi.com/properties/search-buy?${params.toString()}`;
@@ -156,23 +126,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 		};
 	});
 
-	// // Store page data in Firestore cache
-	// await pageRef.set({ properties, pageNum, updatedAt: new Date().toISOString() });
-
-	// // Store metadata on parent doc (only if first page or doc doesn't exist)
-	// const parentDoc = await parentRef.get();
-	// if (!parentDoc.exists || pageNum === 1) {
-	// 	await parentRef.set(
-	// 		{
-	// 			queryString: cacheKey,
-	// 			totalResults: apiData?.total || null,
-	// 			totalPages: apiData?.totalPages || null,
-	// 			updatedAt: new Date().toISOString(),
-	// 		},
-	// 		{ merge: true }
-	// 	);
-	// }
-
-	// console.log(`[properties] Cached query ${queryHash} page ${pageNum}`);
-	return res.status(200).json({ source: "api", data: { properties } });
+	return res.status(200).json({ source: "api", data: { properties }, debug: { apiDataKeys: Object.keys(apiData), fullResponse: apiData } });
 }

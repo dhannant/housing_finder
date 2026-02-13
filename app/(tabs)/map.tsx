@@ -204,8 +204,8 @@ export default function HomeScreen() {
         console.log('No properties found from Vercel API');
       }
     } catch (error) {
-      console.error("Error fetching houses from Vercel API:", error);
-      Alert.alert("Error", "Failed to fetch houses from Vercel API");
+      console.error("Error fetching houses from API:", error);
+      Alert.alert("Error", "Failed to fetch houses from API");
     } finally {
       setLoading(false);
     }
