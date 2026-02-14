@@ -47,3 +47,27 @@ export interface ClientRequest {
 	status: string;
 	createdAt: any;
 }
+
+/**
+ * Favorite Properties for a client.
+ * @param id
+ * @param userId
+ * @param propertyId
+ * @param address
+ * @param price
+ * @param beds
+ * @param baths
+ * @param status
+ * @param savedAt
+ */
+export interface FavoriteProperty {
+	id: string; // doc id
+	userId: string;
+	propertyId: string;
+	address: string;
+	price: number | null;
+	beds: number | null;
+	baths: number | null;
+	status: string | null;
+	savedAt?: any;
+ }

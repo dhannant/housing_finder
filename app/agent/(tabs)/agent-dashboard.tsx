@@ -215,6 +215,11 @@ export default function RealtorDashboard() {
 
 										<View style={styles.requestActions}>
 											<TouchableOpacity
+												style={styles.viewFavoritesButton}
+												onPress={() => router.push(`/(shared_screens)/client_favorites_list?clientId=${request.clientId}`)}>
+												<Text style={styles.viewFavoritesButtonText}>View Favorites</Text>
+											</TouchableOpacity>
+											<TouchableOpacity
 												style={styles.actionButton}
 												onPress={() => handleReleaseClient(request.clientId)}>
 												<Text style={styles.actionButtonText}>Release Client</Text>
@@ -452,6 +457,8 @@ const styles = StyleSheet.create({
 	},
 	actionButton: { flexDirection: "row", alignItems: "center", paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "#F0F7F0" },
 	actionButtonText: { fontSize: 14, fontWeight: "600", color: "#2C5F2D", marginLeft: 6 },
+	viewFavoritesButton: { flexDirection: "row", alignItems: "center", paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "#FF9800" },
+	viewFavoritesButtonText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
 	navigateButton: {
 		backgroundColor: "#007AFF",
 		marginHorizontal: 16,

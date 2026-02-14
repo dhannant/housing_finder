@@ -401,6 +401,17 @@ export const mapStyles = StyleSheet.create({
     marginLeft: 10,
   },
 
+  starButton: {
+      padding: 10,
+      marginLeft: 10,
+  },
+
+  starButtonText: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#2C5F2D',
+  },
+
   // ===== PHOTO VIEWER =====
   // Container for property photos
   photoContainer: {

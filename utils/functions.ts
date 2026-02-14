@@ -1,6 +1,8 @@
 import { db } from "@/components/firebaseConfig";
-import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
-import { AvailableClients, ClientData, ClientRequest, RealtorData, UserData } from "./interfaces";
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import { Property } from "../services/propertyService";
+import { AvailableClients, ClientData, ClientRequest, FavoriteProperty, RealtorData, UserData } from "./interfaces";
+
 
 export const fetchUserData = async (userId: string): Promise<UserData | null> => {
 	try {
@@ -188,3 +190,89 @@ export const formatDate = (timestamp: any): string => {
 	const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
 	return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
 };
+
+export const checkIfFavorite = async (userId: string, propertyId: string): Promise<boolean> => {
+	try {
+		console.log(`[checkIfFavorite] Checking if property ${propertyId} is favorited by user ${userId}`);
+		
+		// define the variable for the query with the collection name.
+		const favsRef = collection(db, 'clientFavorites');
+		
+		// define the query with two where conditions to match both userId AND propertyId
+		const q = query(favsRef, where("userId", "==", userId), where("propertyId", "==", propertyId));
+		
+		// execute the query and store the results in querySnapshot.
+		const querySnapshot = await getDocs(q);
+		
+		// return true if found, false if not found
+		const isFavorited = !querySnapshot.empty;
+		console.log(`[checkIfFavorite] ✓ Property ${propertyId} favorited: ${isFavorited}`);
+		return isFavorited;
+	} catch (error) {
+		console.error(`[checkIfFavorite] ✗ Error checking favorite status for property ${propertyId}:`, error);
+		throw error;
+	}
+};
+
+export const toggleFavorite = async (userId: string, property: Property): Promise<boolean> => {
+	try {
+		console.log(`[toggleFavorite] Toggling favorite for property ${property.id} by user ${userId}`);
+		const isFavorite = await checkIfFavorite(userId, property.id);
+		
+		if (isFavorite) {
+			// Property is already favorited - need to delete it
+			// First, find the document by querying
+			const favsRef = collection(db, 'clientFavorites');
+			const q = query(favsRef, where("userId", "==", userId), where("propertyId", "==", property.id));
+			const querySnapshot = await getDocs(q);
+			
+			// Delete the document using its ID
+			if (!querySnapshot.empty) {
+				const docId = querySnapshot.docs[0].id;
+				await deleteDoc(doc(db, "clientFavorites", docId));
+				console.log(`[toggleFavorite] ✓ Removed favorite for property ${property.id}`);
+			}
+			return false;
+		} else {
+			// Property is not favorited - add it with snapshot data
+			await addDoc(collection(db, "clientFavorites"), {
+				userId: userId,
+				propertyId: property.id,
+				address: property.address,
+				price: property.price,
+				beds: property.beds,
+				baths: property.baths,
+				status: property.status,
+				savedAt: new Date()
+			});
+			console.log(`[toggleFavorite] ✓ Added favorite for property ${property.id}`);
+			return true;
+		}
+	} catch (error) {
+		console.error(`[toggleFavorite] ✗ Error toggling favorite status:`, error);
+		throw error;
+	}
+}
+
+export const getFavorites = async (userId: string): Promise<FavoriteProperty[]> => {
+	try {
+		const ref = collection(db, 'clientFavorites');
+		const q = query(ref, where("userId", "==", userId));
+		const querySnapshot = await getDocs(q);
+
+		// Build an array called favorites that uses the FavoriteProperty interface
+		const favorites: FavoriteProperty[] = [];
+
+		//Build the array with the information in the querySnapshot variable.
+		querySnapshot.forEach((doc) => { 
+			// assign each field to it's proper position in the FavoriteProperty interface.
+			favorites.push({ id:doc.id, ...doc.data() } as FavoriteProperty);  // Spread operator (elipsis) maps Firestore fields to interface fields automatically
+		})
+
+		return favorites;
+
+	} catch (error) {
+		console.error(`[getFavorites] Error retrieving favorites list:`, error);
+		throw error;
+	}
+}

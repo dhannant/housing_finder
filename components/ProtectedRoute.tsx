@@ -1,3 +1,6 @@
+/** Custom function to prevent logged out users from accessing pages they 
+* shouldn't as well prevent Agents / Clients from accessing each others pages.
+*/
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
