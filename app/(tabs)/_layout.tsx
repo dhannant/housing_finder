@@ -2,8 +2,7 @@ import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Tabs } from 'expo-router';
-import React from 'react';
+import { router, Tabs } from 'expo-router';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -15,23 +14,29 @@ export default function TabLayout() {
         tabBarButton: HapticTab,
       }}>
       <Tabs.Screen
-        name="map"  // Changed from "index"
-        options={{
-          title: 'Map',  // Changed from "Home"
+        name="index"
+        options={{ title: 'Home',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+        }}
+        listeners={{
+          tabPress: (e) => {
+            // Prevent default action
+            e.preventDefault();
+            // Navigate to the desired screen
+            router.push('/');
+            // Tabs.navigate('index');
+          }
         }}
       />
       <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+        name="map"  // Changed from "index"
+        options={{ title: 'Map',  // Changed from "Home"
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="map.fill" color={color} />,
         }}
       />
       <Tabs.Screen
         name="team"
-        options={{
-          title: 'Team',
+        options={{ title: 'Team',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.3.fill" color={color} />,
         }}
       />

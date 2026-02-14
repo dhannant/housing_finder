@@ -1,26 +1,15 @@
+import { mapStyles } from '@/constants/styles';
+import type { Property } from '@/services/propertyService';
+import { searchProperties } from '@/services/propertyService';
 import * as Location from "expo-location";
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, Modal, Platform, Text, TouchableOpacity, View } from 'react-native';
-import MapView, { Marker } from "react-native-maps";
-import type { PropertyFilterOptions } from "../property_filters";
-import PropertyFilters from "../property_filters";
+import { ActivityIndicator, Alert, Image, Modal, Text, TouchableOpacity, View } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
+import PropertyFilters, { type PropertyFilterOptions } from "../property_filters";
 
-import { mapStyles } from '@/constants/styles';
-
-interface House {
-  id: string;
-  price: number;
-  address: string;
-  beds: number;
-  baths: number;
-  latitude: number;
-  longitude: number;
-  status: string;
-  type: string;
-  primaryPhoto?: string;
-  photos?: { href: string }[];
-}
+// Use Property type from service instead of local House interface
+type House = Property;
 
 // Mock data for testing
 const MOCK_HOUSES = [
@@ -131,6 +120,13 @@ const MOCK_HOUSES = [
 ];
 
 export default function HomeScreen() {
+
+  /**
+   * Set to true to use fake data instead of making API 
+   * calls (for testing UI without hitting API limits)
+   */
+  const [useMockData, setUseMockData] = useState(true);
+
   // Filter modal state
   const [filterVisible, setFilterVisible] = useState(false);
   const [activeFilters, setActiveFilters] = useState<PropertyFilterOptions>({});
@@ -148,7 +144,6 @@ export default function HomeScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  const [useMockData, setUseMockData] = useState(false); // Set to true to use fake data
 
   useEffect(() => {
     (async () => {
@@ -181,30 +176,25 @@ export default function HomeScreen() {
       }, 500);
       return;
     }
+    
     try {
-      // Call your Vercel API endpoint instead of RapidAPI directly
-      const response = await fetch("/api/proxy?search=commerce%2C%20ga");
-      const result = await response.json();
-      console.log("API Response:", result);
-
-      // Use the already-formatted properties array from the backend
-      const data = result.data;
-      if (data && data.properties && data.properties.length > 0) {
-        // Log detailed structure for reference
-        console.log(`Total properties: ${data.properties.length}`);
-        console.log("Sample property (first item):", JSON.stringify(data.properties[0], null, 2));
-        console.log("Response keys:", Object.keys(data));
-        
-        setHouses(data.properties);
-        setFilteredHouses(applyFilters(data.properties, activeFilters));
-        console.log(`Loaded ${data.properties.length} houses from Vercel API`);
+      // Use the property service (handles URL building, proxy call, and normalization)
+      const properties = await searchProperties({ 
+        location: "commerce, ga",
+        resultsPerPage: 200  // Get up to 200 results (API shows 183 total available)
+      });
+      
+      if (properties.length > 0) {
+        setHouses(properties);
+        setFilteredHouses(applyFilters(properties, activeFilters));
+        console.log(`✅ Loaded ${properties.length} houses from API`);
       } else {
         setHouses([]);
         setFilteredHouses([]);
-        console.log('No properties found from Vercel API');
+        console.log('⚠️ No properties found');
       }
     } catch (error) {
-      console.error("Error fetching houses from API:", error);
+      console.error("💥 Error fetching houses:", error);
       Alert.alert("Error", "Failed to fetch houses from API");
     } finally {
       setLoading(false);
@@ -214,12 +204,12 @@ export default function HomeScreen() {
   // Apply filters to the house list
   function applyFilters(houses: House[], filters: PropertyFilterOptions): House[] {
     return houses.filter((house) => {
-      if (filters.minBedrooms !== undefined && house.beds < filters.minBedrooms) return false;
-      if (filters.maxBedrooms !== undefined && house.beds > filters.maxBedrooms) return false;
-      if (filters.minBathrooms !== undefined && house.baths < filters.minBathrooms) return false;
-      if (filters.maxBathrooms !== undefined && house.baths > filters.maxBathrooms) return false;
-      if (filters.minPrice !== undefined && house.price < filters.minPrice) return false;
-      if (filters.maxPrice !== undefined && house.price > filters.maxPrice) return false;
+      if (filters.minBedrooms !== undefined && (house.beds === null || house.beds < filters.minBedrooms)) return false;
+      if (filters.maxBedrooms !== undefined && (house.beds === null || house.beds > filters.maxBedrooms)) return false;
+      if (filters.minBathrooms !== undefined && (house.baths === null || house.baths < filters.minBathrooms)) return false;
+      if (filters.maxBathrooms !== undefined && (house.baths === null || house.baths > filters.maxBathrooms)) return false;
+      if (filters.minPrice !== undefined && (house.price === null || house.price < filters.minPrice)) return false;
+      if (filters.maxPrice !== undefined && (house.price === null || house.price > filters.maxPrice)) return false;
       if (filters.minSquareFeet !== undefined && (house as any).squareFeet < filters.minSquareFeet) return false;
       if (filters.maxSquareFeet !== undefined && (house as any).squareFeet > filters.maxSquareFeet) return false;
       if (filters.minLotSize !== undefined && (house as any).lotSize < filters.minLotSize) return false;
@@ -268,6 +258,7 @@ const renderPhotoModal = () => {
     ? [{ href: selectedHouse.primaryPhoto }] 
     : [];
   
+	
   return (
     <Modal visible={selectedHouse !== null}
       animationType="slide"
@@ -331,7 +322,6 @@ const renderPhotoModal = () => {
   );
 };
 
-
   return (
     <View style={mapStyles.container}>
       {/* Filter Button Floating at Top */}
@@ -357,47 +347,43 @@ const renderPhotoModal = () => {
           <Text>Loading houses...</Text>
         </View>
       )}
-      {Platform.OS === 'web' ? (
-        <View style={mapStyles.map}>
-          <Text style={mapStyles.webMessage}>Map view is not available on web. Please use the mobile app to view the map.</Text>
-        </View>
-      ) : (
-        <MapView
-          style={mapStyles.map}
-          initialRegion={initialRegion}
-          showsUserLocation={true}
-          onRegionChangeComplete={(region) => {
-            // Save the current map region when user moves the map
-            setLocation({
-              coords: {
-                latitude: region.latitude,
-                longitude: region.longitude,
-                altitude: null,
-                accuracy: null,
-                altitudeAccuracy: null,
-                heading: null,
-                speed: null,
-              },
-              timestamp: Date.now(),
-            });
-          }}
-        >
-          {filteredHouses.map((house) => (
-            <Marker
-              key={house.id}
-              coordinate={{
-                latitude: house.latitude,
-                longitude: house.longitude,
-              }}
-              pinColor={getPinColor(house.status)}
-              onPress={() => {
-                setSelectedHouse(house);
-                setCurrentPhotoIndex(0);
-              }}
-            />
-          ))}
-        </MapView>
-      )}
+      <MapView
+        style={mapStyles.map}
+        initialRegion={initialRegion}
+        showsUserLocation={true}
+        onRegionChangeComplete={(region) => {
+          // Save the current map region when user moves the map
+          setLocation({
+            coords: {
+              latitude: region.latitude,
+              longitude: region.longitude,
+              altitude: null,
+              accuracy: null,
+              altitudeAccuracy: null,
+              heading: null,
+              speed: null,
+            },
+            timestamp: Date.now(),
+          });
+        }}
+      >
+        {filteredHouses
+          .filter(house => house.latitude !== null && house.longitude !== null)
+          .map((house) => (
+          <Marker
+            key={house.id}
+            coordinate={{
+              latitude: house.latitude!,
+              longitude: house.longitude!,
+            }}
+            pinColor={getPinColor(house.status || 'for_sale')}
+            onPress={() => {
+              setSelectedHouse(house);
+              setCurrentPhotoIndex(0);
+            }}
+          />
+        ))}
+      </MapView>
 
       <TouchableOpacity 
         style={mapStyles.searchButton}
@@ -419,4 +405,4 @@ const renderPhotoModal = () => {
       />
     </View>
   );
-};
+}

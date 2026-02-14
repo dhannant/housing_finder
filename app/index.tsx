@@ -3,9 +3,11 @@ import { FileText, Home, MapPin, Users } from 'lucide-react-native';
 import { Image, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 import { landingStyles } from '@/constants/styles';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LandingScreen() {
   const router = useRouter();
+  const { user, logout } = useAuth();
 
   // Handles user selection for each main action button
   const handleSelection = (type: 'buy' | 'sell' | 'preapproval' | 'geolocate') => {
@@ -20,6 +22,23 @@ export default function LandingScreen() {
       alert('Seller profile coming soon!');
     } else if (type === 'preapproval') {
       alert('Pre-approval form coming soon!');
+    }
+  };
+
+  const handleAuthButton = async () => {
+    if (user) {
+      // User is logged in, log them out
+      try {
+        await logout();
+        alert('Logged out successfully');
+        router.push('/'); // Send the user back to the landing page
+      } catch (error) {
+        console.error('Logout error:', error);
+        alert('Failed to logout');
+      }
+    } else {
+      // User is not logged in, navigate to login
+      router.push('/login');
     }
   };
 
@@ -39,9 +58,9 @@ export default function LandingScreen() {
               <Text style={landingStyles.logoSubtitle}>Real Estate</Text>
             </View>
           </View>
-          {/* Login button (navigates to login screen) */}
-          <TouchableOpacity style={landingStyles.loginButton} onPress={() => router.push('/login')}>
-            <Text style={landingStyles.loginButtonText}>Login</Text>
+          {/* Login/Logout button */}
+          <TouchableOpacity style={landingStyles.loginButton} onPress={handleAuthButton}>
+            <Text style={landingStyles.loginButtonText}>{user ? 'Logout' : 'Login'}</Text>
           </TouchableOpacity>
         </View>
 

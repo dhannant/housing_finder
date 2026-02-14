@@ -5,7 +5,7 @@ import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 
 // This defines what our filter options look like
 // The ? means "optional" - you don't have to include every filter
-interface PropertyFilterOptions {
+export interface PropertyFilterOptions {
   minBedrooms?: number;        // Minimum number of bedrooms
   maxBedrooms?: number;        // Maximum number of bedrooms
   minBathrooms?: number;       // Minimum number of bathrooms
