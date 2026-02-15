@@ -8,6 +8,15 @@ export default function SharedScreensLayout() {
 				options={{
 					title: 'My Favorites',
 					headerShown: true,
+					headerBackVisible: false,
+				}}
+			/>
+			<Stack.Screen
+				name="profile"
+				options={{
+					title: 'Profile',
+					headerShown: true,
+					headerBackVisible: false,
 				}}
 			/>
 		</Stack>

@@ -21,6 +21,9 @@ const MAPPING = {
   'map': 'map',
   'map.fill':'map',
   'person.3.fill': 'group',
+  'bookmark.fill': 'bookmark',
+  'star.fill': 'star',
+  'person.fill': 'person',
 } as IconMapping;
 
 /**

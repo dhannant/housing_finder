@@ -14,6 +14,7 @@ export default function TabLayout() {
         screenOptions={{
           tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
           headerShown: false,
+					headerBackVisible: false,
           tabBarButton: HapticTab,
         }}>
         <Tabs.Screen
@@ -23,11 +24,17 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="index"
+          name="favorites"
           options={{ 
             title: 'Favorites',
             tabBarIcon: ({ color }) => <IconSymbol size={28} name="star.fill" color={color} />,
-            href: '/(shared_screens)/client_favorites_list',
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: 'Profile',
+            tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.fill" color={color} />,
           }}
         />
       </Tabs>

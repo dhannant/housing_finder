@@ -14,12 +14,20 @@ export default function TabLayout() {
         screenOptions={{
           tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
           headerShown: false,
+					headerBackVisible: false,
           tabBarButton: HapticTab,
         }}>
         <Tabs.Screen
-          name="agent-dashbboard"
-          options={{ title: 'Agent Dashboard',
+          name="agent-dashboard"
+          options={{ title: 'Dashboard',
             tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: 'Profile',
+            tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.fill" color={color} />,
           }}
         />
       </Tabs>

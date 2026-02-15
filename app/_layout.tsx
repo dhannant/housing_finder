@@ -27,15 +27,31 @@ export default function RootLayout() {
 					/>
 					<Stack.Screen
 						name="client-dashboard"
-						options={{ title: "Client Dashboard", headerShown: false }}
+						options={{ title: "Client Dashboard", headerShown: false, headerBackVisible: false }}
 					/>
 					<Stack.Screen
 						name="agent-dashboard"
-						options={{ title: "Agent Dashboard", headerShown: false }}
+						options={{ title: "Agent Dashboard", headerShown: false, headerBackVisible: false }}
 					/>
 					<Stack.Screen
 						name="(tabs)"
-						options={{ headerShown: false }}
+						options={{ headerShown: false, headerBackVisible: false }}
+					/>
+					<Stack.Screen
+						name="client"
+						options={{ headerShown: false, headerBackVisible: false }}
+					/>
+					<Stack.Screen
+						name="agent"
+						options={{ headerShown: false, headerBackVisible: false }}
+					/>
+					<Stack.Screen
+						name="(shared_screens)"
+						options={{ headerShown: false, headerBackVisible: false }}
+					/>
+					<Stack.Screen
+						name="role-redirect"
+						options={{ headerShown: false, headerBackVisible: false }}
 					/>
 					<Stack.Screen
 						name="modal"
