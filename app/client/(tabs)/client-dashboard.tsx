@@ -138,6 +138,11 @@ export default function ClientDashboard() {
 					onPress={() => router.push("/(tabs)/map")}>
 					<Text style={styles.navigateButtonText}>Browse Properties</Text>
 				</TouchableOpacity>
+				<TouchableOpacity
+					style={[styles.navigateButton, { backgroundColor: '#2C5F2D' }]}
+					onPress={() => router.push({ pathname: '/(tabs)/map', params: { zoomToUser: 'true' } })}>
+					<Text style={styles.navigateButtonText}>I'm at a home I love and need more info</Text>
+				</TouchableOpacity>
 			</ScrollView>
 		</SafeAreaView>
 	);

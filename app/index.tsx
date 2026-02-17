@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { FileText, Home, MapPin, Users } from 'lucide-react-native';
-import { Image, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Image, SafeAreaView, ScrollView, Text, TouchableOpacity, View, Linking } from 'react-native';
 
 import { landingStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,17 +11,22 @@ export default function LandingScreen() {
 
   // Handles user selection for each main action button
   const handleSelection = (type: 'buy' | 'sell' | 'preapproval' | 'geolocate') => {
-    console.log(`User selected: ${type}`);
+    // console.log(`User selected: ${type}`);
     
-    if (type === 'geolocate' || type === 'buy') {
+    if (type === 'geolocate') {
       router.push({
         pathname: '/(tabs)/map',
-        params: { userType: type }
+        params: { userType: type, zoomToUser: 'true' }
+      });
+    } else if (type === 'buy') {
+      router.push({
+        pathname: '/(tabs)/map',
+        params: { userType: type, zoomToUser: 'false' }
       });
     } else if (type === 'sell') {
       alert('Seller profile coming soon!');
     } else if (type === 'preapproval') {
-      alert('Pre-approval form coming soon!');
+      // alert('Pre-approval form coming soon!');
     }
   };
 
@@ -112,7 +117,7 @@ export default function LandingScreen() {
           {/* Pre-approval button */}
           <TouchableOpacity
             style={[landingStyles.actionButton, landingStyles.preapprovalButton]}
-            onPress={() => handleSelection('preapproval')}
+            onPress={() => Linking.openURL('https://1799791.my1003app.com/339121/register?time=1730689393113')}
             activeOpacity={0.8}
           >
             <View style={landingStyles.buttonContent}>

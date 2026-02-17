@@ -1,5 +1,6 @@
 import { db } from "@/components/firebaseConfig";
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import { Alert, Linking } from "react-native";
 import { Property } from "../services/propertyService";
 import { AvailableClients, ClientData, ClientRequest, FavoriteProperty, RealtorData, UserData } from "./interfaces";
 
@@ -276,3 +277,30 @@ export const getFavorites = async (userId: string): Promise<FavoriteProperty[]> 
 		throw error;
 	}
 }
+
+export function getShortDateString(date = new Date()) {
+	const mm = String(date.getMonth() + 1).padStart(2, '0');
+	const dd = String(date.getDate()).padStart(2, '0');
+	const yyyy = date.getFullYear();
+	return `${mm}/${dd}/${yyyy}`;
+ }
+ 
+ /** Used to send emails to the assigned agent for specific issues / tasks from the app.
+  * This will first check if the logged in user has an account, and require them to create one if they don't.
+  * @param user: This is the user id from the logged in user and should be user?.uid
+  * @param realtorId: This should also come from app state user (ie: user.realtorId)
+  * @param subject: Subject of the email relative to the context sending the email request (ie: Help Request, Client Request Received, etc...)
+  * @param body: The body of the email
+  */
+ export async function handleEmail(userId: string, realtorId: string, subject: string, body: string) {
+	const realtorData = await fetchUserData(realtorId);
+	const realtorEmail = realtorData?.email;
+
+	try {
+		const mailtoUrl = `mailto:${realtorEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;	
+		Linking.openURL(mailtoUrl);
+	} catch (error) {
+		Alert.alert('Failed building email', 'App failed to generate the email.')
+		console.log('Sending email error:', error)
+	}
+ }

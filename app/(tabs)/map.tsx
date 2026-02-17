@@ -2,19 +2,20 @@ import { mapStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Property } from '@/services/propertyService';
 import { searchProperties } from '@/services/propertyService';
-import { checkIfFavorite, toggleFavorite } from '@/utils/functions';
+import * as Functions from '@/utils/functions';
 import * as Location from "expo-location";
-import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from "react";
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Image, Modal, Text, TouchableOpacity, View } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import { default as MapView, Marker, default as RNMapView } from 'react-native-maps';
+
 import PropertyFilters, { type PropertyFilterOptions } from "../property_filters";
 
 // Use Property type from service instead of local House interface
 type House = Property;
 
 // Mock data for testing
-const MOCK_HOUSES = [
+const MOCK_HOUSES: House[] = [
 	{
 		id: '1',
 		price: 350000,
@@ -121,6 +122,64 @@ const MOCK_HOUSES = [
 	},
 ];
 
+// Utility: Build a bounding box polygon around user's location
+function buildBoundingBox(lat: number, lon: number, delta = 0.01) {
+    return [
+        [lon - delta, lat + delta],
+        [lon + delta, lat + delta],
+        [lon + delta, lat - delta],
+        [lon - delta, lat - delta],
+        [lon - delta, lat + delta]
+    ];
+}
+
+// Search properties by coordinates (polygon)
+async function searchByCoordinates(lat: number, lon: number) {
+    const url = 'https://realty-us.p.rapidapi.com/properties/coords/search-buy?sortBy=relevance';
+    const coordinates = buildBoundingBox(lat, lon);
+    const options = {
+        method: 'POST',
+        headers: {
+            'x-rapidapi-key': 'YOUR_API_KEY',
+            'x-rapidapi-host': 'realty-us.p.rapidapi.com',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ coordinates })
+    };
+    try {
+        const response = await fetch(url, options);
+        const result = await response.json();
+        // Map API result to your Property type as needed
+        return result.properties || [];
+    } catch (error) {
+        console.error(error);
+        return [];
+    }
+}
+
+// Search properties by city
+async function searchByCity(city: string) {
+    try {
+        const properties = await searchProperties({ location: city, resultsPerPage: 200 });
+        return properties;
+    } catch (error) {
+        console.error(error);
+        return [];
+    }
+}
+
+// Utility: Pin color
+function getPinColor(status: string) {
+    switch (status) {
+        case "for_sale": return "#FF0000";
+        case "for_rent": return "#0000FF";
+        case "sold": return "#808080";
+        case "pending": return "#FFA500";
+        case "off_market": return "#A9A9A9";
+        default: return "#FF0000";
+    }
+}
+
 export default function HomeScreen() {
 
 	/**
@@ -132,66 +191,57 @@ export default function HomeScreen() {
 	// Get current user from auth context
 	const { user } = useAuth();
 
-	// Filter modal state
+	// State variables (declare only once)
+	const [location, setLocation] = useState<Location.LocationObject | null>(null);
+	const [houses, setHouses] = useState<House[]>([]);
+	const [filteredHouses, setFilteredHouses] = useState<House[]>([]);
+	const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
+	const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+	const [isFavorite, setIsFavorite] = useState(false);
 	const [filterVisible, setFilterVisible] = useState(false);
 	const [activeFilters, setActiveFilters] = useState<PropertyFilterOptions>({});
 	const params = useLocalSearchParams();
 	const userType = params.userType || 'buyer';
-
-	console.log('User type:', userType);
-
-	const [location, setLocation] = useState<Location.LocationObject | null>(null,);
-	const [houses, setHouses] = useState<House[]>([]);
-
-	// This will hold the filtered houses for display
-	const [filteredHouses, setFilteredHouses] = useState<House[]>([]);
 	const [loading, setLoading] = useState(false);
-	const [errorMsg, setErrorMsg] = useState<string | null>(null);
-	const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
-	const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-
-	// This state will determine if the selected house is favorited by the user
-	const [isFavorite, setIsFavorite] = useState(false);
 
 	useEffect(() => {
 		(async () => {
 			let { status } = await Location.requestForegroundPermissionsAsync();
 			if (status !== "granted") {
-				setErrorMsg("Permission to access location was denied");
+				Alert.alert(
+					"Location Required",
+					"This app needs access to your device's location. Please enable location services and grant permission for the app to function properly."
+				);
 				return;
 			}
-
-			let userLocation = await Location.getCurrentPositionAsync({});
-			setLocation(userLocation);
-
-			// Fetch houses near user location
-			fetchHouses(userLocation.coords.latitude, userLocation.coords.longitude);
+			let loc = await Location.getCurrentPositionAsync({});
+			setLocation(loc);
+			if (loc && loc.coords) {
+				fetchHouses(loc.coords.latitude, loc.coords.longitude);
+			}
 		})();
 	}, []);
-
-	const fetchHouses = async (lat: number, lon: number) => {
+	
+	const fetchHouses = async (lat: number, lon: number, city?: string) => {
 		setLoading(true);
-
-		// Use mock data if toggle is on
-		if (useMockData) {
-			setTimeout(() => {
-				// Only show for_sale and pending properties
-				const filtered = MOCK_HOUSES.filter(h => h.status === 'for_sale' || h.status === 'pending');
-				setHouses(filtered);
-				setFilteredHouses(applyFilters(filtered, activeFilters));
-				setLoading(false);
-				console.log(`Loaded ${filtered.length} mock houses`);
-			}, 500);
-			return;
-		}
-
 		try {
-			// Use the property service (handles URL building, proxy call, and normalization)
-			const properties = await searchProperties({
-				location: "commerce, ga",
-				resultsPerPage: 200  // Get up to 200 results (API shows 183 total available)
-			});
-
+			let properties: House[] = [];
+			if (useMockData) {
+				// Only show for_sale and pending properties in mock mode
+				properties = MOCK_HOUSES.filter(h => h.status === 'for_sale' || h.status === 'pending');
+				setTimeout(() => {
+					setHouses(properties);
+					setFilteredHouses(applyFilters(properties, activeFilters));
+					setLoading(false);
+					console.log(`Loaded ${properties.length} mock houses`);
+				}, 500);
+				return;
+			}
+			if (city) {
+				properties = await searchByCity(city);
+			} else {
+				properties = await searchByCoordinates(lat, lon);
+			}
 			if (properties.length > 0) {
 				setHouses(properties);
 				setFilteredHouses(applyFilters(properties, activeFilters));
@@ -205,7 +255,7 @@ export default function HomeScreen() {
 			console.error("💥 Error fetching houses:", error);
 			Alert.alert("Error", "Failed to fetch houses from API");
 		} finally {
-			setLoading(false);
+			if (!useMockData) setLoading(false);
 		}
 	};
 
@@ -225,37 +275,63 @@ export default function HomeScreen() {
 			return true;
 		});
 	}
-
+	// Remove stray fetchHouses call outside of any function
 	// When filters are applied from the modal
 	function handleApplyFilters(filters: PropertyFilterOptions) {
 		setActiveFilters(filters);
 		setFilteredHouses(applyFilters(houses, filters));
 	}
 
-	const getPinColor = (status: string) => {
-		switch (status) {
-			case "for_sale":
-				return "#FF0000"; // Red for sale
-			case "for_rent":
-				return "#0000FF"; // Blue for rent
-			case "sold":
-				return "#808080"; // Gray for sold
-			case "pending":
-				return "#FFA500"; // Orange for pending
-			case "off_market":
-				return "#A9A9A9"; // Dark gray for off market
-			default:
-				return "#FF0000"; // Default to red
+	async function handleRequestHelp() {
+		const userId = user?.uid;
+		if (!userId) {
+			Alert.alert(
+				'Account Required',
+				'You need to create an account before requesting help so the realtor can contact you.',
+				[
+					{ text: 'Register', onPress: () => router.push('/register') },
+					{ text: 'Cancel', style: 'cancel' }
+				]
+			);
+			return;
 		}
+		// TODO: Implement realtor selection and email subject/body
+		// Example:
+		// const selectedRealtorId = ...;
+		// const subject = ...;
+		// const body = ...;
+		// await Functions.handleEmail(userId, selectedRealtorId, subject, body);
+		Alert.alert(
+			'Help Requested',
+			'We have the coordinates of your search location and will research any available homes in the area.  A realtor will contact you soon.'
+		);
+	}
+
+	// Default to false if not present
+	const zoomToUser = params.zoomToUser === 'true';
+	const initialRegion = {
+		latitude: location && location.coords ? location.coords.latitude : 34.23,
+		longitude: location && location.coords ? location.coords.longitude : -83.48,
+		//if zoomerToUser is true, use .001, else use .07
+		latitudeDelta: zoomToUser ? 0.001 : 0.07,
+		longitudeDelta: zoomToUser ? 0.001 : 0.07,
 	};
 
-	const initialRegion = {
-		latitude: location?.coords.latitude || 34.23,
-		longitude: location?.coords.longitude || -83.48,
-		latitudeDelta: 0.5,
-		longitudeDelta: 0.5,
-	};
-	// userLocation.coords.latitude, userLocation.coords.longitude
+const mapRef = useRef<RNMapView | null>(null);
+const hasZoomedRef = useRef(false);
+
+	useEffect(() => {
+		if (location?.coords && mapRef.current) {
+			mapRef.current.animateToRegion({
+				latitude: location.coords.latitude,
+				longitude: location.coords.longitude,
+				//if zoomerToUser is true, use .001, else use .07
+				latitudeDelta: zoomToUser ? 0.001 : 0.07,  
+				longitudeDelta: zoomToUser ? 0.001 : 0.07,
+			}, 500);
+			hasZoomedRef.current = true;
+		}
+	}, [zoomToUser, location]);
 
 	const renderPropertyModal = () => {
 		if (!selectedHouse) return null;
@@ -265,7 +341,6 @@ export default function HomeScreen() {
 			: selectedHouse.primaryPhoto
 				? [{ href: selectedHouse.primaryPhoto }]
 				: [];
-
 
 		return (
 			<Modal visible={selectedHouse !== null}
@@ -292,7 +367,7 @@ export default function HomeScreen() {
 								}
 								if (!selectedHouse) return;
 								try {
-									const newStatus = await toggleFavorite(user.uid, selectedHouse);
+									const newStatus = await Functions.toggleFavorite(user.uid, selectedHouse);
 									setIsFavorite(newStatus);
 								} catch (error) {
 									Alert.alert('Error', 'Failed to update favorite status.');
@@ -353,12 +428,30 @@ export default function HomeScreen() {
 
 	return (
 		<View style={mapStyles.container}>
-			{/* Filter Button Floating at Top */}
-			<View style={{ position: 'absolute', top: 60, left: 20, right: 20, zIndex: 1, flexDirection: 'row', justifyContent: 'flex-end' }}>
+			<View style={{ position: 'absolute', top: 60, left: 20, right: 20, zIndex: 1, flexDirection: 'row', justifyContent: 'space-between' }}>
+				{/* Request Help Button */}
+				<TouchableOpacity
+					style={{ backgroundColor: '#FFA500', 
+								paddingVertical: 12, 
+								paddingHorizontal: 16, 
+								borderColor: '#000', 
+								borderWidth: 1, 
+								borderRadius: 25, 
+								flexDirection: 'row', 
+								alignItems: 'center', 
+								elevation: 5, 
+								shadowColor: '#000', 
+								shadowOffset: { width: 0, height: 2 },
+								shadowOpacity: 0.25, 
+								shadowRadius: 3.84 }}
+					onPress={handleRequestHelp}>
+						{/* <Text style={{fontSize: 18, marginRight: 8}}></Text> */}
+						<Text style={{ fontSize: 16, fontWeight: '600', color: '#333' }}>Request Help</Text>
+					</TouchableOpacity>
+				{/* Filter Button Floating at Top */}
 				<TouchableOpacity
 					style={{ backgroundColor: '#fff', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 25, flexDirection: 'row', alignItems: 'center', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84 }}
-					onPress={() => setFilterVisible(true)}
-				>
+					onPress={() => setFilterVisible(true)}>
 					<Text style={{ fontSize: 18, marginRight: 8 }}>⚙️</Text>
 					<Text style={{ fontSize: 16, fontWeight: '600', color: '#333' }}>Filters</Text>
 					{Object.keys(activeFilters).length > 0 && (
@@ -376,26 +469,27 @@ export default function HomeScreen() {
 					<Text>Loading houses...</Text>
 				</View>
 			)}
-			<MapView
-				style={mapStyles.map}
-				initialRegion={initialRegion}
-				showsUserLocation={true}
-				onRegionChangeComplete={(region) => {
-					// Save the current map region when user moves the map
-					setLocation({
-						coords: {
-							latitude: region.latitude,
-							longitude: region.longitude,
-							altitude: null,
-							accuracy: null,
-							altitudeAccuracy: null,
-							heading: null,
-							speed: null,
-						},
-						timestamp: Date.now(),
-					});
-				}}
-			>
+			   <MapView
+				   ref={ref => { mapRef.current = ref; }}
+				   style={mapStyles.map}
+				   initialRegion={initialRegion}
+				   showsUserLocation={true}
+				   onRegionChangeComplete={zoomToUser ? undefined : (region) => {
+					   // Only update location if not zooming to user
+					   setLocation({
+						   coords: {
+							   latitude: region.latitude,
+							   longitude: region.longitude,
+							   altitude: null,
+							   accuracy: null,
+							   altitudeAccuracy: null,
+							   heading: null,
+							   speed: null,
+						   },
+						   timestamp: Date.now(),
+					   });
+				   }}
+			   >
 				{filteredHouses
 					.filter(house => house.latitude !== null && house.longitude !== null)
 					.map((house) => (
@@ -411,7 +505,7 @@ export default function HomeScreen() {
 						setCurrentPhotoIndex(0);
 						// Check if this property is favorited when opening modal
 						if (user?.uid) {
-							const favorited = await checkIfFavorite(user.uid, house.id);
+							const favorited = await Functions.checkIfFavorite(user.uid, house.id);
 							setIsFavorite(favorited);
 						} else {
 							setIsFavorite(false);
@@ -427,8 +521,7 @@ export default function HomeScreen() {
 			if (location) {
 				fetchHouses(location.coords.latitude, location.coords.longitude);
 			}
-		}}
-	>
+		}}>
 		<Text style={mapStyles.searchButtonText}>Search This Area</Text>
 	</TouchableOpacity>
 
@@ -437,7 +530,6 @@ export default function HomeScreen() {
 		visible={filterVisible}
 		onClose={() => setFilterVisible(false)}
 		onApply={handleApplyFilters}
-		initialFilters={activeFilters}
-	/>
+		initialFilters={activeFilters}/>
 </View>);
 }
