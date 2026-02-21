@@ -99,5 +99,203 @@ From the sample above, these are the key fields:
 _Below is where you'll paste the actual response structure once you run api_test_
 
 ```
-[paste response here]
+{
+  "details": [
+    {
+      "category": "Bedrooms",
+      "text": ["Bedrooms: 3"]
+    },
+    {
+      "category": "Bathrooms",
+      "text": [
+        "Total Bathrooms: 4",
+        "Full Bathrooms: 3",
+        "1/2 Bathrooms: 1"
+      ]
+    },
+    {
+      "category": "Interior Features",
+      "text": ["Furnished: Yes"]
+    },
+    {
+      "category": "Heating and Cooling",
+      "text": [
+        "Cooling Features: Central A/C",
+        "Fireplace Features: Gas",
+        "Number of Fireplaces: 1"
+      ]
+    },
+    {
+      "category": "Land Info",
+      "text": [
+        "Lot Size Acres: 0.1170799",
+        "Lot Size Square Feet: 5100"
+      ]
+    },
+    {
+      "category": "Home Features",
+      "text": ["View: City / Strip, Park"]
+    },
+    {
+      "category": "Homeowners Association",
+      "text": [
+        "Association: Yes",
+        "Association Fee: 7350",
+        "Association Fee Frequency: Monthly",
+        "Calculated Total Monthly Association Fees: 7350"
+      ]
+    },
+    {
+      "category": "Amenities and Community Features",
+      "text": ["Doorman: Yes"]
+    },
+    {
+      "category": "Other Property Info",
+      "text": [
+        "Source Listing Status: Active",
+        "County: MANHATTAN",
+        "Source Property Type: Condominium",
+        "Property Subtype: condo",
+        "Source Neighborhood: Upper East Side",
+        "Postal City: New York",
+        "Property Features: Elevator, Doorman",
+        "Source System Name: C2C"
+      ]
+    },
+    {
+      "category": "Building and Construction",
+      "text": [
+        "Total Square Feet Living: 3000",
+        "Year Built: 1925",
+        "Building Area Total: 3000",
+        "Building Area Units: Square Feet",
+        "Property Age: 101",
+        "House Style: Other Style",
+        "Prewar: Yes",
+        "Elevator: Yes"
+      ]
+    }
+  ],
+  "property": {
+    "__typename": "SearchHome",
+    "property_id": "4106882018",
+    "listing_id": "2989030009",
+    "status": "for_sale",
+    "primary_photo": {
+      "href": "https://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m1307507934s.jpg"
+    },
+    "photo_count": 32,
+    "photos": [
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m1307507934s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m2907744271s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m2761899410s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m5854910s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m277219941s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m738351551s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m3602121s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m442089063s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m2920724763s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m4023776372s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m1183035405s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m681139593s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m1059296735s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m64568663s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m3861871092s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m3004597929s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m1404187469s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m3493344094s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m2175081131s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m1134642529s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m330045422s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m3160950920s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m2965838079s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m2006809769s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m862556609s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m3080688187s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m3249013158s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m2775327828s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m1660251321s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m3533366841s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m3980526159s.jpg" },
+      { "href": "http://ap.rdcpix.com/5c8b7c424989c9c565ab2cd590e081e8l-m1541831694s.jpg" }
+    ],
+    "location": {
+      "county": { "name": "New York" },
+      "neighborhoods": null,
+      "address": {
+        "line": "4 E 79th St",
+        "unit": null,
+        "street_number": "4",
+        "street_name": "79th",
+        "street_suffix": "St",
+        "city": "New York",
+        "postal_code": "10075",
+        "state_code": "NY",
+        "state": "New York",
+        "country": "USA",
+        "coordinate": {
+          "lat": 40.776518,
+          "lon": -73.963335
+        },
+        "street_view_url": "https://maps.googleapis.com/maps/api/streetview?channel=rdc-streetview&client=gme-movesalesinc&location=4%20E%2079th%20St%2C%20New%20York%2C%20NY%2010075&size=640x480&source=outdoor&signature=LuDRwt6KvqOL65cntR8At5CGyfw="
+      }
+    },
+    "list_price": 68000000,
+    "list_date": "2025-11-26T22:41:40.000000Z",
+    "last_sold_date": "2024-09-12",
+    "last_sold_price": 364000,
+    "href": "https://www.realtor.com/realestateandhomes-detail/4-E-79th-St_New-York_NY_10075_M41068-82018",
+    "products": ["core.agent", "core.broker", "co_broke"],
+    "description": {
+      "baths": 11,
+      "baths_full_calc": 7,
+      "baths_partial_calc": 4,
+      "beds": 6,
+      "type": "townhomes"
+    },
+    "branding": [
+      {
+        "type": "Office",
+        "name": "Sotheby's International Realty - East Side Manhattan Brokerage"
+      }
+    ],
+    "flags": {},
+    "lead_attributes": {
+      "opcity_lead_attributes": {
+        "flip_the_market_enabled": false,
+        "show_contact_an_agent": true
+      }
+    },
+    "virtual_tours": null,
+    "matterport": false,
+    "advertisers": [
+      {
+        "fulfillment_id": "2166306",
+        "name": "Serena Boardman",
+        "type": "seller",
+        "office": {
+          "name": "Sotheby's International Realty - East Side Manhattan Brokerage"
+        }
+      }
+    ],
+    "source": {
+      "type": "mls",
+      "listing_id": "b1fa8c93-e87c-4523-883f-36810ddd2677"
+    },
+    "agents": [
+      {
+        "agent_name": "Serena Boardman"
+      }
+    ],
+    "estimate": {
+      "estimate": 19042800,
+      "current_estimates": [
+        { "estimate": 19042800, "isbest_homevalue": true },
+        { "estimate": 714000, "isbest_homevalue": false }
+      ]
+    }
+  }
+}
 ```
+
+

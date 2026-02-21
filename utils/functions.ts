@@ -1,19 +1,80 @@
-// Fetch all offers for a given user (client)
 import { db } from "@/components/firebaseConfig";
 import { addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, getFirestore, query, updateDoc, where } from "firebase/firestore";
 import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
 import { Alert, Linking } from "react-native";
-import { Property } from "../services/propertyService";
-import { AvailableClients, ClientData, ClientRequest, FavoriteProperty, RealtorData, UserData } from "./interfaces";
+import * as interfaces from "./interfaces";
 
 
+/**
+ * Fetches the active offer for a specific client & property 
+ * @param clientId 
+ * @param propertyId 
+ * @returns 
+ */
+export const fetchActiveOfferForClientProperty = async (
+	clientId: string,
+	propertyId: string
+) : Promise<interfaces.OfferData | null> => {
+	try {
+		const offersRef = collection(db, "clientOffers");
+		const q = query(
+			offersRef,
+			where("clientId", "==", clientId),
+			where("propertyId", "==", propertyId)
+		);
+		const querySnapshot = await getDocs(q);
+		for (const doc of querySnapshot.docs) {
+			const offer = doc.data();
+			// Only consider offers that are not withdrawn/declined
+			if (
+				offer.status !== "withdrawn" &&
+				offer.status !== "Offer Declined" &&
+				offer.status !== "offer declined"
+			) {
+				return {
+					offerId: doc.id,
+					...offer
+				} as interfaces.OfferData;
+			}
+		}
+		return null;
+	} catch (error) {
+		console.error(`[fetchActiveOfferForClientProperty] ✗ Error fetching offer for client ${clientId} property ${propertyId}:`, error);
+		return null;
+	}
+};
 
-export const fetchUserOffers = async (userId: string) => {
+
+/**
+ * Fetches a specific property in the clientFavorites collection for the propertyId provided.
+ *
+ *   @param propertyId: string - The Firestore document ID for the property.
+ *   @return: Property object or null if not found.
+ *   @useage const property = await fetchPropertyData(propertyId);
+ */
+export const fetchPropertyData = async (propertyId: string): Promise<interfaces.Property | null> => {
+	try {
+		// Fetch from clientFavorites collection by propertyId
+		const favoritesRef = collection(db, 'clientFavorites');
+		const q = query(favoritesRef, where('propertyId', '==', propertyId));
+		const snapshot = await getDocs(q);
+		if (!snapshot.empty) {
+			// Return the first matching favorite property
+			return snapshot.docs[0].data() as interfaces.Property;
+		}
+		return null;
+	} catch (error) {
+		console.error(`[fetchPropertyData] Error fetching property ${propertyId} from clientFavorites:`, error);
+		return null;
+	}
+};
+
+export const fetchUserOffers = async (userId: string): Promise<interfaces.OfferData[]> => {
 	try {
 		const offersRef = collection(db, "clientOffers");
 		const q = query(offersRef, where("clientId", "==", userId));
 		const querySnapshot = await getDocs(q);
-		const offers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+		const offers: interfaces.OfferData[] = querySnapshot.docs.map(doc => ({ offerId: doc.id, ...doc.data() } as interfaces.OfferData));
 		return offers;
 	} catch (error) {
 		console.error(`[fetchUserOffers] ✗ Error fetching offers for user ${userId}:`, error);
@@ -22,12 +83,12 @@ export const fetchUserOffers = async (userId: string) => {
 };
 
 
-export const fetchUserData = async (userId: string): Promise<UserData | null> => {
+export const fetchUserData = async (userId: string): Promise<interfaces.UserData | null> => {
 	try {
 		console.log(`[fetchUserData] Fetching user: ${userId}`);
 		const userDoc = await getDoc(doc(db, "users", userId));
 		if (userDoc.exists()) {
-			const userData = userDoc.data() as UserData;
+			const userData = userDoc.data() as interfaces.UserData;
 			console.log(`[fetchUserData] ✓ Found user:`, { id: userId, name: `${userData.firstName} ${userData.lastName}`, role: userData.role });
 			return userData;
 		}
@@ -39,16 +100,16 @@ export const fetchUserData = async (userId: string): Promise<UserData | null> =>
 	}
 };
 
-export const fetchClients = async (): Promise<ClientData[]> => {
+export const fetchClients = async (): Promise<interfaces.ClientData[]> => {
 	try {
 		console.log(`[fetchClients] Querying all clients...`);
 		const usersRef = collection(db, "users");
 		const q = query(usersRef, where("role", "==", "Client"));
 		const querySnapshot = await getDocs(q);
 
-		const clients: ClientData[] = [];
+		const clients: interfaces.ClientData[] = [];
 		querySnapshot.forEach((doc) => {
-			clients.push({ id: doc.id, ...doc.data() } as ClientData);
+			clients.push({ id: doc.id, ...doc.data() } as interfaces.ClientData);
 		});
 		console.log(`[fetchClients] ✓ Found ${clients.length} total clients`);
 		return clients;
@@ -58,16 +119,16 @@ export const fetchClients = async (): Promise<ClientData[]> => {
 	}
 };
 
-export const fetchRealtors = async (): Promise<RealtorData[]> => {
+export const fetchRealtors = async (): Promise<interfaces.RealtorData[]> => {
 	try {
 		console.log(`[fetchRealtors] Querying all realtors/agents...`);
 		const usersRef = collection(db, "users");
 		const q = query(usersRef, where("role", "==", "Agent"));
 		const querySnapshot = await getDocs(q);
 
-		const realtors: RealtorData[] = [];
+		const realtors: interfaces.RealtorData[] = [];
 		querySnapshot.forEach((doc) => {
-			realtors.push({ id: doc.id, ...doc.data() } as RealtorData);
+			realtors.push({ id: doc.id, ...doc.data() } as interfaces.RealtorData);
 		});
 
 		console.log(`[fetchRealtors] ✓ Found ${realtors.length} realtors`);
@@ -78,11 +139,11 @@ export const fetchRealtors = async (): Promise<RealtorData[]> => {
 	}
 };
 
-export const fetchUnassignedClients = async (): Promise<AvailableClients[]> => {
+export const fetchUnassignedClients = async (): Promise<interfaces.AvailableClients[]> => {
 	console.log(`[fetchUnassignedClients] Starting search for unassigned clients...`);
 	try {
 		const clients = await fetchClients();
-		const unassignedClients: AvailableClients[] = [];
+		const unassignedClients: interfaces.AvailableClients[] = [];
 
 		for (const client of clients) {
 			const requestsRef = collection(db, "clientRequests");
@@ -104,7 +165,7 @@ export const fetchUnassignedClients = async (): Promise<AvailableClients[]> => {
 	}
 };
 
-export const fetchAssignedRealtor = async (clientId: string): Promise<string | null> => {
+export const fetchAssignedRealtor = async (clientId: string): Promise<interfaces.RealtorData | null> => {
 	try {
 		console.log(`[fetchAssignedRealtor] Checking assigned realtor for client: ${clientId}`);
 		const requestsRef = collection(db, "clientRequests");
@@ -125,19 +186,19 @@ export const fetchAssignedRealtor = async (clientId: string): Promise<string | n
 	}
 };
 
-export const fetchAssignedClients = async (realtorId: string): Promise<ClientRequest[]> => {
+export const fetchAssignedClients = async (realtorId: string): Promise<interfaces.ClientRequest[]> => {
 	try {
 		const requestsRef = collection(db, "clientRequests");
 		const q = query(requestsRef, where("realtorId", "==", realtorId), where("status", "==", "Approved"));
 		const querySnapshot = await getDocs(q);
 
-		const requests: ClientRequest[] = [];
+		const requests: interfaces.ClientRequest[] = [];
 
 		console.log(`[fetchAssignedClients] Found ${querySnapshot.docs.length} approved requests for realtor ${realtorId}`);
 
 		// Check each client's active status
 		for (const doc of querySnapshot.docs) {
-			const requestData = doc.data() as ClientRequest;
+			const requestData = doc.data() as interfaces.ClientRequest;
 			try {
 				const clientData = await fetchUserData(requestData.clientId);
 				const isActive = (clientData as any)?.is_active !== false; // Default to true if undefined
@@ -173,7 +234,7 @@ export const fetchAssignedClients = async (realtorId: string): Promise<ClientReq
 	}
 };
 
-export const fetchPendingClientRequests = async (realtorId?: string): Promise<ClientRequest[]> => {
+export const fetchPendingClientRequests = async (realtorId?: string): Promise<interfaces.ClientRequest[]> => {
 	try {
 		console.log(`[fetchPendingClientRequests] Fetching pending requests${realtorId ? ` for realtor ${realtorId}` : ""}...`);
 		const requestsRef = collection(db, "clientRequests");
@@ -184,9 +245,9 @@ export const fetchPendingClientRequests = async (realtorId?: string): Promise<Cl
 		const q = query(requestsRef, ...constraints);
 		const querySnapshot = await getDocs(q);
 
-		const requests: ClientRequest[] = [];
+		const requests: interfaces.ClientRequest[] = [];
 		querySnapshot.forEach((doc) => {
-			requests.push({ id: doc.id, ...doc.data() } as ClientRequest);
+			requests.push({ id: doc.id, ...doc.data() } as interfaces.ClientRequest);
 		});
 
 		requests.sort((a, b) => {
@@ -232,7 +293,7 @@ export const checkIfFavorite = async (userId: string, propertyId: string): Promi
 	}
 };
 
-export const toggleFavorite = async (userId: string, property: Property): Promise<boolean> => {
+export const toggleFavorite = async (userId: string, property: interfaces.Property): Promise<boolean> => {
 	try {
 		console.log(`[toggleFavorite] Toggling favorite for property ${property.id} by user ${userId}`);
 		const isFavorite = await checkIfFavorite(userId, property.id);
@@ -263,8 +324,8 @@ export const toggleFavorite = async (userId: string, property: Property): Promis
 				status: property.status,
 				photos: property.photos || [],
 				primaryPhoto: property.primaryPhoto || (property.photos && property.photos[0]) || null,
-				squareFootage: property.homeSize || property.sqft || null,
-				landArea: property.lotSize || property.lot_area || null,
+				squareFootage: property.sqft || null,
+				landArea: property.lot_sqft || null,
 				savedAt: new Date()
 			});
 			console.log(`[toggleFavorite] ✓ Added favorite for property ${property.id}`);
@@ -276,21 +337,21 @@ export const toggleFavorite = async (userId: string, property: Property): Promis
 	}
 }
 
-export const getFavorites = async (userId: string): Promise<FavoriteProperty[]> => {
+export const getFavorites = async (userId: string): Promise<interfaces.FavoriteProperty[]> => {
 	try {
 		const ref = collection(db, 'clientFavorites');
 		const q = query(ref, where("userId", "==", userId));
 		const querySnapshot = await getDocs(q);
 
 		// Build an array called favorites that uses the FavoriteProperty interface
-		const favorites: FavoriteProperty[] = [];
+		const favorites: interfaces.FavoriteProperty[] = [];
 
 			console.log('[getFavorites] userId:', userId);
 			console.log('[getFavorites] querySnapshot size:', querySnapshot.size);
 		//Build the array with the information in the querySnapshot variable.
 		querySnapshot.forEach((doc) => { 
 			// assign each field to it's proper position in the FavoriteProperty interface.
-			favorites.push({ id:doc.id, ...doc.data() } as FavoriteProperty);  // Spread operator (elipsis) maps Firestore fields to interface fields automatically
+			favorites.push({ id:doc.id, ...doc.data() } as interfaces.FavoriteProperty);  // Spread operator (elipsis) maps Firestore fields to interface fields automatically
 				console.log('[getFavorites] favorite doc:', doc.id, doc.data());
 		})
 
@@ -332,7 +393,6 @@ export function getShortDateString(date = new Date()) {
  * Creates a new clientOffer in Firestore.
  * @param clientId - The client making the offer
  * @param agentId - The agent assigned to the client
-				console.log('[toggleFavorite] Removing favorite:', userId, property.id);
  * @param propertyId - The property for the offer
  * @param status - The status of the offer (see getClientOfferStatuses)
  * @returns The created document reference
@@ -354,9 +414,7 @@ export const createClientOffer = async (
 			updatedAt: now,
 		};
 		const docRef = await addDoc(collection(db, "clientOffers"), offerData);
-		console.log(`[createClientOffer] ✓ Created offer for client ${clientId} on property ${propertyId}`);
 		return docRef;
-				console.log('[toggleFavorite] Adding favorite:', favoriteData);
 	} catch (error) {
 		console.error(`[createClientOffer] ✗ Error creating offer:`, error);
 		throw error;
@@ -393,19 +451,19 @@ export const getClientOfferStatuses = () => [
  * @returns The download URL of the uploaded file
  */
 export async function uploadFileAndSaveUrl({
-	fileUri,
+	fileUrl,
 	storagePath,
 	offerDocId,
 	metadata = {},
 }: {
-	fileUri: string;
+	fileUrl: string;
 	storagePath: string;
 	offerDocId: string;
 	metadata?: any;
 }): Promise<string> {
 	const storage = getStorage();
 	const firestore = getFirestore();
-	const response = await fetch(fileUri);
+	const response = await fetch(fileUrl);
 	const blob = await response.blob();
 	const storageRef = ref(storage, storagePath);
 	await uploadBytes(storageRef, blob);
@@ -422,4 +480,214 @@ export async function uploadFileAndSaveUrl({
 		}),
   	});
 	return downloadUrl;
+}
+
+
+
+
+// PROPERTY SERVICES FUNCTIONS //
+/**
+ * Formats location string for RealtyUS API
+ * Examples: "commerce, ga" -> "city:Commerce,GA"
+ */
+export function formatLocation(location: string): string {
+	if (location.includes(":")) {
+		return location; // Already formatted
+	}
+
+	// Convert "commerce, ga" to "city:Commerce,GA"
+	const parts = location.split(",").map(s => s.trim());
+	if (parts.length === 2) {
+		const city = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+		const state = parts[1].toUpperCase();
+		return `city:${city},${state}`;
+	}
+
+	return `city:${location}`;
+}
+
+/**
+ * Builds the RealtyUS API URL with all parameters
+ */
+export function buildApiUrl(options: interfaces.SearchOptions): string {
+	const formattedLocation = formatLocation(options.location);
+	const params = new URLSearchParams({ location: formattedLocation });
+
+	// Add all optional parameters
+	const optionalParams: (keyof Omit<interfaces.SearchOptions, 'location'>)[] = [
+		"zoneId",
+		"resultsPerPage",
+		"page",
+		"sortBy",
+		"expandSearchArea",
+		"propertyType",
+		"prices",
+		"bedrooms",
+		"bathrooms",
+		"homeSize",
+		"lotSize",
+		"homeAge",
+		"hidePendingContingent",
+		"newConstructionOnly",
+		"hideHomesNotYetBuilt",
+		"foreclosuresOnly",
+		"hideForeclosures",
+		"seniorCommunityOnly",
+		"openHousesOnly",
+		"priceRecentlyReducedOnly",
+		"virtualToursOnly",
+		"threeDtoursOnly",
+		"maxHoaFeesPerMonth",
+		"showHomesWhereHoaIsNotKnown",
+		"daysOnRealtor",
+		"garageParking",
+		"heatingCooling",
+		"homeFeatures",
+		"lotFeatures",
+		"communityFeatures",
+		"nycAmenities",
+		"minListDate",
+		"maxListDate",
+	];
+
+	optionalParams.forEach((key) => {
+		const value = options[key];
+		if (value !== undefined && value !== null && value !== "") {
+			params.set(key, String(value));
+		}
+	});
+
+	return `https://realty-us.p.rapidapi.com/properties/search-buy?${params.toString()}`;
+}
+
+/**
+ * Normalizes raw API property data to consistent format
+ */
+export function normalizeProperty(property: any): interfaces.Property {
+	const latitude =
+		property.location?.address?.coordinate?.lat ??
+		property.location?.coordinates?.lat ??
+		property.location?.latitude ??
+		property.latitude ??
+		null;
+
+	const longitude =
+		property.location?.address?.coordinate?.lon ??
+		property.location?.coordinates?.lon ??
+		property.location?.longitude ??
+		property.longitude ??
+		null;
+
+	return {
+		id: property.property_id ?? property.id ?? property.listing_id ?? "",
+		price: property.list_price ?? property.price ?? property.price?.list_price ?? property.price?.value ?? null,
+		address:
+			property.location?.address?.line ||
+			property.address?.line ||
+			property.location?.address ||
+			property.address ||
+			"Address not available",
+		beds: property.description?.beds ?? property.beds ?? null,
+		baths: property.description?.baths ?? property.baths ?? null,
+		latitude,
+		longitude,
+		lot_sqft: property.description?.lot_sqft ?? property.lot_sqft ?? null,
+		status: property.status ?? property.status_code ?? null,
+		sqft: property.description?.sqft ?? property.sqft ?? null,
+		type: property.description?.type ?? property.prop_type ?? property.type ?? null,
+		photos: property.photos || property.photos?.list || [],
+		primaryPhoto:
+			property.primary_photo?.href ||
+			property.primary_photo ||
+			property.thumbnail ||
+			property.photos?.[0]?.href ||
+			null,
+	};
+}
+
+/**
+ * Parses raw API response to extract properties array
+ */
+export function parsePropertiesFromResponse(apiData: any): any[] {
+	// Try multiple possible response structures
+	const rawResults =
+		(apiData?.data?.results && Array.isArray(apiData.data.results) && apiData.data.results) ||  // RealtyUS actual path
+		(apiData?.properties && Array.isArray(apiData.properties) && apiData.properties) ||
+		(apiData?.data?.home_search?.results && Array.isArray(apiData.data.home_search.results) && apiData.data.home_search.results) ||
+		(apiData?.data?.home_search?.properties && Array.isArray(apiData.data.home_search.properties) && apiData.data.home_search.properties) ||
+		[];
+
+	return rawResults;
+}
+
+/**
+ * Main function to search for properties
+ * This calls the Vercel proxy which adds the API key
+ */
+export async function searchProperties(options: interfaces.SearchOptions): Promise<interfaces.Property[]> {
+	try {
+		// Build the full RealtyUS API URL client-side
+		const apiUrl = buildApiUrl(options);
+
+		console.log('🔍 Searching properties with URL:', apiUrl);
+
+		// Use the Vercel deployment URL (not relative path to avoid calling localhost)
+		const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://leading-edge-realty.vercel.app';
+		const proxyUrl = `${apiBaseUrl}/api/proxy?apiUrl=${encodeURIComponent(apiUrl)}`;
+		console.log('🔗 Calling Vercel proxy at:', proxyUrl);
+
+		const response = await fetch(proxyUrl);
+		console.log('📡 Response status:', response.status);
+		console.log('📋 Content-Type:', response.headers.get('content-type'));
+
+		// Get response as text first to see what we actually got
+		const responseText = await response.text();
+		console.log('📄 Raw response (first 200 chars):', responseText.substring(0, 200));
+
+		if (!response.ok) {
+			console.error('❌ Non-OK response. Full text:', responseText.substring(0, 500));
+			let error;
+			try {
+				error = JSON.parse(responseText);
+			} catch {
+				throw new Error(`Proxy failed with status ${response.status}. Response: ${responseText.substring(0, 200)}`);
+			}
+			throw new Error(error.error || 'API request failed');
+		}
+
+		// Try to parse as JSON
+		let rawData;
+		try {
+			rawData = JSON.parse(responseText);
+			console.log('✅ Successfully parsed JSON');
+			console.log('📦 Raw API response keys:', Object.keys(rawData));
+		} catch (parseError: any) {
+			console.error('💥 JSON PARSE ERROR:', parseError.message);
+			console.error('📄 Received content type:', response.headers.get('content-type'));
+			console.error('📄 Full response (first 1000 chars):', responseText.substring(0, 1000));
+			throw new Error(`Failed to parse JSON: ${parseError.message}`);
+		}
+
+		// Parse properties from response
+		const rawProperties = parsePropertiesFromResponse(rawData);
+		console.log(`📊 Found ${rawProperties.length} raw properties`);
+
+		if (rawProperties.length > 0) {
+			console.log('🏠 Sample property (raw):', rawProperties[0]);
+		}
+
+		// Normalize all properties
+		const properties = rawProperties.map(normalizeProperty);
+		console.log(`✅ Normalized ${properties.length} properties`);
+
+		if (properties.length > 0) {
+			console.log('🏡 Sample property (normalized):', properties[0]);
+		}
+
+		return properties;
+
+	} catch (error) {
+		console.error('💥 Error in searchProperties:', error);
+		throw error;
+	}
 }

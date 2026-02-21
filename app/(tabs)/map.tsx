@@ -1,8 +1,7 @@
 import { mapStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Property } from '@/services/propertyService';
-import { searchProperties } from '@/services/propertyService';
 import * as Functions from '@/utils/functions';
+import type { Property } from '@/utils/interfaces';
 import { Picker } from '@react-native-picker/picker';
 import * as Location from "expo-location";
 import { router, useLocalSearchParams } from 'expo-router';
@@ -33,6 +32,8 @@ const MOCK_HOUSES: House[] = [
 			{ href: 'https://picsum.photos/400/300?random=2' },
 			{ href: 'https://picsum.photos/400/300?random=3' },
 		],
+		lot_sqft: null,
+		sqft: 1400
 	},
 	{
 		id: '2',
@@ -51,6 +52,8 @@ const MOCK_HOUSES: House[] = [
 			{ href: 'https://picsum.photos/400/300?random=6' },
 			{ href: 'https://picsum.photos/400/300?random=7' },
 		],
+		lot_sqft: null,
+		sqft: 2500
 	},
 	{
 		id: '3',
@@ -67,6 +70,8 @@ const MOCK_HOUSES: House[] = [
 			{ href: 'https://picsum.photos/400/300?random=8' },
 			{ href: 'https://picsum.photos/400/300?random=9' },
 		],
+		lot_sqft: null,
+		sqft: 2350
 	},
 	{
 		id: '4',
@@ -84,6 +89,8 @@ const MOCK_HOUSES: House[] = [
 			{ href: 'https://picsum.photos/400/300?random=11' },
 			{ href: 'https://picsum.photos/400/300?random=12' },
 		],
+		lot_sqft: 5000,
+		sqft: 1800
 	},
 	{
 		id: '5',
@@ -101,6 +108,8 @@ const MOCK_HOUSES: House[] = [
 			{ href: 'https://picsum.photos/400/300?random=14' },
 			{ href: 'https://picsum.photos/400/300?random=15' },
 		],
+		lot_sqft: null,
+		sqft: null
 	},
 	{
 		id: '6',
@@ -120,6 +129,8 @@ const MOCK_HOUSES: House[] = [
 			{ href: 'https://picsum.photos/400/300?random=19' },
 			{ href: 'https://picsum.photos/400/300?random=20' },
 		],
+		lot_sqft: null,
+		sqft: null
 	},
 ];
 
@@ -161,7 +172,7 @@ async function searchByCoordinates(lat: number, lon: number) {
 // Search properties by city
 async function searchByCity(city: string) {
     try {
-        const properties = await searchProperties({ location: city, resultsPerPage: 200 });
+        const properties = await Functions.searchProperties({ location: city, resultsPerPage: 200 });
         return properties;
     } catch (error) {
         console.error(error);
@@ -399,6 +410,7 @@ const hasZoomedRef = useRef(false);
 										setShowAssignModal(true);
 									} catch (error) {
 										Alert.alert('Error', 'Failed to load assigned clients.');
+										console.error('Error loading assinged clients:', error)
 									}
 									return;
 								}

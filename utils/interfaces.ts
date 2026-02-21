@@ -91,3 +91,56 @@ export interface FavoriteProperty {
 	notes: "",
 	files: string
 }
+
+export interface Property {
+	id: string;
+	price: number | null;
+	address: string;
+	beds: number | null;
+	baths: number | null;
+	latitude: number | null;
+	longitude: number | null;
+	lot_sqft: number | null;
+	status: string | null;
+	sqft: number | null;
+	type: string | null;
+	photos: any[];
+	primaryPhoto: string | null;
+}
+
+export interface SearchOptions {
+	location: string;
+	zoneId?: string;
+	resultsPerPage?: number;
+	page?: number;
+	sortBy?: string;
+	expandSearchArea?: boolean;
+	propertyType?: string;
+	prices?: string;
+	bedrooms?: string;
+	bathrooms?: string;
+	homeSize?: string;
+	lotSize?: string;
+	homeAge?: string;
+	hidePendingContingent?: boolean;
+	newConstructionOnly?: boolean;
+	hideHomesNotYetBuilt?: boolean;
+	foreclosuresOnly?: boolean;
+	hideForeclosures?: boolean;
+	seniorCommunityOnly?: boolean;
+	openHousesOnly?: boolean;
+	priceRecentlyReducedOnly?: boolean;
+	virtualToursOnly?: boolean;
+	threeDtoursOnly?: boolean;
+	maxHoaFeesPerMonth?: number;
+	showHomesWhereHoaIsNotKnown?: boolean;
+	daysOnRealtor?: string;
+	garageParking?: string;
+	heatingCooling?: string;
+	homeFeatures?: string;
+	lotFeatures?: string;
+	communityFeatures?: string;
+	nycAmenities?: string;
+	minListDate?: string;
+	maxListDate?: string;
+}
