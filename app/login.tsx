@@ -13,6 +13,38 @@ export default function LoginScreen() {
 	const [loading, setLoading] = useState(false);
 	const router = useRouter();
 
+	// Quick access login for testing
+	const testUsers = [
+		{ label: 'Test Client (1)`', email: 'client1@gmail.com', password: '123456' },
+		{ label: 'Test Client (2)`', email: 'client2@gmail.com', password: '123456' },
+		{ label: 'Test Client (3)`', email: 'client3@gmail.com', password: '123456' },
+		{ label: 'Test Agent (1)', email: 'agent1@leadingedgega.com', password: '123456' },
+		{ label: 'Test Agent (2)', email: 'agent2@leadingedgega.com', password: '123456' },
+		{ label: 'Test Admin', email: 'admin@hitsolutions.com', password: '123456' },
+	];
+
+	const handleTestLogin = async (email: string, password: string) => {
+		setMessage('');
+		setLoading(true);
+		try {
+			const userCredential = await signInWithEmailAndPassword(auth, email, password);
+			const user = userCredential.user;
+			const userDoc = await getDoc(doc(db, 'users', user.uid));
+			if (userDoc.exists()) {
+				setMessage('Login successful!');
+				router.push('/role-redirect');
+			} else {
+				setMessage('User data not found');
+				setLoading(false);
+			}
+		} catch (err: any) {
+			setMessage('Test login failed: ' + err.message);
+			setLoading(false);
+		} finally {
+			if (!loading) setLoading(false);
+		}
+	};
+
 	const handleLogin = async () => {
 		setMessage('');
 		setLoading(true);
@@ -73,6 +105,20 @@ export default function LoginScreen() {
 					Don&apos;t have an account?{' '}
 					<Text style={{ color: '#007AFF' }} onPress={() => router.push('/register')}>Register</Text></Text>
 
+				{/* Quick access login buttons for testing */}
+				<View style={{ marginTop: 24, marginBottom: 8 }}>
+					<Text style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 8 }}>Quick Test Logins:</Text>
+					{testUsers.map((user, idx) => (
+						<View key={user.email} style={{ marginBottom: 8 }}>
+							<Button
+								title={user.label}
+								onPress={() => handleTestLogin(user.email, user.password)}
+								color="#2C5F2D"
+								disabled={loading}
+							/>
+						</View>
+					))}
+				</View>
 			</View>
 		</SafeAreaView>
 	);
