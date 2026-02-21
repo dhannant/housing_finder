@@ -10,7 +10,7 @@ import { ActivityIndicator, FlatList, Text, TouchableOpacity, View } from 'react
 export default function ClientFavoritesList() {
 	const [assignedClients, setAssignedClients] = useState<string[]>([]);
 	const [favorites, setFavorites] = useState<FavoriteProperty[]>([]);
-	const [loading, setLoading] = useState(false);
+	const [loading, setLoading] = useState(true);
 	const [offers, setOffers] = useState<{ [propertyId: string]: OfferData | null }>({});
 	const [clientHasActiveOffer, setClientHasActiveOffer] = useState<{ [clientId: string]: boolean }>({});
 	const [propertyHasActiveOffer, setPropertyHasActiveOffer] = useState<{ [propertyId: string]: boolean }>({});
@@ -25,28 +25,26 @@ export default function ClientFavoritesList() {
 	// -for the agent side we can get this from parameters
 	// -for the client side we can use the current user
 
+	// Fetch assignments (agent only)
 	useEffect(() => {
-		// Synchronize assignments and offer checks
-		const syncAssignmentsAndOffers = async () => {
+		const loadAll = async () => {
 			setLoading(true);
 			try {
-				let assignments: string[] = assignedClients;
-				if (isAgent && user?.uid && assignedClients.length === 0) {
-					try {
-						const { fetchAssignedClients } = await import('@/utils/functions');
-						const assigned = await fetchAssignedClients(user.uid);
-						assignments = assigned.map((req: any) => req.clientId);
-						setAssignedClients(assignments);
-					} catch (err) {
-						console.error('[FavoritesScreen] error fetching assigned clients:', err);
-					}
+				// Fetch assignments first (if agent)
+				let assigned: string[] = [];
+				if (isAgent && user?.uid) {
+					const { fetchAssignedClients } = await import('@/utils/functions');
+					const assignedResult = await fetchAssignedClients(user.uid);
+					assigned = assignedResult.map((req: any) => req.clientId);
+					setAssignedClients(assigned);
 				}
+
+				// Fetch favorites
 				const clientIdParam = Array.isArray(params.clientId) ? params.clientId[0] : params.clientId;
 				const userId = clientIdParam ? clientIdParam : user?.uid;
-				console.log('[FavoritesScreen] resolved userId for query:', userId);
 				if (!userId) return;
 				const data = await getFavorites(userId);
-				console.log('[FavoritesScreen] fetched favorites:', data);
+				setFavorites(data);
 
 				// Only agents query offers for assigned clients
 				let clientHasActiveOffer: { [clientId: string]: boolean } = {};
@@ -54,7 +52,7 @@ export default function ClientFavoritesList() {
 				let offers: { [propertyId: string]: OfferData | null } = {};
 				if (isAgent) {
 					await Promise.all(data.map(async (fav) => {
-						if (assignments.includes(fav.userId)) {
+						if (assigned.includes(fav.userId)) {
 							// Check client active offer
 							const clientOffersRef = collection(db, 'clientOffers');
 							const clientOffersQ = query(clientOffersRef, where('clientId', '==', fav.userId));
@@ -74,15 +72,8 @@ export default function ClientFavoritesList() {
 							const snapshot = await getDocs(q);
 							let foundPropertyActive = false;
 							let activeOffer: OfferData | null = null;
-							console.log(`[Agent Debug] Offers for propertyId ${fav.propertyId}: snapshot.size=${snapshot.size}`);
-							if (snapshot.size === 0) {
-								console.log(`[Agent Debug] No offers found for propertyId ${fav.propertyId}`);
-							} else {
-								console.log(`[Agent Debug] Offer doc IDs:`, snapshot.docs.map(doc => doc.id));
-							}
 							snapshot.docs.forEach(doc => {
 								const offer = doc.data();
-								console.log(`[Agent Debug] Offer ${doc.id}: status=${offer.status}, clientId=${offer.clientId}`);
 								if (offer.status !== 'withdrawn' &&
 									offer.status !== 'Offer Declined' &&
 									offer.status !== 'offer declined') {
@@ -107,7 +98,6 @@ export default function ClientFavoritesList() {
 									};
 								}
 							});
-							console.log(`[Agent Debug] propertyHasActiveOffer[${fav.propertyId}] = ${foundPropertyActive}`);
 							propertyHasActiveOffer[fav.propertyId] = foundPropertyActive;
 							offers[fav.propertyId] = activeOffer;
 						} else {
@@ -117,7 +107,6 @@ export default function ClientFavoritesList() {
 						}
 					}));
 				}
-				setFavorites(data);
 				setClientHasActiveOffer(clientHasActiveOffer);
 				setPropertyHasActiveOffer(propertyHasActiveOffer);
 				setOffers(offers);
@@ -127,16 +116,18 @@ export default function ClientFavoritesList() {
 				setLoading(false);
 			}
 		};
-		syncAssignmentsAndOffers();
-	}, [params.clientId, user?.uid, isAgent])
+		loadAll();
+	}, [params.clientId, user?.uid, isAgent]);
 
 	if (loading) {
-		return (
-			<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-				<ActivityIndicator size="large" />
-				<Text style={{ marginTop: 10 }}>Loading...</Text>
-			</View>
-		);
+		if (loading) {
+			return (
+				<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+					<ActivityIndicator size="large" />
+					<Text style={{ marginTop: 10 }}>Loading...</Text>
+				</View>
+			);
+		}
 	}
 	// If no favorites exist, show empty state message
 	if (favorites.length === 0) {
