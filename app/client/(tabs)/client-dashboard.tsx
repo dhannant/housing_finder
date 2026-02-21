@@ -1,41 +1,22 @@
-import { auth, db } from "@/components/firebaseConfig";
-import { useAssignedRealtor, useRealtors, useUserData } from "@/hooks/useFunctions";
-import { RealtorData } from "@/utils/interfaces";
+import { auth } from "@/components/firebaseConfig";
+import { useAssignedRealtor, useUserData } from "@/hooks/useFunctions";
 import { useRouter } from "expo-router";
-import { addDoc, collection } from "firebase/firestore";
-import { UserCircle } from "lucide-react-native";
-import { useState } from "react";
-import { ActivityIndicator, Alert, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { landingStyles } from '@/constants/styles';
+
+
+import { Home, MapPin, UserCircle } from "lucide-react-native";
+import { OffersModule } from '../../../components/modules/OffersModule';
+import { YourAgentModule } from '../../../components/modules/YourAgentModule';
 
 export default function ClientDashboard() {
 	const router = useRouter();
 	const user = auth.currentUser;
-	const { data: userData } = useUserData(user?.uid || null);
-	const { data: realtors = [], loading } = useRealtors();
-	const { data: assignedRealtorId, refetch: refetchAssignedRealtor } = useAssignedRealtor(user?.uid || null);
-	const [requesting, setRequesting] = useState(false);
 
-	const handleSelectRealtor = async (realtorId: string) => {
-		if (assignedRealtorId) {
-			Alert.alert("Already Requested", "You already have an active request with a realtor");
-			return;
-		}
-		setRequesting(true);
-		try {
-			if (!user) {
-				Alert.alert("Error", "You must be logged in");
-				return;
-			}
-			await addDoc(collection(db, "clientRequests"), { clientId: user.uid, realtorId: realtorId, status: "Pending", createdAt: new Date() });
-			await refetchAssignedRealtor();
-			Alert.alert("Success", "Your request has been sent to the realtor!");
-		} catch (error) {
-			console.error("Error selecting realtor:", error);
-			Alert.alert("Error", "Failed to send request to realtor");
-		} finally {
-			setRequesting(false);
-		}
-	};
+	const { data: userData, loading } = useUserData(user?.uid || null);
+	const { data: assignedRealtorId } = useAssignedRealtor(user?.uid || null);
 
 	const handleLogout = async () => {
 		try {
@@ -46,109 +27,81 @@ export default function ClientDashboard() {
 		}
 	};
 
-	if (loading) {
+		if (loading) {
+			return (
+				<SafeAreaView style={styles.container}>
+					<View style={styles.loadingContainer}>
+						<ActivityIndicator size="large" color="#2C5F2D" />
+						<Text style={styles.loadingText}>Loading...</Text>
+					</View>
+				</SafeAreaView>
+			);
+		}
+
 		return (
-			<SafeAreaView style={styles.container}>
-				<View style={styles.loadingContainer}>
-					<ActivityIndicator
-						size="large"
-						color="#2C5F2D"
-					/>
-					<Text style={styles.loadingText}>Loading...</Text>
-				</View>
-			</SafeAreaView>
+			   <SafeAreaView style={styles.container}>
+				   <View style={styles.header}>
+					   <View style={styles.headerContent}>
+						   <UserCircle color="#2C5F2D" size={32} />
+						   <View style={styles.headerTextContainer}>
+							   <Text style={styles.headerTitle}>Client Dashboard</Text>
+							   <Text style={styles.headerSubtitle}>Welcome, {userData?.firstName || "Client"}!</Text>
+						   </View>
+					   </View>
+					   <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+						   <Text style={styles.logoutButtonText}>Logout</Text>
+					   </TouchableOpacity>
+				   </View>
+				   <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+					   {/* Offers module if user has active offers */}
+					   {user && <OffersModule userId={user.uid} styles={styles} />}
+					   {/* Your Realtor section if assigned */}
+					   {assignedRealtorId && <YourAgentModule realtorId={assignedRealtorId} styles={styles} />}
+					   <View style={styles.bottomButtonsContainer}>
+						   <TouchableOpacity
+							   style={[landingStyles.actionButton, landingStyles.buyButton, { marginHorizontal: 16, marginTop: 8, paddingVertical: 16, paddingHorizontal: 16 }]}
+							   onPress={() => router.push({ pathname: '/(tabs)/map', params: { userType: 'buy', zoomToUser: 'false' } })}
+							   activeOpacity={0.8}
+						   >
+							   <View style={[landingStyles.buttonContent, { minHeight: 42 }]}> 
+								   <View style={[landingStyles.iconCircle, landingStyles.buyIconCircle, { width: 42, height: 42, borderRadius: 21, marginRight: 12 }]}> 
+									   <Home color="#FFFFFF" size={22} />
+								   </View>
+								   <View style={landingStyles.buttonTextContainer}>
+									   <Text style={landingStyles.buttonTitle}>I&apos;m looking to buy a home/land</Text>
+									   <Text style={landingStyles.buttonSubtitle}>Create profile & start searching</Text>
+								   </View>
+							   </View>
+							   <Text style={landingStyles.arrow}>→</Text>
+						   </TouchableOpacity>
+						   <TouchableOpacity
+							   style={[landingStyles.actionButton, landingStyles.geolocateButton, { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 8, paddingVertical: 16, paddingHorizontal: 16 }]}
+							   activeOpacity={0.8}
+							   onPress={() => router.push({ pathname: '/(tabs)/map', params: { userType: 'geolocate', zoomToUser: 'true' } })}
+						   >
+							   <View style={[landingStyles.iconCircle, landingStyles.geolocateIconCircle, { width: 42, height: 42, borderRadius: 21, marginRight: 12 }]}> 
+								   <MapPin color="#FFFFFF" size={22} />
+							   </View>
+							   <View style={landingStyles.buttonTextContainer}>
+								   <Text style={landingStyles.buttonTitle}>I&apos;m at a home I love & need more info</Text>
+								   <Text style={landingStyles.buttonSubtitle}>Geo-locate property details</Text>
+							   </View>
+							   <Text style={landingStyles.arrow}>→</Text>
+						   </TouchableOpacity>
+					   </View>
+				   </ScrollView>
+			   </SafeAreaView>
 		);
-	}
-
-	return (
-		<SafeAreaView style={styles.container}>
-			<View style={styles.header}>
-				<View style={styles.headerContent}>
-					<UserCircle
-						color="#2C5F2D"
-						size={32}
-					/>
-					<View style={styles.headerTextContainer}>
-						<Text style={styles.headerTitle}>Client Dashboard</Text>
-						<Text style={styles.headerSubtitle}>Welcome, {userData?.firstName || "Client"}!</Text>
-					</View>
-				</View>
-				<TouchableOpacity
-					style={styles.logoutButton}
-					onPress={handleLogout}>
-					<Text style={styles.logoutButtonText}>Logout</Text>
-				</TouchableOpacity>
-			</View>
-
-			<ScrollView
-				style={styles.scrollView}
-				contentContainerStyle={styles.scrollContent}>
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Select Your Realtor</Text>
-					<Text style={styles.sectionDescription}>
-						Choose a realtor to work with. They will be able to view your requests and help you find your dream property.
-					</Text>
-				</View>
-
-				{!realtors || realtors.length === 0 ? (
-					<View style={styles.emptyState}>
-						<Text style={styles.emptyStateText}>No realtors available at the moment.</Text>
-					</View>
-				) : (
-					<View style={styles.realtorsContainer}>
-						{realtors.map((realtor: RealtorData) => (
-							<View
-								key={realtor.id}
-								style={styles.realtorCard}>
-								<View style={styles.realtorInfo}>
-									<View style={styles.realtorAvatar}>
-										<Text style={styles.realtorInitials}>
-											{realtor.firstName[0]}
-											{realtor.lastName[0]}
-										</Text>
-									</View>
-									<View style={styles.realtorDetails}>
-										<Text style={styles.realtorName}>
-											{realtor.firstName} {realtor.lastName}
-										</Text>
-										<Text style={styles.realtorEmail}>{realtor.email}</Text>
-										{realtor.phoneNumber && <Text style={styles.realtorPhone}>{realtor.phoneNumber}</Text>}
-									</View>
-								</View>
-
-								{!assignedRealtorId ? (
-									<TouchableOpacity
-										style={[styles.selectButton, requesting && styles.disabledButton]}
-										onPress={() => handleSelectRealtor(realtor.id)}
-										disabled={requesting}>
-										<Text style={styles.selectButtonText}>Select Realtor</Text>
-									</TouchableOpacity>
-								) : (
-									<View style={styles.requestSentBadge}>
-										<Text style={styles.requestSentText}>Request Sent</Text>
-									</View>
-								)}
-							</View>
-						))}
-					</View>
-				)}
-
-				<TouchableOpacity
-					style={styles.navigateButton}
-					onPress={() => router.push("/(tabs)/map")}>
-					<Text style={styles.navigateButtonText}>Browse Properties</Text>
-				</TouchableOpacity>
-				<TouchableOpacity
-					style={[styles.navigateButton, { backgroundColor: '#2C5F2D' }]}
-					onPress={() => router.push({ pathname: '/(tabs)/map', params: { zoomToUser: 'true' } })}>
-					<Text style={styles.navigateButtonText}>I'm at a home I love and need more info</Text>
-				</TouchableOpacity>
-			</ScrollView>
-		</SafeAreaView>
-	);
 }
 
 const styles = StyleSheet.create({
+	bottomButtonsContainer: {
+		backgroundColor: '#F8F9FA',
+		paddingBottom: 24,
+		paddingTop: 8,
+		alignItems: 'center',
+		marginTop: 24,
+	},
 	container: { flex: 1, backgroundColor: "#F8F9FA" },
 	header: {
 		backgroundColor: "#FFFFFF",
@@ -167,7 +120,7 @@ const styles = StyleSheet.create({
 	logoutButton: { backgroundColor: "#FF4444", paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
 	logoutButtonText: { color: "#FFFFFF", fontWeight: "600", fontSize: 14 },
 	scrollView: { flex: 1 },
-	scrollContent: { paddingBottom: 40 },
+	scrollContent: { paddingBottom: 100 },
 	loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
 	loadingText: { marginTop: 10, fontSize: 16, color: "#666666" },
 	section: { backgroundColor: "#FFFFFF", padding: 20, marginBottom: 16 },

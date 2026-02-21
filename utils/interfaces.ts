@@ -1,6 +1,7 @@
 // utils/interfaces.ts
 
 export interface UserData {
+	id: string,
 	firstName: string;
 	lastName: string;
 	email: string;
@@ -71,3 +72,22 @@ export interface FavoriteProperty {
 	status: string | null;
 	savedAt?: any;
  }
+
+ export interface OfferData {
+	clientId: string,
+   agentId: string,
+   propertyId: string,
+	offerId: string,
+   status: "Offer Made",
+   createdAt: Date,
+   updatedAt: Date,
+	dueDiligenceStart: Date | null,
+	dueDiligenceEnd: Date | null,
+	closingDate: Date | null,
+	inspectionDate: Date | null,
+	moveInDate: Date | null,
+	earnestMoneyDueDate: Date | null,
+	earnestMoneyAmountDue: number | null,
+	notes: "",
+	files: string
+}

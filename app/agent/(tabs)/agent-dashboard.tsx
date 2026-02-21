@@ -1,4 +1,5 @@
 import { auth, db } from "@/components/firebaseConfig";
+import { agentDashboardStyles } from "@/constants/styles";
 import { useAssignedClients, usePendingClientRequests, useUnassignedClients, useUserData } from "@/hooks/useFunctions";
 import { fetchUserData, formatDate } from "@/utils/functions";
 import { AvailableClients, ClientRequest, UserData } from "@/utils/interfaces";
@@ -6,7 +7,9 @@ import { useRouter } from "expo-router";
 import { addDoc, collection, deleteDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { Briefcase, Mail, Phone, User } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 
 export default function RealtorDashboard() {
 	const router = useRouter();
@@ -115,114 +118,114 @@ export default function RealtorDashboard() {
 
 	if (userLoading) {
 		return (
-			<SafeAreaView style={styles.container}>
-				<View style={styles.loadingContainer}>
+			<SafeAreaView style={agentDashboardStyles.container}>
+				<View style={agentDashboardStyles.loadingContainer}>
 					<ActivityIndicator
 						size="large"
 						color="#2C5F2D"
 					/>
-					<Text style={styles.loadingText}>Loading...</Text>
+					<Text style={agentDashboardStyles.loadingText}>Loading...</Text>
 				</View>
 			</SafeAreaView>
 		);
 	}
 
 	return (
-		<SafeAreaView style={styles.container}>
-			<View style={styles.header}>
-				<View style={styles.headerContent}>
+		<SafeAreaView style={agentDashboardStyles.container}>
+			<View style={agentDashboardStyles.header}>
+				<View style={agentDashboardStyles.headerContent}>
 					<Briefcase
 						color="#2C5F2D"
 						size={32}
 					/>
-					<View style={styles.headerTextContainer}>
-						<Text style={styles.headerTitle}>Agent Dashboard</Text>
-						<Text style={styles.headerSubtitle}>Welcome, {userData?.firstName || "Agent"}!</Text>
+					<View style={agentDashboardStyles.headerTextContainer}>
+						<Text style={agentDashboardStyles.headerTitle}>Agent Dashboard</Text>
+						<Text style={agentDashboardStyles.headerSubtitle}>Welcome, {userData?.firstName || "Agent"}!</Text>
 					</View>
 				</View>
 				<TouchableOpacity
-					style={styles.logoutButton}
+					style={agentDashboardStyles.logoutButton}
 					onPress={handleLogout}>
-					<Text style={styles.logoutButtonText}>Logout</Text>
+					<Text style={agentDashboardStyles.logoutButtonText}>Logout</Text>
 				</TouchableOpacity>
 			</View>
 
 			<ScrollView
-				style={styles.scrollView}
-				contentContainerStyle={styles.scrollContent}>
+				style={agentDashboardStyles.scrollView}
+				contentContainerStyle={agentDashboardStyles.scrollContent}>
 				{/* Active Clients Section */}
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Active Clients</Text>
-					<Text style={styles.sectionDescription}>These are your currently active clients.</Text>
+				<View style={agentDashboardStyles.section}>
+					<Text style={agentDashboardStyles.sectionTitle}>Active Clients</Text>
+					<Text style={agentDashboardStyles.sectionDescription}>These are your currently active clients.</Text>
 
 					{assignedClients?.length === 0 ? (
-						<View style={styles.emptyState}>
+						<View style={agentDashboardStyles.emptyState}>
 							<User
 								color="#CCCCCC"
 								size={48}
 							/>
-							<Text style={styles.emptyStateText}>No client assignments.</Text>
-							<Text style={styles.emptyStateSubtext}>You currently have no active clients.</Text>
+							<Text style={agentDashboardStyles.emptyStateText}>No client assignments.</Text>
+							<Text style={agentDashboardStyles.emptyStateSubtext}>You currently have no active clients.</Text>
 						</View>
 					) : (
-						<View style={styles.requestsContainer}>
+						<View style={agentDashboardStyles.requestsContainer}>
 							{assignedClients?.map((request: ClientRequest) => {
 								const client = clientDetails[request.clientId];
 								return (
 									<View
 										key={request.id}
-										style={styles.requestCard}>
-										<View style={styles.requestHeader}>
-											<View style={styles.clientAvatar}>
+										style={agentDashboardStyles.requestCard}>
+										<View style={agentDashboardStyles.requestHeader}>
+											<View style={agentDashboardStyles.clientAvatar}>
 												<User
 													color="#FFFFFF"
 													size={24}
 												/>
 											</View>
-											<View style={styles.requestInfo}>
-												<Text style={styles.clientName}>{client ? `${client.firstName} ${client.lastName}` : "Loading..."}</Text>
-												<Text style={styles.requestDate}>{formatDate(request.createdAt)}</Text>
+											<View style={agentDashboardStyles.requestInfo}>
+												<Text style={agentDashboardStyles.clientName}>{client ? `${client.firstName} ${client.lastName}` : "Loading..."}</Text>
+												<Text style={agentDashboardStyles.requestDate}>{formatDate(request.createdAt)}</Text>
 											</View>
-											<View style={[styles.statusBadge]}>
-												<Text style={styles.statusText}>{request.status.toUpperCase()}</Text>
+											<View style={[agentDashboardStyles.statusBadge]}>
+												<Text style={agentDashboardStyles.statusText}>{request.status.toUpperCase()}</Text>
 											</View>
 										</View>
 
-										<View style={styles.requestDetails}>
+										<View style={agentDashboardStyles.requestDetails}>
 											{client?.email && (
 												<TouchableOpacity
-													style={styles.detailRow}
+													style={agentDashboardStyles.detailRow}
 													onPress={() => handleEmail(client.email)}>
 													<Mail
 														color="#666666"
 														size={16}
 													/>
-													<Text style={styles.detailText}>{client.email}</Text>
+													<Text style={agentDashboardStyles.detailText}>{client.email}</Text>
 												</TouchableOpacity>
 											)}
 											{client?.phoneNumber && (
 												<TouchableOpacity
-													style={styles.detailRow}
+													style={agentDashboardStyles.detailRow}
 													onPress={() => handleCall(client.phoneNumber!)}>
 													<Phone
 														color="#666666"
 														size={16}
 													/>
-													<Text style={styles.detailText}>{client.phoneNumber}</Text>
+													<Text style={agentDashboardStyles.detailText}>{client.phoneNumber}</Text>
 												</TouchableOpacity>
 											)}
 										</View>
 
-										<View style={styles.requestActions}>
+										<View style={agentDashboardStyles.requestActions}>
 											<TouchableOpacity
-												style={styles.viewFavoritesButton}
+												style={agentDashboardStyles.viewFavoritesButton}
 												onPress={() => router.push(`/(shared_screens)/client_favorites_list?clientId=${request.clientId}`)}>
-												<Text style={styles.viewFavoritesButtonText}>View Favorites</Text>
+												<Text style={agentDashboardStyles.viewFavoritesButtonText}>View Favorites</Text>
 											</TouchableOpacity>
 											<TouchableOpacity
-												style={styles.actionButton}
+												style={agentDashboardStyles.actionButton}
 												onPress={() => handleReleaseClient(request.clientId)}>
-												<Text style={styles.actionButtonText}>Release Client</Text>
+												<Text style={agentDashboardStyles.actionButtonText}>Release Client</Text>
 											</TouchableOpacity>
 										</View>
 									</View>
@@ -233,73 +236,73 @@ export default function RealtorDashboard() {
 				</View>
 
 				{/* Pending Requests Section */}
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Pending Requests</Text>
-					<Text style={styles.sectionDescription}>These are clients who have requested to work with you.</Text>
+				<View style={agentDashboardStyles.section}>
+					<Text style={agentDashboardStyles.sectionTitle}>Pending Requests</Text>
+					<Text style={agentDashboardStyles.sectionDescription}>These are clients who have requested to work with you.</Text>
 
 					{pendingRequests?.length === 0 ? (
-						<View style={styles.emptyState}>
+						<View style={agentDashboardStyles.emptyState}>
 							<User
 								color="#CCCCCC"
 								size={48}
 							/>
-							<Text style={styles.emptyStateText}>No pending requests.</Text>
-							<Text style={styles.emptyStateSubtext}>New client requests will appear here.</Text>
+							<Text style={agentDashboardStyles.emptyStateText}>No pending requests.</Text>
+							<Text style={agentDashboardStyles.emptyStateSubtext}>New client requests will appear here.</Text>
 						</View>
 					) : (
-						<View style={styles.requestsContainer}>
+						<View style={agentDashboardStyles.requestsContainer}>
 							{pendingRequests?.map((request: ClientRequest) => {
 								const client = clientDetails[request.clientId];
 								return (
 									<View
 										key={request.id}
-										style={styles.requestCard}>
-										<View style={styles.requestHeader}>
-											<View style={styles.clientAvatar}>
+										style={agentDashboardStyles.requestCard}>
+										<View style={agentDashboardStyles.requestHeader}>
+											<View style={agentDashboardStyles.clientAvatar}>
 												<User
 													color="#FFFFFF"
 													size={24}
 												/>
 											</View>
-											<View style={styles.requestInfo}>
-												<Text style={styles.clientName}>{client ? `${client.firstName} ${client.lastName}` : "Loading..."}</Text>
-												<Text style={styles.requestDate}>{formatDate(request.createdAt)}</Text>
+											<View style={agentDashboardStyles.requestInfo}>
+												<Text style={agentDashboardStyles.clientName}>{client ? `${client.firstName} ${client.lastName}` : "Loading..."}</Text>
+												<Text style={agentDashboardStyles.requestDate}>{formatDate(request.createdAt)}</Text>
 											</View>
-											<View style={[styles.statusBadge, styles.pendingBadge]}>
-												<Text style={styles.statusText}>{request.status.toUpperCase()}</Text>
+											<View style={[agentDashboardStyles.statusBadge, agentDashboardStyles.pendingBadge]}>
+												<Text style={agentDashboardStyles.statusText}>{request.status.toUpperCase()}</Text>
 											</View>
 										</View>
 
-										<View style={styles.requestDetails}>
+										<View style={agentDashboardStyles.requestDetails}>
 											{client?.email && (
 												<TouchableOpacity
-													style={styles.detailRow}
+													style={agentDashboardStyles.detailRow}
 													onPress={() => handleEmail(client.email)}>
 													<Mail
 														color="#666666"
 														size={16}
 													/>
-													<Text style={styles.detailText}>{client.email}</Text>
+													<Text style={agentDashboardStyles.detailText}>{client.email}</Text>
 												</TouchableOpacity>
 											)}
 											{client?.phoneNumber && (
 												<TouchableOpacity
-													style={styles.detailRow}
+													style={agentDashboardStyles.detailRow}
 													onPress={() => handleCall(client.phoneNumber!)}>
 													<Phone
 														color="#666666"
 														size={16}
 													/>
-													<Text style={styles.detailText}>{client.phoneNumber}</Text>
+													<Text style={agentDashboardStyles.detailText}>{client.phoneNumber}</Text>
 												</TouchableOpacity>
 											)}
 										</View>
 
-										<View style={styles.requestActions}>
+										<View style={agentDashboardStyles.requestActions}>
 											<TouchableOpacity
-												style={styles.actionButton}
+												style={agentDashboardStyles.actionButton}
 												onPress={() => handleAssignClient(request.clientId)}>
-												<Text style={styles.actionButtonText}>Approve Request</Text>
+												<Text style={agentDashboardStyles.actionButtonText}>Approve Request</Text>
 											</TouchableOpacity>
 										</View>
 									</View>
@@ -310,70 +313,70 @@ export default function RealtorDashboard() {
 				</View>
 
 				{/* Available Clients Section */}
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Available Clients</Text>
-					<Text style={styles.sectionDescription}>
+				<View style={agentDashboardStyles.section}>
+					<Text style={agentDashboardStyles.sectionTitle}>Available Clients</Text>
+					<Text style={agentDashboardStyles.sectionDescription}>
 						New clients below do not currently have an agent assigned. Reach out to them to offer your services!
 					</Text>
 
 					{availableClients?.length === 0 ? (
-						<View style={styles.emptyState}>
+						<View style={agentDashboardStyles.emptyState}>
 							<User
 								color="#CCCCCC"
 								size={48}
 							/>
-							<Text style={styles.emptyStateText}>No available clients.</Text>
-							<Text style={styles.emptyStateSubtext}>Clients will appear here when they are not assigned to an agent.</Text>
+							<Text style={agentDashboardStyles.emptyStateText}>No available clients.</Text>
+							<Text style={agentDashboardStyles.emptyStateSubtext}>Clients will appear here when they are not assigned to an agent.</Text>
 						</View>
 					) : (
-						<View style={styles.requestsContainer}>
+						<View style={agentDashboardStyles.requestsContainer}>
 							{availableClients?.map((client: AvailableClients) => (
 								<View
 									key={client.id}
-									style={styles.requestCard}>
-									<View style={styles.requestHeader}>
-										<View style={styles.clientAvatar}>
+									style={agentDashboardStyles.requestCard}>
+									<View style={agentDashboardStyles.requestHeader}>
+										<View style={agentDashboardStyles.clientAvatar}>
 											<User
 												color="#FFFFFF"
 												size={24}
 											/>
 										</View>
-										<View style={styles.requestInfo}>
-											<Text style={styles.clientName}>
+										<View style={agentDashboardStyles.requestInfo}>
+											<Text style={agentDashboardStyles.clientName}>
 												{client.firstName} {client.lastName}
 											</Text>
-											<Text style={styles.requestDate}>{formatDate(client.createdAt)}</Text>
+											<Text style={agentDashboardStyles.requestDate}>{formatDate(client.createdAt)}</Text>
 										</View>
 									</View>
-									<View style={styles.requestDetails}>
+									<View style={agentDashboardStyles.requestDetails}>
 										{client.email && (
 											<TouchableOpacity
-												style={styles.detailRow}
+												style={agentDashboardStyles.detailRow}
 												onPress={() => handleEmail(client.email)}>
 												<Mail
 													color="#666666"
 													size={16}
 												/>
-												<Text style={styles.detailText}>{client.email}</Text>
+												<Text style={agentDashboardStyles.detailText}>{client.email}</Text>
 											</TouchableOpacity>
 										)}
 										{client.phoneNumber && (
 											<TouchableOpacity
-												style={styles.detailRow}
+												style={agentDashboardStyles.detailRow}
 												onPress={() => handleCall(client.phoneNumber!)}>
 												<Phone
 													color="#666666"
 													size={16}
 												/>
-												<Text style={styles.detailText}>{client.phoneNumber}</Text>
+												<Text style={agentDashboardStyles.detailText}>{client.phoneNumber}</Text>
 											</TouchableOpacity>
 										)}
 									</View>
-									<View style={styles.requestActions}>
+									<View style={agentDashboardStyles.requestActions}>
 										<TouchableOpacity
-											style={styles.actionButton}
+											style={agentDashboardStyles.actionButton}
 											onPress={() => handleAssignClient(client.id)}>
-											<Text style={styles.actionButtonText}>Assign Client</Text>
+											<Text style={agentDashboardStyles.actionButtonText}>Assign Client</Text>
 										</TouchableOpacity>
 									</View>
 								</View>
@@ -383,9 +386,9 @@ export default function RealtorDashboard() {
 				</View>
 
 				<TouchableOpacity
-					style={styles.navigateButton}
+					style={agentDashboardStyles.navigateButton}
 					onPress={() => router.push("/(tabs)/map")}>
-					<Text style={styles.navigateButtonText}>View Properties</Text>
+					<Text style={agentDashboardStyles.navigateButtonText}>View Properties</Text>
 				</TouchableOpacity>
 			</ScrollView>
 		</SafeAreaView>

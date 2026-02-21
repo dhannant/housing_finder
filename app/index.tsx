@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { FileText, Home, MapPin, Users } from 'lucide-react-native';
-import { Image, SafeAreaView, ScrollView, Text, TouchableOpacity, View, Linking } from 'react-native';
+import { Image, Linking, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { landingStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';

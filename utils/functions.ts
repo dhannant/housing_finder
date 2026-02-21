@@ -1,8 +1,25 @@
+// Fetch all offers for a given user (client)
 import { db } from "@/components/firebaseConfig";
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import { addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, getFirestore, query, updateDoc, where } from "firebase/firestore";
+import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
 import { Alert, Linking } from "react-native";
 import { Property } from "../services/propertyService";
 import { AvailableClients, ClientData, ClientRequest, FavoriteProperty, RealtorData, UserData } from "./interfaces";
+
+
+
+export const fetchUserOffers = async (userId: string) => {
+	try {
+		const offersRef = collection(db, "clientOffers");
+		const q = query(offersRef, where("clientId", "==", userId));
+		const querySnapshot = await getDocs(q);
+		const offers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+		return offers;
+	} catch (error) {
+		console.error(`[fetchUserOffers] ✗ Error fetching offers for user ${userId}:`, error);
+		return [];
+	}
+};
 
 
 export const fetchUserData = async (userId: string): Promise<UserData | null> => {
@@ -244,6 +261,10 @@ export const toggleFavorite = async (userId: string, property: Property): Promis
 				beds: property.beds,
 				baths: property.baths,
 				status: property.status,
+				photos: property.photos || [],
+				primaryPhoto: property.primaryPhoto || (property.photos && property.photos[0]) || null,
+				squareFootage: property.homeSize || property.sqft || null,
+				landArea: property.lotSize || property.lot_area || null,
 				savedAt: new Date()
 			});
 			console.log(`[toggleFavorite] ✓ Added favorite for property ${property.id}`);
@@ -264,10 +285,13 @@ export const getFavorites = async (userId: string): Promise<FavoriteProperty[]> 
 		// Build an array called favorites that uses the FavoriteProperty interface
 		const favorites: FavoriteProperty[] = [];
 
+			console.log('[getFavorites] userId:', userId);
+			console.log('[getFavorites] querySnapshot size:', querySnapshot.size);
 		//Build the array with the information in the querySnapshot variable.
 		querySnapshot.forEach((doc) => { 
 			// assign each field to it's proper position in the FavoriteProperty interface.
 			favorites.push({ id:doc.id, ...doc.data() } as FavoriteProperty);  // Spread operator (elipsis) maps Firestore fields to interface fields automatically
+				console.log('[getFavorites] favorite doc:', doc.id, doc.data());
 		})
 
 		return favorites;
@@ -304,3 +328,98 @@ export function getShortDateString(date = new Date()) {
 		console.log('Sending email error:', error)
 	}
  }
+ /**
+ * Creates a new clientOffer in Firestore.
+ * @param clientId - The client making the offer
+ * @param agentId - The agent assigned to the client
+				console.log('[toggleFavorite] Removing favorite:', userId, property.id);
+ * @param propertyId - The property for the offer
+ * @param status - The status of the offer (see getClientOfferStatuses)
+ * @returns The created document reference
+ */
+export const createClientOffer = async (
+	clientId: string,
+	agentId: string,
+	propertyId: string,
+	status: string
+) => {
+	try {
+		const now = new Date();
+		const offerData = {
+			clientId,
+			agentId,
+			propertyId,
+			status,
+			createdAt: now,
+			updatedAt: now,
+		};
+		const docRef = await addDoc(collection(db, "clientOffers"), offerData);
+		console.log(`[createClientOffer] ✓ Created offer for client ${clientId} on property ${propertyId}`);
+		return docRef;
+				console.log('[toggleFavorite] Adding favorite:', favoriteData);
+	} catch (error) {
+		console.error(`[createClientOffer] ✗ Error creating offer:`, error);
+		throw error;
+	}
+};
+
+/**
+ * Returns valid status options for client offers.
+ */
+export const getClientOfferStatuses = () => [
+	"Offer Made",
+	"Under Contract",
+	"Contingent",
+	"Closed",
+	// Additional suggestions based on real estate workflow:
+	"Offer Accepted",
+	"Offer Rejected",
+	"Inspection Period",
+	"Appraisal Ordered",
+	"Financing Approved",
+	"Title Cleared",
+	"Pending",
+	"Withdrawn",
+	"Terminated",
+	"Expired",
+];
+
+/**
+ * Uploads a file to Firebase Storage and saves the download URL/metadata to a Firestore document.
+ * @param fileUri The local URI of the file to upload
+ * @param storagePath The path in Firebase Storage (e.g., 'clientOffers/{offerId}/{filename}')
+ * @param offerDocId The Firestore document ID for the offer
+ * @param metadata Optional metadata to store with the file (object)
+ * @returns The download URL of the uploaded file
+ */
+export async function uploadFileAndSaveUrl({
+	fileUri,
+	storagePath,
+	offerDocId,
+	metadata = {},
+}: {
+	fileUri: string;
+	storagePath: string;
+	offerDocId: string;
+	metadata?: any;
+}): Promise<string> {
+	const storage = getStorage();
+	const firestore = getFirestore();
+	const response = await fetch(fileUri);
+	const blob = await response.blob();
+	const storageRef = ref(storage, storagePath);
+	await uploadBytes(storageRef, blob);
+	const downloadUrl = await getDownloadURL(storageRef);
+
+	// Save file info to Firestore (append to files array)
+	const offerDocRef = doc(firestore, 'clientOffers', offerDocId);
+	await updateDoc(offerDocRef, {
+		files: arrayUnion({
+			url: downloadUrl,
+			name: storagePath.split('/').pop(),
+			uploadedAt: new Date(),
+			...metadata,
+		}),
+  	});
+	return downloadUrl;
+}

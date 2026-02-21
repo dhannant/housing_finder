@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import type { Property } from '@/services/propertyService';
 import { searchProperties } from '@/services/propertyService';
 import * as Functions from '@/utils/functions';
+import { Picker } from '@react-native-picker/picker';
 import * as Location from "expo-location";
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from "react";
@@ -189,7 +190,10 @@ export default function HomeScreen() {
 	const [useMockData, setUseMockData] = useState(true);
 
 	// Get current user from auth context
-	const { user } = useAuth();
+	const { user, userData } = useAuth();
+	const [showAssignModal, setShowAssignModal] = useState(false);
+	const [eligibleClients, setEligibleClients] = useState<any[]>([]);
+	const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
 	// State variables (declare only once)
 	const [location, setLocation] = useState<Location.LocationObject | null>(null);
@@ -350,7 +354,6 @@ const hasZoomedRef = useRef(false);
 				<View style={mapStyles.modalContainer}>
 					{/* Header */}
 					<View style={mapStyles.modalHeader}>
-
 						{/* Close button */}
 						<TouchableOpacity
 							onPress={() => { setSelectedHouse(null); setCurrentPhotoIndex(0); }}
@@ -361,22 +364,120 @@ const hasZoomedRef = useRef(false);
 						{/* Favorite button */}
 						<TouchableOpacity
 							onPress={async () => {
-								if (!user?.uid) {
+								if (!user?.uid || !userData) {
 									Alert.alert('Please log in', 'You must be logged in to save favorites.');
 									return;
 								}
 								if (!selectedHouse) return;
-								try {
-									const newStatus = await Functions.toggleFavorite(user.uid, selectedHouse);
-									setIsFavorite(newStatus);
-								} catch (error) {
-									Alert.alert('Error', 'Failed to update favorite status.');
-									console.error('Error toggling favorite:', error);
+								if (userData.role === 'Agent') {
+									// Agent: show modal with eligible clients
+									try {
+										const agentId = user?.uid;
+										if (!agentId) {
+											Alert.alert('Error', 'Agent ID not found.');
+											return;
+										}
+										const assignedClients = await Functions.fetchAssignedClients(agentId);
+										const eligible: any[] = [];
+										for (const client of assignedClients) {
+											const alreadyFavorite = await Functions.checkIfFavorite(client.clientId, selectedHouse.id);
+											if (!alreadyFavorite) {
+												const clientUser = await Functions.fetchUserData(client.clientId);
+												eligible.push({
+													clientId: client.clientId,
+													firstName: clientUser?.firstName || '',
+													lastName: clientUser?.lastName || ''
+												});
+											}
+										}
+										if (eligible.length === 0) {
+											Alert.alert('No eligible clients', 'All your assigned clients already have this property as a favorite.');
+											return;
+										}
+										setEligibleClients(eligible);
+										setSelectedClientId(null);
+										setShowAssignModal(true);
+									} catch (error) {
+										Alert.alert('Error', 'Failed to load assigned clients.');
+									}
+									return;
+								}
+								// Default: client or other user, just toggle for self
+								if (userData.role !== 'Agent') {
+									try {
+										const newStatus = await Functions.toggleFavorite(user.uid, selectedHouse);
+										setIsFavorite(newStatus);
+									} catch (error) {
+										Alert.alert('Error', 'Failed to update favorite status.');
+										console.error('Error toggling favorite:', error);
+									}
 								}
 							}}
 							style={mapStyles.starButton}>
 							<Text style={mapStyles.starButtonText}>{isFavorite ? '⭐' : '☆'}</Text>
 						</TouchableOpacity>
+						{/* Agent Assign Favorite Modal */}
+						{showAssignModal && (
+							<Modal
+								visible={showAssignModal}
+								animationType="slide"
+								transparent={true}
+								onRequestClose={() => setShowAssignModal(false)}
+							>
+								<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+									<View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 24, width: 320, alignItems: 'center' }}>
+										<Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>Assign Favorite to Client</Text>
+										<Text style={{ marginBottom: 12 }}>Select a client to assign this favorite:</Text>
+										<View style={{ width: '100%', marginBottom: 20, borderWidth: 1, borderColor: '#ccc', borderRadius: 6, overflow: 'hidden' }}>
+											<Picker
+												selectedValue={selectedClientId || 'placeholder'}
+												onValueChange={itemValue => {
+													if (itemValue !== 'placeholder') setSelectedClientId(itemValue);
+												}}
+												style={{ width: '100%' }}
+											>
+												<Picker.Item label="Select Client" value="placeholder" enabled={false} color="#888" />
+												{eligibleClients.map(client => (
+													<Picker.Item
+														key={client.clientId}
+														label={`${client.firstName} ${client.lastName}`}
+														value={client.clientId}
+													/>
+												))}
+											</Picker>
+										</View>
+										<View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+											<TouchableOpacity
+												style={{ backgroundColor: '#2C5F2D', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 6, marginRight: 12, opacity: (!selectedClientId || selectedClientId === 'placeholder') ? 0.5 : 1 }}
+												disabled={!selectedClientId || selectedClientId === 'placeholder'}
+												onPress={async () => {
+													if (!selectedClientId || selectedClientId === 'placeholder' || !selectedHouse) return;
+													try {
+														// Debug: log agent userId and selected clientId
+														console.log('[Assign Favorite] Agent userId:', user?.uid);
+														console.log('[Assign Favorite] Selected clientId:', selectedClientId);
+														await Functions.toggleFavorite(selectedClientId, selectedHouse);
+														setShowAssignModal(false);
+														Alert.alert('Success', 'Favorite assigned to client.');
+													} catch (err) {
+														console.error('[Assign Favorite] Error assigning favorite:', err);
+														Alert.alert('Error', 'Failed to assign favorite.');
+													}
+												}}
+											>
+												<Text style={{ color: '#fff', fontWeight: 'bold' }}>Assign</Text>
+											</TouchableOpacity>
+											<TouchableOpacity
+												style={{ backgroundColor: '#ccc', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 6 }}
+												onPress={() => setShowAssignModal(false)}
+											>
+												<Text style={{ color: '#333', fontWeight: 'bold' }}>Cancel</Text>
+											</TouchableOpacity>
+										</View>
+									</View>
+								</View>
+							</Modal>
+						)}
 					</View>
 
 					{/* Photo viewer */}

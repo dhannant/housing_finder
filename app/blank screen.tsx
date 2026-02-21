@@ -1,6 +1,7 @@
 
-import { SafeAreaView, View, Text } from 'react-native';
-import { pageStyles, headerStyles, bodyStyles, footerStyles } from '@/constants/styles';
+import { bodyStyles, footerStyles, headerStyles, pageStyles } from '@/constants/styles';
+import { Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function BlankScreen() {
 	return (

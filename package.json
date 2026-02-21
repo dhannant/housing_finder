@@ -12,6 +12,7 @@
 	},
 	"dependencies": {
 		"@expo/vector-icons": "^15.0.3",
+		"@react-native-community/datetimepicker": "^8.6.0",
 		"@react-native-community/slider": "^5.1.2",
 		"@react-native-firebase/app": "^23.8.5",
 		"@react-native-firebase/firestore": "^23.8.5",

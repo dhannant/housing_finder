@@ -4,7 +4,8 @@
 2. Six-month inactivity check: Recent login should pop new lead. Original note sourced from general request input.
 3. Review and clean up Firebase imports: Ensure only the firebase JS SDK is used (no @react-native-firebase). Confirm db and auth are imported from firebaseConfig.ts everywhere they're used.
 4. Check Firestore rules for development: Set Firestore rules to allow read/write for development. Use: allow read, write: if true; and tighten for production.
-
+5. Refactor the styles.ts to combine like items (ie actionButton, helpButton)
+6. Add a privacy policy and terms of service
 
 7. Add min/max validation for map filters: Implement and test min/max validation for all map filters, especially for bedrooms and bathrooms, to prevent invalid ranges and provide user feedback.
 8. Test min/max filter edge cases: Test the map filter UI for edge cases: min > max, equal values, empty values, and ensure warnings or corrections are shown for bedrooms and bathrooms.
