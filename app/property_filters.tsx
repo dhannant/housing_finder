@@ -1,7 +1,8 @@
+import { propertyFilter_styles } from '@/constants/styles';
 import Slider from '@react-native-community/slider';
 import { Picker } from '@react-native-picker/picker';
 import React, { useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, } from 'react-native';
+import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 // This defines what our filter options look like
 // The ? means "optional" - you don't have to include every filter
@@ -139,32 +140,32 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
       onRequestClose={onClose}
     >
       {/* Dark overlay behind the modal */}
-      <View style={styles.modalContainer}>
+      <View style={propertyFilter_styles.modalContainer}>
         
         {/* White box with all the filters */}
-        <View style={styles.modalContent}>
+        <View style={propertyFilter_styles.modalContent}>
           
           {/* Header with title and close button */}
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Filter Properties</Text>
+          <View style={propertyFilter_styles.header}>
+            <Text style={propertyFilter_styles.headerTitle}>Filter Properties</Text>
             <TouchableOpacity onPress={onClose}>
-              <Text style={styles.closeButton}>✕</Text>
+              <Text style={propertyFilter_styles.closeButton}>✕</Text>
             </TouchableOpacity>
           </View>
 
           {/* Scrollable area with all filter options */}
-          <ScrollView style={styles.scrollView}>
+          <ScrollView style={propertyFilter_styles.scrollView}>
             
             {/* BEDROOMS FILTER - Simple number inputs */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Bedrooms</Text>
-              <View style={styles.rangeContainer}>
+            <View style={propertyFilter_styles.section}>
+              <Text style={propertyFilter_styles.sectionTitle}>Bedrooms</Text>
+              <View style={propertyFilter_styles.rangeContainer}>
                 
                 {/* Minimum bedrooms input */}
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputLabel}>Min</Text>
+                <View style={propertyFilter_styles.inputContainer}>
+                  <Text style={propertyFilter_styles.inputLabel}>Min</Text>
                   <Picker selectedValue={filters.minBedrooms}
-                    style={styles.input}
+                    style={propertyFilter_styles.input}
                     onValueChange={value => updateFilter('minBedrooms', value)}>
                     <Picker.Item label="Any" value={undefined} />
                     <Picker.Item label="1" value={1} />
@@ -174,7 +175,7 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
                     <Picker.Item label="5" value={5} />
                   </Picker>
                   {/* <TextInput
-                    style={styles.input}
+                    style={propertyFilter_styles.input}
                     keyboardType="numeric"
                     value={filters.minBedrooms?.toString() || ''}
                     onChangeText={(text) => {
@@ -186,13 +187,13 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
                   /> */}
                 </View>
 
-                <Text style={styles.rangeSeparator}>to</Text>
+                <Text style={propertyFilter_styles.rangeSeparator}>to</Text>
 
                 {/* Maximum bedrooms input */}
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputLabel}>Max</Text>
+                <View style={propertyFilter_styles.inputContainer}>
+                  <Text style={propertyFilter_styles.inputLabel}>Max</Text>
                   <Picker selectedValue={filters.maxBedrooms}
-                    style={styles.input}
+                    style={propertyFilter_styles.input}
                     onValueChange={value => updateFilter('maxBedrooms', value)}>
                     <Picker.Item label="Any" value={undefined} />
                     <Picker.Item label="1" value={1} />
@@ -202,7 +203,7 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
                     <Picker.Item label="5+" value={5} />
                   </Picker>
                   {/* <TextInput
-                    style={styles.input}
+                    style={propertyFilter_styles.input}
                     keyboardType="numeric"
                     value={filters.maxBedrooms?.toString() || ''}
                     onChangeText={(text) => {
@@ -216,16 +217,16 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
             </View>
 
             {/* BATHROOMS FILTER - Simple number inputs */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Bathrooms</Text>
-              <View style={styles.rangeContainer}>
+            <View style={propertyFilter_styles.section}>
+              <Text style={propertyFilter_styles.sectionTitle}>Bathrooms</Text>
+              <View style={propertyFilter_styles.rangeContainer}>
                 
                 {/* Minimum bathrooms input */}
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputLabel}>Min</Text>
+                <View style={propertyFilter_styles.inputContainer}>
+                  <Text style={propertyFilter_styles.inputLabel}>Min</Text>
 
                   {/* <TextInput
-                    style={styles.input}
+                    style={propertyFilter_styles.input}
                     keyboardType="numeric"
                     value={filters.minBathrooms?.toString() || ''}
                     onChangeText={(text) => {
@@ -237,13 +238,13 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
                   /> */}
                 </View>
 
-                <Text style={styles.rangeSeparator}>to</Text>
+                <Text style={propertyFilter_styles.rangeSeparator}>to</Text>
 
                 {/* Maximum bathrooms input */}
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputLabel}>Max</Text>
+                <View style={propertyFilter_styles.inputContainer}>
+                  <Text style={propertyFilter_styles.inputLabel}>Max</Text>
                   <TextInput
-                    style={styles.input}
+                    style={propertyFilter_styles.input}
                     keyboardType="numeric"
                     value={filters.maxBathrooms?.toString() || ''}
                     onChangeText={(text) => {
@@ -257,30 +258,30 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
             </View>
 
             {/* PRICE RANGE FILTER - Slider + Number Inputs */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Price Range</Text>
+            <View style={propertyFilter_styles.section}>
+              <Text style={propertyFilter_styles.sectionTitle}>Price Range</Text>
               
               {/* Display current price range */}
-              <View style={styles.sliderValueContainer}>
-                <Text style={styles.sliderValueText}>
+              <View style={propertyFilter_styles.sliderValueContainer}>
+                <Text style={propertyFilter_styles.sliderValueText}>
                   {filters.minPrice ? formatPrice(filters.minPrice) : 'Any'}
                 </Text>
-                <Text style={styles.sliderValueSeparator}>to</Text>
-                <Text style={styles.sliderValueText}>
+                <Text style={propertyFilter_styles.sliderValueSeparator}>to</Text>
+                <Text style={propertyFilter_styles.sliderValueText}>
                   {filters.maxPrice ? formatPrice(filters.maxPrice) : 'Any'}
                 </Text>
               </View>
 
               {/* Minimum Price Slider */}
-              <View style={styles.sliderSection}>
-                <Text style={styles.sliderLabel}>Minimum Price</Text>
+              <View style={propertyFilter_styles.sliderSection}>
+                <Text style={propertyFilter_styles.sliderLabel}>Minimum Price</Text>
                 {minMaxWarning.name === 'minPrice' && minMaxWarning.message ? (
                   <View style={{ backgroundColor: '#FFF9C4', padding: 8, borderRadius: 4, marginBottom: 4 }}>
                     <Text style={{ color: '#B8860B' }}>{minMaxWarning.message}</Text>
                   </View>
                 ) : null}
                 <Slider
-                  style={styles.slider}
+                  style={propertyFilter_styles.slider}
                   minimumValue={0}
                   maximumValue={2000000}
                   step={25000}
@@ -292,7 +293,7 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
                 />
                 {/* Number input for exact value */}
                 <TextInput
-                  style={styles.sliderInput}
+                  style={propertyFilter_styles.sliderInput}
                   keyboardType="numeric"
                   value={filters.minPrice?.toString() || ''}
                   onChangeText={(text) => {
@@ -304,15 +305,15 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
               </View>
 
               {/* Maximum Price Slider */}
-              <View style={styles.sliderSection}>
-                <Text style={styles.sliderLabel}>Maximum Price</Text>
+              <View style={propertyFilter_styles.sliderSection}>
+                <Text style={propertyFilter_styles.sliderLabel}>Maximum Price</Text>
                 {minMaxWarning.name === 'maxPrice' && minMaxWarning.message ? (
                   <View style={{ backgroundColor: '#FFF9C4', padding: 8, borderRadius: 4, marginBottom: 4 }}>
                     <Text style={{ color: '#B8860B' }}>{minMaxWarning.message}</Text>
                   </View>
                 ) : null}
                 <Slider
-                  style={styles.slider}
+                  style={propertyFilter_styles.slider}
                   minimumValue={0}
                   maximumValue={2000000}
                   step={25000}
@@ -324,7 +325,7 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
                 />
                 {/* Number input for exact value */}
                 <TextInput
-                  style={styles.sliderInput}
+                  style={propertyFilter_styles.sliderInput}
                   keyboardType="numeric"
                   value={filters.maxPrice?.toString() || ''}
                   onChangeText={(text) => {
@@ -337,30 +338,30 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
             </View>
 
             {/* SQUARE FOOTAGE FILTER - Slider + Number Inputs */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Square Footage</Text>
+            <View style={propertyFilter_styles.section}>
+              <Text style={propertyFilter_styles.sectionTitle}>Square Footage</Text>
               
               {/* Display current sqft range */}
-              <View style={styles.sliderValueContainer}>
-                <Text style={styles.sliderValueText}>
+              <View style={propertyFilter_styles.sliderValueContainer}>
+                <Text style={propertyFilter_styles.sliderValueText}>
                   {filters.minSquareFeet ? formatSquareFeet(filters.minSquareFeet) : 'Any'}
                 </Text>
-                <Text style={styles.sliderValueSeparator}>to</Text>
-                <Text style={styles.sliderValueText}>
+                <Text style={propertyFilter_styles.sliderValueSeparator}>to</Text>
+                <Text style={propertyFilter_styles.sliderValueText}>
                   {filters.maxSquareFeet ? formatSquareFeet(filters.maxSquareFeet) : 'Any'}
                 </Text>
               </View>
 
               {/* Minimum Square Feet Slider */}
-              <View style={styles.sliderSection}>
-                <Text style={styles.sliderLabel}>Minimum Square Feet</Text>
+              <View style={propertyFilter_styles.sliderSection}>
+                <Text style={propertyFilter_styles.sliderLabel}>Minimum Square Feet</Text>
                 {minMaxWarning.name === 'minSquareFeet' && minMaxWarning.message ? (
                   <View style={{ backgroundColor: '#FFF9C4', padding: 8, borderRadius: 4, marginBottom: 4 }}>
                     <Text style={{ color: '#B8860B' }}>{minMaxWarning.message}</Text>
                   </View>
                 ) : null}
                 <Slider
-                  style={styles.slider}
+                  style={propertyFilter_styles.slider}
                   minimumValue={0}
                   maximumValue={10000}
                   step={250}
@@ -372,7 +373,7 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
                 />
                 {/* Number input for exact value */}
                 <TextInput
-                  style={styles.sliderInput}
+                  style={propertyFilter_styles.sliderInput}
                   keyboardType="numeric"
                   value={filters.minSquareFeet?.toString() || ''}
                   onChangeText={(text) => {
@@ -384,15 +385,15 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
               </View>
 
               {/* Maximum Square Feet Slider */}
-              <View style={styles.sliderSection}>
-                <Text style={styles.sliderLabel}>Maximum Square Feet</Text>
+              <View style={propertyFilter_styles.sliderSection}>
+                <Text style={propertyFilter_styles.sliderLabel}>Maximum Square Feet</Text>
                 {minMaxWarning.name === 'maxSquareFeet' && minMaxWarning.message ? (
                   <View style={{ backgroundColor: '#FFF9C4', padding: 8, borderRadius: 4, marginBottom: 4 }}>
                     <Text style={{ color: '#B8860B' }}>{minMaxWarning.message}</Text>
                   </View>
                 ) : null}
                 <Slider
-                  style={styles.slider}
+                  style={propertyFilter_styles.slider}
                   minimumValue={0}
                   maximumValue={10000}
                   step={250}
@@ -404,7 +405,7 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
                 />
                 {/* Number input for exact value */}
                 <TextInput
-                  style={styles.sliderInput}
+                  style={propertyFilter_styles.sliderInput}
                   keyboardType="numeric"
                   value={filters.maxSquareFeet?.toString() || ''}
                   onChangeText={(text) => {
@@ -417,30 +418,30 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
             </View>
 
             {/* LOT SIZE FILTER - Slider + Number Inputs (in acres) */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Lot Size (acres)</Text>
+            <View style={propertyFilter_styles.section}>
+              <Text style={propertyFilter_styles.sectionTitle}>Lot Size (acres)</Text>
               
               {/* Display current lot size range */}
-              <View style={styles.sliderValueContainer}>
-                <Text style={styles.sliderValueText}>
+              <View style={propertyFilter_styles.sliderValueContainer}>
+                <Text style={propertyFilter_styles.sliderValueText}>
                   {filters.minLotSize ? `${filters.minLotSize} acres` : 'Any'}
                 </Text>
-                <Text style={styles.sliderValueSeparator}>to</Text>
-                <Text style={styles.sliderValueText}>
+                <Text style={propertyFilter_styles.sliderValueSeparator}>to</Text>
+                <Text style={propertyFilter_styles.sliderValueText}>
                   {filters.maxLotSize ? `${filters.maxLotSize} acres` : 'Any'}
                 </Text>
               </View>
 
               {/* Minimum Lot Size Slider */}
-              <View style={styles.sliderSection}>
-                <Text style={styles.sliderLabel}>Minimum Lot Size</Text>
+              <View style={propertyFilter_styles.sliderSection}>
+                <Text style={propertyFilter_styles.sliderLabel}>Minimum Lot Size</Text>
                 {minMaxWarning.name === 'minLotSize' && minMaxWarning.message ? (
                   <View style={{ backgroundColor: '#FFF9C4', padding: 8, borderRadius: 4, marginBottom: 4 }}>
                     <Text style={{ color: '#B8860B' }}>{minMaxWarning.message}</Text>
                   </View>
                 ) : null}
                 <Slider
-                  style={styles.slider}
+                  style={propertyFilter_styles.slider}
                   minimumValue={0}
                   maximumValue={10}
                   step={0.25}
@@ -452,7 +453,7 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
                 />
                 {/* Number input for exact value */}
                 <TextInput
-                  style={styles.sliderInput}
+                  style={propertyFilter_styles.sliderInput}
                   keyboardType="numeric"
                   value={filters.minLotSize?.toString() || ''}
                   onChangeText={(text) => {
@@ -464,15 +465,15 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
               </View>
 
               {/* Maximum Lot Size Slider */}
-              <View style={styles.sliderSection}>
-                <Text style={styles.sliderLabel}>Maximum Lot Size</Text>
+              <View style={propertyFilter_styles.sliderSection}>
+                <Text style={propertyFilter_styles.sliderLabel}>Maximum Lot Size</Text>
                 {minMaxWarning.name === 'maxLotSize' && minMaxWarning.message ? (
                   <View style={{ backgroundColor: '#FFF9C4', padding: 8, borderRadius: 4, marginBottom: 4 }}>
                     <Text style={{ color: '#B8860B' }}>{minMaxWarning.message}</Text>
                   </View>
                 ) : null}
                 <Slider
-                  style={styles.slider}
+                  style={propertyFilter_styles.slider}
                   minimumValue={0}
                   maximumValue={10}
                   step={0.25}
@@ -484,7 +485,7 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
                 />
                 {/* Number input for exact value */}
                 <TextInput
-                  style={styles.sliderInput}
+                  style={propertyFilter_styles.sliderInput}
                   keyboardType="numeric"
                   value={filters.maxLotSize?.toString() || ''}
                   onChangeText={(text) => {
@@ -499,22 +500,22 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
           </ScrollView>
 
           {/* Footer with Reset and Apply buttons */}
-          <View style={styles.footer}>
+          <View style={propertyFilter_styles.footer}>
             
             {/* Reset All button - clears all filters */}
             <TouchableOpacity
-              style={styles.resetButton}
+              style={propertyFilter_styles.resetButton}
               onPress={handleReset}
             >
-              <Text style={styles.resetButtonText}>Reset All</Text>
+              <Text style={propertyFilter_styles.resetButtonText}>Reset All</Text>
             </TouchableOpacity>
 
             {/* Apply Filters button - saves and closes */}
             <TouchableOpacity
-              style={styles.applyButton}
+              style={propertyFilter_styles.applyButton}
               onPress={handleApply}
             >
-              <Text style={styles.applyButtonText}>Apply Filters</Text>
+              <Text style={propertyFilter_styles.applyButtonText}>Apply Filters</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -522,184 +523,4 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
     </Modal>
   );
 };
-
-// Styles for all the components
-const styles = StyleSheet.create({
-  // Dark semi-transparent overlay behind modal
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  
-  // White box containing the filters
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '90%',
-  },
-  
-  // Header section with title and X button
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
-  },
-  
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  
-  closeButton: {
-    fontSize: 24,
-    color: '#666',
-  },
-  
-  // Scrollable content area
-  scrollView: {
-    padding: 20,
-  },
-  
-  // Each filter section (bedrooms, bathrooms, etc.)
-  section: {
-    marginBottom: 30,
-  },
-  
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 12,
-    color: '#333',
-  },
-  
-  // Container for min/max inputs side by side (bedrooms, bathrooms)
-  rangeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  
-  // Container for a single input field
-  inputContainer: {
-    flex: 1,
-  },
-  
-  // Label above input (Min, Max, etc.)
-  inputLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
-  },
-  
-  // Text input field
-  input: {
-    borderWidth: 1,
-    borderColor: '#D1D1D6',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-  },
-  
-  // "to" text between min and max
-  rangeSeparator: {
-    marginHorizontal: 12,
-    color: '#666',
-  },
-  
-  // Container for displaying current slider values at top
-  sliderValueContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    padding: 12,
-    backgroundColor: '#F8F8F8',
-    borderRadius: 8,
-  },
-  
-  sliderValueText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#007AFF',
-  },
-  
-  sliderValueSeparator: {
-    marginHorizontal: 12,
-    fontSize: 14,
-    color: '#666',
-  },
-  
-  // Container for each slider + input combo
-  sliderSection: {
-    marginBottom: 20,
-  },
-  
-  sliderLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-  },
-  
-  // The slider itself
-  slider: {
-    width: '100%',
-    height: 40,
-  },
-  
-  // Input field next to slider for exact numbers
-  sliderInput: {
-    borderWidth: 1,
-    borderColor: '#D1D1D6',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    marginTop: 8,
-  },
-  
-  // Footer with buttons
-  footer: {
-    flexDirection: 'row',
-    padding: 20,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
-  },
-  
-  // Reset button (outlined)
-  resetButton: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#007AFF',
-    alignItems: 'center',
-  },
-  
-  resetButtonText: {
-    color: '#007AFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  
-  // Apply button (filled)
-  applyButton: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 8,
-    backgroundColor: '#007AFF',
-    alignItems: 'center',
-  },
-  
-  applyButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});
-
 export default PropertyFilters;

@@ -5,58 +5,21 @@ import { Alert, Linking } from "react-native";
 import * as interfaces from "./interfaces";
 
 
-/**
- * Fetches the active offer for a specific client & property 
- * @param clientId 
- * @param propertyId 
- * @returns 
- */
-export const fetchActiveOfferForClientProperty = async (
-	clientId: string,
-	propertyId: string
-) : Promise<interfaces.OfferData | null> => {
-	try {
-		const offersRef = collection(db, "clientOffers");
-		const q = query(
-			offersRef,
-			where("clientId", "==", clientId),
-			where("propertyId", "==", propertyId)
-		);
-		const querySnapshot = await getDocs(q);
-		for (const doc of querySnapshot.docs) {
-			const offer = doc.data();
-			// Only consider offers that are not withdrawn/declined
-			if (
-				offer.status !== "withdrawn" &&
-				offer.status !== "Offer Declined" &&
-				offer.status !== "offer declined"
-			) {
-				return {
-					offerId: doc.id,
-					...offer
-				} as interfaces.OfferData;
-			}
-		}
-		return null;
-	} catch (error) {
-		console.error(`[fetchActiveOfferForClientProperty] ✗ Error fetching offer for client ${clientId} property ${propertyId}:`, error);
-		return null;
-	}
-};
 
 
-/**
- * Fetches a specific property in the clientFavorites collection for the propertyId provided.
- *
+
+/** Fetches a specific property in the clientFavorites collection for the propertyId provided.
  *   @param propertyId: string - The Firestore document ID for the property.
+ *   @param clientId: string - The Firestore document ID for the user.  Needed to find the user's favorites.
  *   @return: Property object or null if not found.
  *   @useage const property = await fetchPropertyData(propertyId);
  */
-export const fetchPropertyData = async (propertyId: string): Promise<interfaces.Property | null> => {
+export const fetchPropertyData = async (propertyId: string, userId: string): Promise<interfaces.Property | null> => {
 	try {
 		// Fetch from clientFavorites collection by propertyId
+		console.log(`Attemping to fetch favorites for propertyId: ${propertyId} and user: ${userId}`);
 		const favoritesRef = collection(db, 'clientFavorites');
-		const q = query(favoritesRef, where('propertyId', '==', propertyId));
+		const q = query(favoritesRef, where('propertyId', '==', propertyId), where('userId', '==', userId));
 		const snapshot = await getDocs(q);
 		if (!snapshot.empty) {
 			// Return the first matching favorite property
@@ -69,30 +32,38 @@ export const fetchPropertyData = async (propertyId: string): Promise<interfaces.
 	}
 };
 
-export const fetchUserOffers = async (userId: string): Promise<interfaces.OfferData[]> => {
+/**
+ * Fetch a clients favorite using the favorite ID document ID
+ * @param favoriteId
+ * @returns 
+ */
+export const fetchFavoriteByID = async (favoriteId: string): Promise<interfaces.FavoriteProperty | null> => {
 	try {
-		const offersRef = collection(db, "clientOffers");
-		const q = query(offersRef, where("clientId", "==", userId));
-		const querySnapshot = await getDocs(q);
-		const offers: interfaces.OfferData[] = querySnapshot.docs.map(doc => ({ offerId: doc.id, ...doc.data() } as interfaces.OfferData));
-		return offers;
-	} catch (error) {
-		console.error(`[fetchUserOffers] ✗ Error fetching offers for user ${userId}:`, error);
-		return [];
-	}
+		const favRef = doc(db, "clientFavorites", favoriteId);
+		const favSnap = await getDoc(favRef);
+		if (favSnap.exists()) {
+		  return favSnap.data() as interfaces.FavoriteProperty;
+		}
+		return null;
+	 } catch (error) {
+		console.error(`[fetchFavoriteByID] Error fetching favorite for ID: ${favoriteId}:`, error);
+		return null;
+	 }
 };
 
-
+/** Fetch user data from the users collection for a single user.
+ * @param userId 
+ * @returns 
+ */
 export const fetchUserData = async (userId: string): Promise<interfaces.UserData | null> => {
 	try {
-		console.log(`[fetchUserData] Fetching user: ${userId}`);
 		const userDoc = await getDoc(doc(db, "users", userId));
 		if (userDoc.exists()) {
 			const userData = userDoc.data() as interfaces.UserData;
 			console.log(`[fetchUserData] ✓ Found user:`, { id: userId, name: `${userData.firstName} ${userData.lastName}`, role: userData.role });
 			return userData;
 		}
-		console.log(`[fetchUserData] ✗ User not found: ${userId}`);
+		// console.log(`[fetchUserData] ✗ User not found: ${userId}`);
 		return null;
 	} catch (error) {
 		console.error(`[fetchUserData] ✗ Error fetching user ${userId}:`, error);
@@ -100,9 +71,11 @@ export const fetchUserData = async (userId: string): Promise<interfaces.UserData
 	}
 };
 
+/** Fetches all users with a 'Client' Role
+ * @returns
+ */
 export const fetchClients = async (): Promise<interfaces.ClientData[]> => {
 	try {
-		console.log(`[fetchClients] Querying all clients...`);
 		const usersRef = collection(db, "users");
 		const q = query(usersRef, where("role", "==", "Client"));
 		const querySnapshot = await getDocs(q);
@@ -111,7 +84,7 @@ export const fetchClients = async (): Promise<interfaces.ClientData[]> => {
 		querySnapshot.forEach((doc) => {
 			clients.push({ id: doc.id, ...doc.data() } as interfaces.ClientData);
 		});
-		console.log(`[fetchClients] ✓ Found ${clients.length} total clients`);
+		// console.log(`[fetchClients] ✓ Found ${clients.length} total clients`);
 		return clients;
 	} catch (error) {
 		console.error(`[fetchClients] ✗ Error fetching clients:`, error);
@@ -119,9 +92,11 @@ export const fetchClients = async (): Promise<interfaces.ClientData[]> => {
 	}
 };
 
+/** Fetches all users with an 'Agent' Role
+ * @returns 
+ */
 export const fetchRealtors = async (): Promise<interfaces.RealtorData[]> => {
 	try {
-		console.log(`[fetchRealtors] Querying all realtors/agents...`);
 		const usersRef = collection(db, "users");
 		const q = query(usersRef, where("role", "==", "Agent"));
 		const querySnapshot = await getDocs(q);
@@ -130,8 +105,7 @@ export const fetchRealtors = async (): Promise<interfaces.RealtorData[]> => {
 		querySnapshot.forEach((doc) => {
 			realtors.push({ id: doc.id, ...doc.data() } as interfaces.RealtorData);
 		});
-
-		console.log(`[fetchRealtors] ✓ Found ${realtors.length} realtors`);
+		// console.log(`[fetchRealtors] ✓ Found ${realtors.length} realtors`);
 		return realtors;
 	} catch (error) {
 		console.error(`[fetchRealtors] ✗ Error fetching realtors:`, error);
@@ -139,8 +113,9 @@ export const fetchRealtors = async (): Promise<interfaces.RealtorData[]> => {
 	}
 };
 
+/** Fetches all clients that do not have an assigned agent in the clientRequests table.
+ */
 export const fetchUnassignedClients = async (): Promise<interfaces.AvailableClients[]> => {
-	console.log(`[fetchUnassignedClients] Starting search for unassigned clients...`);
 	try {
 		const clients = await fetchClients();
 		const unassignedClients: interfaces.AvailableClients[] = [];
@@ -153,11 +128,10 @@ export const fetchUnassignedClients = async (): Promise<interfaces.AvailableClie
 			const hasAssignedAgent = requestsSnapshot.docs.some((reqDoc) => reqDoc.data().realtorId && reqDoc.data().realtorId !== "");
 			if (!hasAssignedAgent) {
 				unassignedClients.push(client);
-				console.log(`[fetchUnassignedClients] ✓ ${client.firstName} ${client.lastName} is unassigned`);
+				// console.log(`[fetchUnassignedClients] ✓ ${client.firstName} ${client.lastName} is unassigned`);
 			}
 		}
-
-		console.log(`[fetchUnassignedClients] ✓ Found ${unassignedClients.length} unassigned clients`);
+		// console.log(`[fetchUnassignedClients] ✓ Found ${unassignedClients.length} unassigned clients`);
 		return unassignedClients;
 	} catch (error) {
 		console.error(`[fetchUnassignedClients] ✗ Error fetching unassigned clients:`, error);
@@ -165,20 +139,23 @@ export const fetchUnassignedClients = async (): Promise<interfaces.AvailableClie
 	}
 };
 
+/** Fetches a clients assigned agent
+ * @param clientId
+ * @returns 
+ */
 export const fetchAssignedRealtor = async (clientId: string): Promise<interfaces.RealtorData | null> => {
 	try {
-		console.log(`[fetchAssignedRealtor] Checking assigned realtor for client: ${clientId}`);
 		const requestsRef = collection(db, "clientRequests");
-		const q = query(requestsRef, where("clientId", "==", clientId));
+		const q = query(requestsRef, where("clientId", "==", clientId), where("status", "==", "Approved"));
 		const querySnapshot = await getDocs(q);
 
 		if (!querySnapshot.empty) {
 			const request = querySnapshot.docs[0].data();
 			const realtorId = request.realtorId || null;
-			console.log(`[fetchAssignedRealtor] ✓ Client ${clientId} has realtor: ${realtorId}`);
+			// console.log(`[fetchAssignedRealtor] ✓ Client ${clientId} has realtor: ${realtorId}`);
 			return realtorId;
 		}
-		console.log(`[fetchAssignedRealtor] ✗ Client ${clientId} has no assigned realtor`);
+		// console.log(`[fetchAssignedRealtor] ✗ Client ${clientId} has no assigned realtor`);
 		return null;
 	} catch (error) {
 		console.error(`[fetchAssignedRealtor] ✗ Error fetching assigned realtor for ${clientId}:`, error);
@@ -186,32 +163,25 @@ export const fetchAssignedRealtor = async (clientId: string): Promise<interfaces
 	}
 };
 
+/** Fetches all assigned (status = 'Approved') clients for an agent
+ * @param realtorId
+ * @returns An array of 
+ */
 export const fetchAssignedClients = async (realtorId: string): Promise<interfaces.ClientRequest[]> => {
 	try {
 		const requestsRef = collection(db, "clientRequests");
 		const q = query(requestsRef, where("realtorId", "==", realtorId), where("status", "==", "Approved"));
 		const querySnapshot = await getDocs(q);
-
 		const requests: interfaces.ClientRequest[] = [];
-
-		console.log(`[fetchAssignedClients] Found ${querySnapshot.docs.length} approved requests for realtor ${realtorId}`);
 
 		// Check each client's active status
 		for (const doc of querySnapshot.docs) {
 			const requestData = doc.data() as interfaces.ClientRequest;
 			try {
 				const clientData = await fetchUserData(requestData.clientId);
-				const isActive = (clientData as any)?.is_active !== false; // Default to true if undefined
-				console.log(`[fetchAssignedClients] Client ${requestData.clientId}:`, {
-					firstName: clientData?.firstName,
-					lastName: clientData?.lastName,
-					is_active: (clientData as any)?.is_active,
-					isActive: isActive,
-					type: typeof (clientData as any)?.is_active,
-				});
+				const isActive = (clientData as any)?.is_active !== false; // Default to true if undefined\
 				if (clientData && isActive) {
 					requests.push({ ...requestData, id: doc.id });
-					console.log(`[fetchAssignedClients] ✓ Added to active clients`);
 				} else {
 					console.log(`[fetchAssignedClients] ✗ Skipped - is_active is false`);
 				}
@@ -225,8 +195,7 @@ export const fetchAssignedClients = async (realtorId: string): Promise<interface
 			const dateB = b.createdAt?.toDate?.() || new Date(0);
 			return dateB.getTime() - dateA.getTime();
 		});
-
-		console.log(`[fetchAssignedClients] Returning ${requests.length} active clients`);
+		// console.log(`[fetchAssignedClients] Returning ${requests.length} active clients`);
 		return requests;
 	} catch (error) {
 		console.error(`[fetchAssignedClients] ✗ Error fetching assigned clients for realtor ${realtorId}:`, error);
@@ -234,13 +203,18 @@ export const fetchAssignedClients = async (realtorId: string): Promise<interface
 	}
 };
 
-export const fetchPendingClientRequests = async (realtorId?: string): Promise<interfaces.ClientRequest[]> => {
+/** Fetches all requests for an agent/client that are pending
+ * @param userId - Dependant on whether you are querying by the agentId or clientId
+ * @param role - 'client' to find which agent, 'agent' to find which clients
+ * @returns
+ */
+export const fetchPendingClientRequests = async (userId: string, role: "client" | "agent"): Promise<interfaces.ClientRequest[]> => {
 	try {
-		console.log(`[fetchPendingClientRequests] Fetching pending requests${realtorId ? ` for realtor ${realtorId}` : ""}...`);
+		const field = role === "client" ? "clientId" : "realtorId";
 		const requestsRef = collection(db, "clientRequests");
 		const constraints = [where("status", "==", "Pending")];
-		if (realtorId) {
-			constraints.push(where("realtorId", "==", realtorId));
+		if (userId) {
+			constraints.push(where(field, "==", userId));
 		}
 		const q = query(requestsRef, ...constraints);
 		const querySnapshot = await getDocs(q);
@@ -255,8 +229,7 @@ export const fetchPendingClientRequests = async (realtorId?: string): Promise<in
 			const dateB = b.createdAt?.toDate?.() || new Date(0);
 			return dateB.getTime() - dateA.getTime();
 		});
-
-		console.log(`[fetchPendingClientRequests] ✓ Found ${requests.length} pending requests`);
+		// console.log(`[fetchPendingClientRequests] ✓ Found ${requests.length} pending requests`);
 		return requests;
 	} catch (error) {
 		console.error(`[fetchPendingClientRequests] ✗ Error fetching pending requests:`, error);
@@ -264,16 +237,27 @@ export const fetchPendingClientRequests = async (realtorId?: string): Promise<in
 	}
 };
 
-export const formatDate = (timestamp: any): string => {
-	if (!timestamp) return "Unknown date";
-	const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-	return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+/** Custom function to return a date / timestamp since Firestore saves date/time in the weirdest way possible.
+ * @param dateValue
+ * @param includeTimestamp Optional - Boolean value to return timestamp or not.  Default: False
+ * @returns 
+ */
+export const formatDate = (dateValue: any, includeTimestamp?: boolean): string => {
+	if (!dateValue) return "Unknown date";
+	const date = dateValue.toDate ? dateValue.toDate() : new Date(dateValue);
+	if (includeTimestamp) {
+		return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+	}
+	return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 };
 
+/** Determine if a property is currently a favorite of a client
+ * @param userId 
+ * @param propertyId 
+ * @returns 
+ */
 export const checkIfFavorite = async (userId: string, propertyId: string): Promise<boolean> => {
-	try {
-		console.log(`[checkIfFavorite] Checking if property ${propertyId} is favorited by user ${userId}`);
-		
+	try {	
 		// define the variable for the query with the collection name.
 		const favsRef = collection(db, 'clientFavorites');
 		
@@ -285,7 +269,7 @@ export const checkIfFavorite = async (userId: string, propertyId: string): Promi
 		
 		// return true if found, false if not found
 		const isFavorited = !querySnapshot.empty;
-		console.log(`[checkIfFavorite] ✓ Property ${propertyId} favorited: ${isFavorited}`);
+		// console.log(`[checkIfFavorite] ✓ Property ${propertyId} favorited: ${isFavorited}`);
 		return isFavorited;
 	} catch (error) {
 		console.error(`[checkIfFavorite] ✗ Error checking favorite status for property ${propertyId}:`, error);
@@ -293,30 +277,32 @@ export const checkIfFavorite = async (userId: string, propertyId: string): Promi
 	}
 };
 
+/** Toggles a property as a favorite for the userId provided
+ * @param userId
+ * @returns boolean
+ */
 export const toggleFavorite = async (userId: string, property: interfaces.Property): Promise<boolean> => {
 	try {
-		console.log(`[toggleFavorite] Toggling favorite for property ${property.id} by user ${userId}`);
-		const isFavorite = await checkIfFavorite(userId, property.id);
+		const isFavorite = await checkIfFavorite(userId, property.favoriteId);
 		
 		if (isFavorite) {
 			// Property is already favorited - need to delete it
 			// First, find the document by querying
 			const favsRef = collection(db, 'clientFavorites');
-			const q = query(favsRef, where("userId", "==", userId), where("propertyId", "==", property.id));
+			const q = query(favsRef, where("userId", "==", userId), where("propertyId", "==", property.favoriteId));
 			const querySnapshot = await getDocs(q);
 			
 			// Delete the document using its ID
 			if (!querySnapshot.empty) {
 				const docId = querySnapshot.docs[0].id;
 				await deleteDoc(doc(db, "clientFavorites", docId));
-				console.log(`[toggleFavorite] ✓ Removed favorite for property ${property.id}`);
 			}
 			return false;
 		} else {
 			// Property is not favorited - add it with snapshot data
 			await addDoc(collection(db, "clientFavorites"), {
 				userId: userId,
-				propertyId: property.id,
+				propertyId: property.favoriteId,
 				address: property.address,
 				price: property.price,
 				beds: property.beds,
@@ -328,7 +314,6 @@ export const toggleFavorite = async (userId: string, property: interfaces.Proper
 				landArea: property.lot_sqft || null,
 				savedAt: new Date()
 			});
-			console.log(`[toggleFavorite] ✓ Added favorite for property ${property.id}`);
 			return true;
 		}
 	} catch (error) {
@@ -337,7 +322,11 @@ export const toggleFavorite = async (userId: string, property: interfaces.Proper
 	}
 }
 
-export const getFavorites = async (userId: string): Promise<interfaces.FavoriteProperty[]> => {
+/** Fetches all favorites for provided userId
+ * @param userId
+ * @returns array of favorite objects
+ */
+export const fetchClientFavorites = async (userId: string): Promise<interfaces.FavoriteProperty[]> => {
 	try {
 		const ref = collection(db, 'clientFavorites');
 		const q = query(ref, where("userId", "==", userId));
@@ -346,19 +335,16 @@ export const getFavorites = async (userId: string): Promise<interfaces.FavoriteP
 		// Build an array called favorites that uses the FavoriteProperty interface
 		const favorites: interfaces.FavoriteProperty[] = [];
 
-			console.log('[getFavorites] userId:', userId);
-			console.log('[getFavorites] querySnapshot size:', querySnapshot.size);
 		//Build the array with the information in the querySnapshot variable.
 		querySnapshot.forEach((doc) => { 
 			// assign each field to it's proper position in the FavoriteProperty interface.
 			favorites.push({ id:doc.id, ...doc.data() } as interfaces.FavoriteProperty);  // Spread operator (elipsis) maps Firestore fields to interface fields automatically
-				console.log('[getFavorites] favorite doc:', doc.id, doc.data());
 		})
 
 		return favorites;
 
 	} catch (error) {
-		console.error(`[getFavorites] Error retrieving favorites list:`, error);
+		console.error(`[fetchClientFavorites] Error retrieving favorites list:`, error);
 		throw error;
 	}
 }
@@ -389,62 +375,10 @@ export function getShortDateString(date = new Date()) {
 		console.log('Sending email error:', error)
 	}
  }
- /**
- * Creates a new clientOffer in Firestore.
- * @param clientId - The client making the offer
- * @param agentId - The agent assigned to the client
- * @param propertyId - The property for the offer
- * @param status - The status of the offer (see getClientOfferStatuses)
- * @returns The created document reference
- */
-export const createClientOffer = async (
-	clientId: string,
-	agentId: string,
-	propertyId: string,
-	status: string
-) => {
-	try {
-		const now = new Date();
-		const offerData = {
-			clientId,
-			agentId,
-			propertyId,
-			status,
-			createdAt: now,
-			updatedAt: now,
-		};
-		const docRef = await addDoc(collection(db, "clientOffers"), offerData);
-		return docRef;
-	} catch (error) {
-		console.error(`[createClientOffer] ✗ Error creating offer:`, error);
-		throw error;
-	}
-};
-
-/**
- * Returns valid status options for client offers.
- */
-export const getClientOfferStatuses = () => [
-	"Offer Made",
-	"Under Contract",
-	"Contingent",
-	"Closed",
-	// Additional suggestions based on real estate workflow:
-	"Offer Accepted",
-	"Offer Rejected",
-	"Inspection Period",
-	"Appraisal Ordered",
-	"Financing Approved",
-	"Title Cleared",
-	"Pending",
-	"Withdrawn",
-	"Terminated",
-	"Expired",
-];
 
 /**
  * Uploads a file to Firebase Storage and saves the download URL/metadata to a Firestore document.
- * @param fileUri The local URI of the file to upload
+ * @param fileUrl The local URI of the file to upload
  * @param storagePath The path in Firebase Storage (e.g., 'clientOffers/{offerId}/{filename}')
  * @param offerDocId The Firestore document ID for the offer
  * @param metadata Optional metadata to store with the file (object)
@@ -579,7 +513,7 @@ export function normalizeProperty(property: any): interfaces.Property {
 		null;
 
 	return {
-		id: property.property_id ?? property.id ?? property.listing_id ?? "",
+		favoriteId: property.property_id ?? property.favoriteId ?? property.listing_id ?? "",
 		price: property.list_price ?? property.price ?? property.price?.list_price ?? property.price?.value ?? null,
 		address:
 			property.location?.address?.line ||
@@ -691,3 +625,144 @@ export async function searchProperties(options: interfaces.SearchOptions): Promi
 		throw error;
 	}
 }
+
+/** OFFERS QUERIES */
+/**
+ * Fetches only the active offer for a specific client
+ * @param clientId 
+ * @returns 
+ */
+export const fetchActiveOfferForClient = async (
+	clientId: string,
+) : Promise<interfaces.OfferData | null> => {
+	try {
+		const offersRef = collection(db, "clientOffers");
+		const q = query(
+			offersRef,
+			where("clientId", "==", clientId),
+		);
+		const querySnapshot = await getDocs(q);
+		for (const doc of querySnapshot.docs) {
+			const offer = doc.data();
+			// Only consider offers that are not withdrawn/declined
+			if (
+				offer.status !== "Offer Withdrawn" &&
+				offer.status !== "Offer Declined"
+			) {
+				return {
+					offerId: doc.id,
+					...offer
+				} as interfaces.OfferData;
+			}
+		}
+		return null;
+	} catch (error) {
+		console.error(`[fetchActiveOfferForClientProperty] ✗ Error fetching offer for client ${clientId}:`, error);
+		return null;
+	}
+};
+
+/**
+ * Fetches only the active offer for a specific property 
+ * @param clientId 
+ * @param propertyId 
+ * @returns 
+ */
+export const fetchActiveOfferForProperty = async (
+	propertyId: string
+) : Promise<interfaces.OfferData | null> => {
+	try {
+		const offersRef = collection(db, "clientOffers");
+		const q = query(
+			offersRef,
+			where("propertyId", "==", propertyId)
+		);
+		const querySnapshot = await getDocs(q);
+		for (const doc of querySnapshot.docs) {
+			const offer = doc.data();
+			// Only consider offers that are not withdrawn/declined
+			if (
+				offer.status !== "Offer Withdrawn" &&
+				offer.status !== "Offer Declined"
+			) {
+				return {
+					offerId: doc.id,
+					...offer
+				} as interfaces.OfferData;
+			}
+		}
+		return null;
+	} catch (error) {
+		console.error(`[fetchActiveOfferForClientProperty] ✗ Error fetching offer for property ${propertyId}:`, error);
+		return null;
+	}
+};
+
+/**
+ * Fetches all offers for a client including delicned and withdrawn.
+ * @param userId
+ * @returns 
+ */
+export const fetchUserOffers = async (userId: string): Promise<interfaces.OfferData[]> => {
+	try {
+		const offersRef = collection(db, "clientOffers");
+		const q = query(offersRef, where("clientId", "==", userId));
+		const querySnapshot = await getDocs(q);
+		const offers: interfaces.OfferData[] = querySnapshot.docs.map(doc => ({ offerId: doc.id, ...doc.data() } as interfaces.OfferData));
+		return offers;
+	} catch (error) {
+		console.error(`[fetchUserOffers] ✗ Error fetching offers for user ${userId}:`, error);
+		return [];
+	}
+};
+
+/**
+ * Fetch offerId data- Must have correct offerId for this usage
+ * @param offerId
+ * @returns Offer data object
+ */
+export const fetchOfferDatabyID = async (offerId: string): Promise<interfaces.OfferData | null> => {
+	try {
+		const offerRef = doc(db,"clientOffers", offerId);
+		const offerSnap = await getDoc(offerRef);	
+	if (offerSnap.exists()){
+			return offerSnap.data() as interfaces.OfferData;
+		}
+	return null;
+	} catch (error) {
+		console.error(`[fetchOfferDatabyID] Error fetching offers for offerID: ${offerId}:`, error)
+		return null
+	}
+}
+
+ /**
+ * Creates a new clientOffer in Firestore.
+ * @param clientId - The client making the offer
+ * @param agentId - The agent assigned to the client
+ * @param propertyId - The property for the offer
+ * @param status - The status of the offer (see getClientOfferStatuses)
+ * @returns The created document reference
+ */
+export const createClientOffer = async (
+	clientId: string,
+	agentId: string,
+	propertyId: string,
+	status: string
+) => {
+	try {
+		const now = new Date();
+		const offerData = {
+			clientId,
+			agentId,
+			propertyId,
+			status,
+			createdAt: now,
+			updatedAt: now,
+		};
+		const docRef = await addDoc(collection(db, "clientOffers"), offerData);
+		return docRef;
+	} catch (error) {
+		console.error(`[createClientOffer] ✗ Error creating offer:`, error);
+		throw error;
+	}
+};

@@ -1,19 +1,16 @@
-import { auth , db } from "@/components/firebaseConfig";
-import { useAssignedRealtor, useUserData, useRealtors } from "@/hooks/useFunctions";
-import { addDoc, collection } from "firebase/firestore";
-
-import { useState } from "react";
-import { Alert , ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { auth, db } from "@/components/firebaseConfig";
+import { clientDashboard_styles, landingStyles } from '@/constants/styles';
+import { useAssignedRealtor, usePendingClientRequests, useRealtors, useUserData } from "@/hooks/useFunctions";
+import { fetchActiveOfferForClient, fetchClientFavorites, fetchUserOffers } from "@/utils/functions";
 import { useRouter } from "expo-router";
-
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { landingStyles } from '@/constants/styles';
-
-
+import { addDoc, collection } from "firebase/firestore";
 import { Home, MapPin, UserCircle } from "lucide-react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { OffersModule } from '../../../components/modules/OffersModule';
 import { YourAgentModule } from '../../../components/modules/YourAgentModule';
+import CalendarModule from '../../../components/modules/calendarModule';
 
 export default function ClientDashboard() {
 	const router = useRouter();
@@ -21,8 +18,36 @@ export default function ClientDashboard() {
 
 	const { data: userData, loading } = useUserData(user?.uid || null);
 	const { data: assignedRealtorId, refetch: refetchAssignedRealtor } = useAssignedRealtor(user?.uid || null);
+	const { data: pendingRequestsRealtorId, refetch: refetchPendingRequests } = usePendingClientRequests(user?.uid || null, "client");
 	const { data: realtors = [], loading: realtorsLoading } = useRealtors();
 	const [requesting, setRequesting] = useState(false);
+	const [clientHasActiveOffer, setClientHasActiveOffer] = useState<{ [clientId: string]: boolean }>({});
+	const [propertyHasActiveOffer, setPropertyHasActiveOffer] = useState<{ [propertyId: string]: boolean }>({});
+
+	// Store only document IDs
+	const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+	const [activeOfferId, setActiveOfferId] = useState<string | null>(null);
+	const [offerIds, setOfferIds] = useState<string[]>([]);
+
+	useEffect(() => {
+		async function fetchClientData() {
+			if (!user?.uid) return;
+			try {
+				const favorites = await fetchClientFavorites(user.uid);
+				setFavoriteIds(favorites.map(fav => fav.id));
+				const activeOffer = await fetchActiveOfferForClient(user.uid);
+				setActiveOfferId(activeOffer ? activeOffer.offerId : null);
+				const allOffers = await fetchUserOffers(user.uid);
+				setOfferIds(allOffers.map(offer => offer.offerId));
+				console.log("favoriteIds:", favorites.map(fav => fav.id));
+				console.log("activeOfferId:", activeOffer ? activeOffer.offerId : null);
+				console.log("offerIds:", allOffers.map(offer => offer.offerId));
+			} catch (error) {
+				console.error("Error fetching client data:", error);
+			}
+		}
+		fetchClientData();
+	}, [user?.uid]);
 
 	const handleSelectRealtor = async (realtorId: string) => {
 		if (assignedRealtorId) {
@@ -37,6 +62,7 @@ export default function ClientDashboard() {
 			}
 			await addDoc(collection(db, "clientRequests"), { clientId: user.uid, realtorId: realtorId, status: "Pending", createdAt: new Date() });
 			await refetchAssignedRealtor();
+			await refetchPendingRequests();
 			Alert.alert("Success", "Your request has been sent to the realtor!");
 		} catch (error) {
 			console.error("Error selecting realtor:", error);
@@ -57,70 +83,92 @@ export default function ClientDashboard() {
 
 	if (loading || realtorsLoading) {
 		return (
-			<SafeAreaView style={styles.container}>
-				<View style={styles.loadingContainer}>
+			<SafeAreaView style={clientDashboard_styles.container}>
+				<View style={clientDashboard_styles.loadingContainer}>
 					<ActivityIndicator size="large" color="#2C5F2D" />
-					<Text style={styles.loadingText}>Loading...</Text>
+					<Text style={clientDashboard_styles.loadingText}>Loading...</Text>
 				</View>
 			</SafeAreaView>
 		);
 	}
 
 	return (
-		<SafeAreaView style={styles.container}>
-			<View style={styles.header}>
-				<View style={styles.headerContent}>
+		<SafeAreaView style={clientDashboard_styles.container}>
+			<View style={clientDashboard_styles.header}>
+				<View style={clientDashboard_styles.headerContent}>
 					<UserCircle color="#2C5F2D" size={32} />
-					<View style={styles.headerTextContainer}>
-						<Text style={styles.headerTitle}>Client Dashboard</Text>
-						<Text style={styles.headerSubtitle}>Welcome, {userData?.firstName || "Client"}!</Text>
+					<View style={clientDashboard_styles.headerTextContainer}>
+						<Text style={clientDashboard_styles.headerTitle}>Client Dashboard</Text>
+						<Text style={clientDashboard_styles.headerSubtitle}>Welcome, {userData?.firstName || "Client"}!</Text>
 					</View>
 				</View>
-				<TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-					<Text style={styles.logoutButtonText}>Logout</Text>
+				<TouchableOpacity style={clientDashboard_styles.logoutButton} onPress={handleLogout}>
+					<Text style={clientDashboard_styles.logoutButtonText}>Logout</Text>
 				</TouchableOpacity>
 			</View>
-			<ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Select Your Realtor</Text>
-					<Text style={styles.sectionDescription}>
+			<ScrollView style={clientDashboard_styles.scrollView} contentContainerStyle={clientDashboard_styles.scrollContent}>
+			{!assignedRealtorId && (
+				<View>
+					<View style={clientDashboard_styles.section}>
+						<Text style={clientDashboard_styles.sectionTitle}>Select Your Realtor</Text>
+						<Text style={clientDashboard_styles.sectionDescription}>
 						Choose a realtor to work with. They will be able to view your requests and help you find your dream property.
-					</Text>
-				</View>
-				{!realtors || realtors.length === 0 ? (
-					<View style={styles.emptyState}>
-						<Text style={styles.emptyStateText}>No realtors available at the moment.</Text>
+						</Text>
 					</View>
-				) : (
-					<View style={styles.realtorsContainer}>
-						{realtors.map((realtor: any) => (
-							<View key={realtor.id} style={styles.realtorCard}>
-								<View style={styles.realtorInfo}>
-									<View style={styles.realtorAvatar}>
-										<Text style={styles.realtorInitials}>{realtor.firstName[0]}{realtor.lastName[0]}</Text>
+					{!realtors || realtors.length === 0 ? (
+						<View style={clientDashboard_styles.emptyState}>
+							<Text style={clientDashboard_styles.emptyStateText}>No realtors available at the moment.</Text>
+						</View>
+					) : (
+						<View style={clientDashboard_styles.realtorsContainer}>
+						{realtors.map((realtor: any) => {
+							const hasPending = pendingRequestsRealtorId && pendingRequestsRealtorId.some((req: any) => req.realtorId === realtor.id);
+							const hasAnyPendingOrApproved = pendingRequestsRealtorId && pendingRequestsRealtorId.some((req: any) => req.status === 'Pending' || req.status === 'Approved');
+							return (
+								<View key={realtor.id} style={clientDashboard_styles.realtorCard}>
+								<View style={clientDashboard_styles.realtorInfo}>
+									<View style={clientDashboard_styles.realtorAvatar}>
+										<Text style={clientDashboard_styles.realtorInitials}>{realtor.firstName[0]}{realtor.lastName[0]}</Text>
 									</View>
-									<View style={styles.realtorDetails}>
-										<Text style={styles.realtorName}>{realtor.firstName} {realtor.lastName}</Text>
-										<Text style={styles.realtorEmail}>{realtor.email}</Text>
-										{realtor.phoneNumber && <Text style={styles.realtorPhone}>{realtor.phoneNumber}</Text>}
+									<View style={clientDashboard_styles.realtorDetails}>
+										<Text style={clientDashboard_styles.realtorName}>{realtor.firstName} {realtor.lastName}</Text>
+										<Text style={clientDashboard_styles.realtorEmail}>{realtor.email}</Text>
+										{realtor.phoneNumber && <Text style={clientDashboard_styles.realtorPhone}>{realtor.phoneNumber}</Text>}
 									</View>
 								</View>
-								{!assignedRealtorId ? (
-									<TouchableOpacity style={[styles.selectButton, requesting && styles.disabledButton]} onPress={() => handleSelectRealtor(realtor.id)} disabled={requesting}>
-										<Text style={styles.selectButtonText}>Select Realtor</Text>
-									</TouchableOpacity>
-								) : (
-									<View style={styles.requestSentBadge}>
-										<Text style={styles.requestSentText}>Request Sent</Text>
+								{hasPending ? (
+									<View style={clientDashboard_styles.requestSentBadge}>
+										<Text style={clientDashboard_styles.requestSentText}>Request Sent</Text>
 									</View>
+								) : (
+								!hasAnyPendingOrApproved &&
+										<TouchableOpacity
+										style={[clientDashboard_styles.selectButton, requesting && clientDashboard_styles.disabledButton]}
+										onPress={() => handleSelectRealtor(realtor.id)}
+										disabled={requesting}
+									>
+										<Text style={clientDashboard_styles.selectButtonText}>Select Realtor</Text>
+									</TouchableOpacity>
 								)}
-							</View>
-						))}
-					</View>
+								</View>
+							);
+						})}
+						</View>
+					)}
+				</View>
 				)}
-				{user && <OffersModule userId={user.uid} styles={styles} />}
-				{assignedRealtorId && <YourAgentModule realtorId={assignedRealtorId} styles={styles} />}
-				<View style={styles.bottomButtonsContainer}>
+				{clientHasActiveOffer && user && (
+					<OffersModule
+						userId={user.uid}
+						favoriteIds={favoriteIds}
+						activeOfferId={activeOfferId}
+						styles={clientDashboard_styles}
+					/>
+				)}
+				{assignedRealtorId && <YourAgentModule realtorId={assignedRealtorId} styles={clientDashboard_styles} />}
+				{clientHasActiveOffer && <CalendarModule role="client" activeOfferId={activeOfferId} />}
+				{!clientHasActiveOffer && 
+				<View style={clientDashboard_styles.bottomButtonsContainer}>
 					<TouchableOpacity style={[landingStyles.actionButton, landingStyles.buyButton, { marginHorizontal: 16, marginTop: 8, paddingVertical: 16, paddingHorizontal: 16 }]} onPress={() => router.push({ pathname: '/(tabs)/map', params: { userType: 'buy', zoomToUser: 'false' } })} activeOpacity={0.8}>
 						<View style={[landingStyles.buttonContent, { minHeight: 42 }]}> 
 							<View style={[landingStyles.iconCircle, landingStyles.buyIconCircle, { width: 42, height: 42, borderRadius: 21, marginRight: 12 }]}> 
@@ -143,78 +191,9 @@ export default function ClientDashboard() {
 						</View>
 						<Text style={landingStyles.arrow}>→</Text>
 					</TouchableOpacity>
-				</View>
+				</View>}
 			</ScrollView>
 		</SafeAreaView>
 	);
 }
 
-const styles = StyleSheet.create({
-	bottomButtonsContainer: {
-		backgroundColor: '#F8F9FA',
-		paddingBottom: 24,
-		paddingTop: 8,
-		alignItems: 'center',
-		marginTop: 24,
-	},
-	container: { flex: 1, backgroundColor: "#F8F9FA" },
-	header: {
-		backgroundColor: "#FFFFFF",
-		paddingVertical: 20,
-		paddingHorizontal: 20,
-		borderBottomWidth: 1,
-		borderBottomColor: "#E5E5E5",
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-	},
-	headerContent: { flexDirection: "row", alignItems: "center", flex: 1 },
-	headerTextContainer: { marginLeft: 16 },
-	headerTitle: { fontSize: 24, fontWeight: "bold", color: "#1A1A1A" },
-	headerSubtitle: { fontSize: 14, color: "#666666", marginTop: 4 },
-	logoutButton: { backgroundColor: "#FF4444", paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
-	logoutButtonText: { color: "#FFFFFF", fontWeight: "600", fontSize: 14 },
-	scrollView: { flex: 1 },
-	scrollContent: { paddingBottom: 100 },
-	loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-	loadingText: { marginTop: 10, fontSize: 16, color: "#666666" },
-	section: { backgroundColor: "#FFFFFF", padding: 20, marginBottom: 16 },
-	sectionTitle: { fontSize: 20, fontWeight: "bold", color: "#1A1A1A", marginBottom: 8 },
-	sectionDescription: { fontSize: 14, color: "#666666", lineHeight: 20 },
-	emptyState: { backgroundColor: "#FFFFFF", padding: 40, marginHorizontal: 16, borderRadius: 12, alignItems: "center" },
-	emptyStateText: { fontSize: 16, color: "#666666", textAlign: "center" },
-	realtorsContainer: { paddingHorizontal: 16 },
-	realtorCard: {
-		backgroundColor: "#FFFFFF",
-		borderRadius: 12,
-		padding: 16,
-		marginBottom: 16,
-		shadowColor: "#000",
-		shadowOffset: { width: 0, height: 2 },
-		shadowOpacity: 0.1,
-		shadowRadius: 4,
-		elevation: 3,
-	},
-	realtorInfo: { flexDirection: "row", marginBottom: 16 },
-	realtorAvatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: "#2C5F2D", justifyContent: "center", alignItems: "center" },
-	realtorInitials: { color: "#FFFFFF", fontSize: 20, fontWeight: "bold" },
-	realtorDetails: { flex: 1, marginLeft: 16, justifyContent: "center" },
-	realtorName: { fontSize: 18, fontWeight: "bold", color: "#1A1A1A", marginBottom: 4 },
-	realtorEmail: { fontSize: 14, color: "#666666", marginBottom: 2 },
-	realtorPhone: { fontSize: 14, color: "#666666" },
-	selectButton: { backgroundColor: "#2C5F2D", paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8, alignItems: "center" },
-	disabledButton: { opacity: 0.6 },
-	selectButtonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" },
-	requestSentBadge: { backgroundColor: "#4CAF50", paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8, alignItems: "center" },
-	requestSentText: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" },
-	navigateButton: {
-		backgroundColor: "#007AFF",
-		marginHorizontal: 16,
-		marginTop: 8,
-		paddingVertical: 14,
-		paddingHorizontal: 24,
-		borderRadius: 10,
-		alignItems: "center",
-	},
-	navigateButtonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" },
-});

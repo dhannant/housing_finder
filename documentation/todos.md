@@ -11,3 +11,5 @@
 9. Create universal stylesheet for app: Make a universal stylesheet (e.g., styles/global.ts) with shared styles for containers, titles, input boxes, buttons, etc. Refactor components to use these shared styles to reduce repetition and ensure consistency.
 10. Implement caching of property search results (including image URLs) in Firestore. On each search, check Firestore for cached results before calling RapidAPI. If not cached or stale, fetch from RapidAPI, store in Firestore, and return to app.
 11. Refactor agent-dashboard.tsx with React Native Paper: Replace TouchableOpacity buttons with Paper Button components, convert View cards to Paper Card, and simplify custom styles. Benefits: Material Design consistency, built-in ripple effects, better accessibility, and reduced boilerplate.
+12. Might want to refactor screen to use a change listener on the firestore side.  Right now, changes on other devices will only update on page reloads, rather than when something changes in a collection.  example for clientOffers  -----
+const unsubscribe = onSnapshot(doc(db, "clientOffers", offerId), (doc) => { ...more code... } )

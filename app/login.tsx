@@ -1,8 +1,9 @@
+import { login_styles } from '@/constants/styles';
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useState } from 'react';
-import { Alert, Button, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Button, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, db } from '../components/firebaseConfig';
 
@@ -82,10 +83,10 @@ export default function LoginScreen() {
 
 	return (
 		<SafeAreaView style={{ flex: 1, justifyContent: 'center', backgroundColor: '#f2f2f2' }}>
-			<View style={styles.container}>
-				<Text style={styles.title}>Login</Text>
+			<View style={login_styles.container}>
+				<Text style={login_styles.title}>Login</Text>
 				<TextInput
-					style={styles.input}
+					style={login_styles.input}
 					placeholder="Email"
 					value={email}
 					onChangeText={setEmail}
@@ -93,14 +94,14 @@ export default function LoginScreen() {
 					keyboardType="email-address"
 				/>
 				<TextInput
-					style={styles.input}
+					style={login_styles.input}
 					placeholder="Password"
 					value={password}
 					onChangeText={setPassword}
 					secureTextEntry
 				/>
 				<Button title={loading ? 'Please wait...' : 'Login'} onPress={handleLogin} disabled={loading} />
-				{message ? <Text style={styles.message}>{message}</Text> : null}
+				{message ? <Text style={login_styles.message}>{message}</Text> : null}
 				<Text style={{ marginTop: 16, textAlign: 'center' }}>
 					Don&apos;t have an account?{' '}
 					<Text style={{ color: '#007AFF' }} onPress={() => router.push('/register')}>Register</Text></Text>
@@ -124,30 +125,4 @@ export default function LoginScreen() {
 	);
 }
 
-const styles = StyleSheet.create({
-	container: {
-		padding: 20,
-		backgroundColor: '#fff',
-		borderRadius: 8,
-		margin: 20,
-		elevation: 2,
-	},
-	title: {
-		fontSize: 24,
-		fontWeight: 'bold',
-		marginBottom: 16,
-		textAlign: 'center',
-	},
-	input: {
-		borderWidth: 1,
-		borderColor: '#ccc',
-		borderRadius: 4,
-		padding: 10,
-		marginBottom: 12,
-	},
-	message: {
-		marginTop: 10,
-		textAlign: 'center',
-		color: '#007AFF',
-	},
-});
+

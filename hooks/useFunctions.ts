@@ -6,7 +6,7 @@ import {
 	fetchUnassignedClients,
 	fetchUserData,
 } from "@/utils/functions";
-import { UserData } from "@/utils/interfaces";
+import { RealtorData, UserData } from "@/utils/interfaces";
 import { useEffect, useState } from "react";
 
 interface UseDataReturn<T> {
@@ -127,7 +127,7 @@ export const useUnassignedClients = (): UseDataReturn<any[]> => {
 };
 
 export const useAssignedRealtor = (clientId: string | null | undefined): UseDataReturn<string | null> => {
-	const [data, setData] = useState<string | null>(null);
+	const [data, setData] = useState<RealtorData | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
 	const [reloadKey, setReloadKey] = useState(0);
@@ -210,7 +210,15 @@ export const useAssignedClients = (realtorId: string | null | undefined): UseDat
 	return { data, loading, error, refetch };
 };
 
-export const usePendingClientRequests = (realtorId: string | null | undefined): UseDataReturn<any[]> => {
+
+/**
+ * 
+ * @param realtorId 
+ * @param clientId 
+ * @param role - Required to determine if
+ * @returns 
+ */
+export const usePendingClientRequests = (userId: string | null | undefined, role: "client" | "agent"): UseDataReturn<any[]> => {
 	const [data, setData] = useState<any[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
@@ -224,16 +232,16 @@ export const usePendingClientRequests = (realtorId: string | null | undefined): 
 	// Load data on mount AND when realtorId changes
 	useEffect(() => {
 		const loadPendingRequests = async () => {
-			if (!realtorId) {
+			if (!userId) {
 				setData([]);
 				setError(null);
 				setLoading(false);
 				return;
 			}
-			console.log(`[usePendingClientRequests] Refetching pending requests for realtor: ${realtorId}`);
+			console.log(`[usePendingClientRequests] Refetching pending requests for user: ${userId}`);
 			try {
 				setLoading(true);
-				const result = await fetchPendingClientRequests(realtorId);
+				const result = await fetchPendingClientRequests(userId, role);
 				setData(result);
 				setError(null);
 				console.log(`[usePendingClientRequests] ✓ Loaded ${result.length} pending requests`);
@@ -246,7 +254,7 @@ export const usePendingClientRequests = (realtorId: string | null | undefined): 
 		};
 
 		loadPendingRequests();
-	}, [realtorId, reloadKey]);
+	}, [userId, role, reloadKey]);
 
 	return { data, loading, error, refetch };
 };

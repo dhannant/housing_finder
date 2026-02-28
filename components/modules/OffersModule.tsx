@@ -1,85 +1,83 @@
-import { fetchUserOffers , getFavorites } from '@/utils/functions';
-
-import { OfferData } from '@/utils/interfaces';
+import { fetchFavoriteByID, fetchOfferDatabyID } from '@/utils/functions';
+import { FavoriteProperty, OfferData } from '@/utils/interfaces';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Text, View , Image } from 'react-native';
-
-
-interface Offer {
-  id: string;
-  propertyId: string;
-  status: string;
-  [key: string]: any;
-}
+import { ActivityIndicator, Image, Text, View } from 'react-native';
 
 interface OffersModuleProps {
-  userId: string;
-  styles: any;
+    userId: string;
+    styles: any;
+    activeOfferId: string | null;
+    favoriteIds: string[];
 }
 
-export const OffersModule: React.FC<OffersModuleProps> = ({ userId, styles }) => {
-  const [offers, setOffers] = useState<OfferData[] | null>(null);
-  const [favorites, setFavorites] = useState<FavoriteProperty[] | null>(null);
-  const [loading, setLoading] = useState(true);
+export const OffersModule: React.FC<OffersModuleProps> = ({ userId, styles, activeOfferId, favoriteIds }) => {
+	const router = useRouter();
+	const [offer, setOffer] = useState<OfferData | null>(null);
+	const [favorites, setFavorites] = useState<FavoriteProperty[]>([]);
+	const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function loadOffersAndFavorites() {
-      setLoading(true);
-      const [allOffers, favs] = await Promise.all([
-        fetchUserOffers(userId),
-        getFavorites(userId)
-      ]);
-      const activeOffers = allOffers.filter(
-        (offer: OfferData) => offer.status !== 'withdrawn' && offer.status !== 'offer declined'
-      );
-      setOffers(activeOffers);
-      setFavorites(favs);
-      setLoading(false);
-    }
-    if (userId) loadOffersAndFavorites();
-  }, [userId]);
+	useEffect(() => {
+		async function loadOfferAndFavorites() {
+			setLoading(true);
+			let offerResult: OfferData | null = null;
+			if (activeOfferId) {
+				const fetchedOffer = await fetchOfferDatabyID(activeOfferId);
+				offerResult = fetchedOffer || null;
+			}
+			const favoriteResults = await Promise.all(favoriteIds.map(id => fetchFavoriteByID(id)));
+			setOffer(offerResult);
+			setFavorites(favoriteResults.filter(Boolean) as FavoriteProperty[]);
+			setLoading(false);
+		}
+		if (activeOfferId || favoriteIds.length > 0) loadOfferAndFavorites();
+	}, [activeOfferId, favoriteIds]);
 
-  if (loading) {
-    return (
-      <View style={styles.section}>
-        <ActivityIndicator size="small" color="#2C5F2D" />
-        <Text style={styles.loadingText}>Loading your offers...</Text>
-      </View>
-    );
-  }
+	if (loading) {
+		return (
+			<View style={styles.section}>
+				<ActivityIndicator size="small" color="#2C5F2D" />
+				<Text style={styles.loadingText}>Loading your offer...</Text>
+			</View>
+		);
+	}
 
-  if (!offers || offers.length === 0) return null;
+	if (!offer) return null;
 
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Active Offer</Text>
-      {offers.map((offer) => {
-        const favorite = favorites?.find(fav => fav.propertyId === offer.propertyId);
-        const photoUrl = favorite?.primaryPhoto || (favorite?.photos && Array.isArray(favorite.photos) && favorite.photos[0]) || null;
-        // Debug output
-        console.log('Offer:', offer);
-        console.log('Favorite:', favorite);
-        console.log('Photo URL:', photoUrl);
-        return (
-          <View key={offer.id} style={{ marginBottom: 12 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-              {photoUrl ? (
-                <Image
-                  source={{ uri: photoUrl }}
-                  style={{ width: 60, height: 60, borderRadius: 8, marginRight: 12 }}
-                  resizeMode="cover"
-                />
-              ) : (
-                <Text style={{ color: 'red', marginRight: 12 }}>No photo</Text>
-              )}
-              <Text style={styles.realtorName}>{favorite?.address || 'Address not available'}</Text>
-            </View>
-            <Text>Status: {offer.status}</Text>
-            {/* Show debug info */}
-            <Text style={{ fontSize: 10, color: '#888' }}>Photo URL: {photoUrl || 'none'}</Text>
-          </View>
-        );
-      })}
-    </View>
-  );
+	const favorite = favorites.find(fav => fav.propertyId === offer.propertyId);
+	const photoUrl = favorite?.primaryPhoto || (favorite?.photos && Array.isArray(favorite.photos) && favorite.photos[0]) || null;
+
+	return (
+		<View style={styles.section}>
+			<Text style={styles.sectionTitle}>Active Offer</Text>
+			<View
+				key={offer.propertyId}
+				style={{
+					marginBottom: 12,
+					backgroundColor: '#fff',
+					borderRadius: 8,
+					padding: 12,
+					shadowColor: '#000',
+					shadowOpacity: 0.08,
+					shadowRadius: 4,
+					shadowOffset: { width: 0, height: 2 },
+					elevation: 2
+				}}
+			>
+				<View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+					{photoUrl ? (
+						<Image
+							source={{ uri: photoUrl }}
+							style={{ width: 60, height: 60, borderRadius: 8, marginRight: 12 }}
+							resizeMode="cover"
+						/>
+					) : (
+						<Text style={{ color: 'red', marginRight: 12 }}>No photo</Text>
+					)}
+					<Text style={styles.realtorName}>{favorite?.address || 'Address not available'}</Text>
+				</View>
+				<Text>Status: {offer.status}</Text>
+			</View>
+		</View>
+	);
 };

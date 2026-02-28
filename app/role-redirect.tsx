@@ -1,9 +1,9 @@
 import {useAuth} from '@/contexts/AuthContext';
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
-import { ActivityIndicator, View, Text } from 'react-native';
+import { ActivityIndicator, View, Text} from 'react-native';
 
-export default function roleRedirect() {
+export default function RoleRedirect() {
     const { user, userData, loading } = useAuth();
     const router = useRouter();
     useEffect(() => {

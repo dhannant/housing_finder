@@ -1,0 +1,101 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper Functions
+    function isAuthenticated() { return request.auth != null; }
+    function isOwner(userId) { return request.auth.uid == userId; }
+    function getUserRole() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role; }
+    function clientHasActiveOffer(clientId, propertyId) {
+      return exists(
+        /databases/$(database)/documents/clientOffers
+          .where('clientId', '==', clientId)
+          .where('propertyId', '==', propertyId)
+          .where('status', '!=', 'withdrawn')
+      );
+    }
+    function propertyHasActiveOffer(propertyId) {
+      return exists(
+        /databases/$(database)/documents/clientOffers
+          .where('propertyId', '==', propertyId)
+          .where('status', '!=', 'withdrawn')
+      );
+    }
+    // Checks if agentId is assigned to clientId via an approved clientRequest
+    function isAssignedAgent(agentId, clientId) {
+      return get(/databases/$(database)/documents/clientRequests/$(clientId + "_" + agentId)).data.status == "Approved";
+    }
+
+    // Users collection rules
+    match /users/{userId} {
+      allow create, update: if isAuthenticated() && isOwner(userId);
+      allow delete: if false;
+      allow get: if isAuthenticated() && (
+        isOwner(userId) ||
+        resource.data.role == 'Agent' ||
+        (getUserRole() == 'Agent' && resource.data.role == 'Client')
+      );
+      allow list: if isAuthenticated();
+    }
+
+    // clientRequests collection rules
+    match /clientRequests/{requestId} {
+      allow create: if isAuthenticated() && (
+        (request.resource.data.clientId == request.auth.uid &&
+         request.resource.data.status == "Pending") ||
+        (getUserRole() == "Agent" &&
+         request.resource.data.status == "Approved")
+      );
+      allow read: if isAuthenticated() && (
+        resource.data.clientId == request.auth.uid         // Client can read their own requests
+        || resource.data.realtorId == request.auth.uid         // Agent can read their assigned requests
+        || getUserRole() == "Agent"                              // (Optional) Agent can read all requests
+      );
+      allow update: if isAuthenticated()
+        && resource.data.realtorId == request.auth.uid
+        && request.resource.data.realtorId == resource.data.realtorId
+        && request.resource.data.clientId == resource.data.clientId;
+      allow delete: if isAuthenticated() 
+        && resource.data.realtorId == request.auth.uid;
+    }
+
+    // clientFavorites collection rules
+    match /clientFavorites/{favoriteId} {
+      allow create: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid ||
+        getUserRole() == "Agent"
+      );
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        getUserRole() == "Agent"
+      );
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow update: if false;
+    }
+
+    // clientOffers collection rules
+    match /clientOffers/{offerId} {
+      allow create: if isAuthenticated() &&
+        getUserRole() == "Agent"
+        // isAssignedAgent(request.auth.uid, request.resource.data.clientId)
+        // !clientHasActiveOffer(request.resource.data.clientId, request.resource.data.propertyId) &&
+        // !propertyHasActiveOffer(request.resource.data.propertyId);
+      allow read: if isAuthenticated() && (
+        resource.data.clientId == request.auth.uid ||
+        getUserRole() == "Agent"
+      );
+      allow update: if isAuthenticated() && (
+        getUserRole() == "Agent"
+      );
+      allow delete: if isAuthenticated() && (
+        getUserRole() == "Agent"
+      );
+    }
+
+    // Default deny all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

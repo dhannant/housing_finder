@@ -49,51 +49,48 @@ export interface ClientRequest {
 	createdAt: any;
 }
 
-/**
- * Favorite Properties for a client.
- * @param id
- * @param userId
- * @param propertyId
- * @param address
- * @param price
- * @param beds
- * @param baths
- * @param status
- * @param savedAt
- */
-export interface FavoriteProperty {
-	id: string; // doc id
-	userId: string;
-	propertyId: string;
-	address: string;
-	price: number | null;
-	beds: number | null;
-	baths: number | null;
-	status: string | null;
-	savedAt?: any;
- }
 
- export interface OfferData {
-	clientId: string,
-   agentId: string,
-   propertyId: string,
-	offerId: string,
-   status: "Offer Made",
-   createdAt: Date,
-   updatedAt: Date,
+// Allowed offer statuses as a constant array
+export const OFFER_STATUSES = [
+	"Offer Made",
+	"separator",
+	"Offer Declined",
+	"Offer Withdrawn",
+	"separator",
+	"Offer Accepted",	
+	"Under Contract",
+	"Closing Scheduled",
+	"Closed"
+] as const;
+
+export type OfferStatus = typeof OFFER_STATUSES[number];
+
+/**
+ * Offer Data Interface to control typing
+ */
+export interface OfferData {
+	clientId: string,	
+	agentId: string,
+	propertyId: string,
+	offerId: string,			//This should be the document id
+	status: OfferStatus,
+	createdAt: Date,
+	updatedAt: Date,
 	dueDiligenceStart: Date | null,
 	dueDiligenceEnd: Date | null,
 	closingDate: Date | null,
 	inspectionDate: Date | null,
-	moveInDate: Date | null,
 	earnestMoneyDueDate: Date | null,
 	earnestMoneyAmountDue: number | null,
 	notes: "",
 	files: string
 }
 
+/**
+ * Property Interface
+ */
 export interface Property {
-	id: string;
+	favoriteId: string;
 	price: number | null;
 	address: string;
 	beds: number | null;
@@ -107,6 +104,12 @@ export interface Property {
 	photos: any[];
 	primaryPhoto: string | null;
 }
+export interface FavoriteProperty extends Property {
+	id: string; // doc id
+	userId: string;
+	propertyId: string;
+	savedAt?: any;
+ }
 
 export interface SearchOptions {
 	location: string;

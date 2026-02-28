@@ -1,0 +1,258 @@
+import { auth, db } from '@/components/firebaseConfig';
+import { landingStyles, profileModule_styles } from '@/constants/styles';
+import { useAuth } from '@/contexts/AuthContext';
+import { EmailAuthProvider, reauthenticateWithCredential, sendPasswordResetEmail, updateEmail, updatePassword } from 'firebase/auth';
+import { doc, updateDoc } from 'firebase/firestore';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+export default function ProfileScreen() {
+	const { user, userData } = useAuth();
+	const [firstName, setFirstName] = useState('');
+	const [lastName, setLastName] = useState('');
+	const [email, setEmail] = useState('');
+	const [phoneNumber, setPhoneNumber] = useState('');
+	const [saving, setSaving] = useState(false);
+	const [currentPassword, setCurrentPassword] = useState('');
+	const [newPassword, setNewPassword] = useState('');
+	const [confirmPassword, setConfirmPassword] = useState('');
+	const [passwordLoading, setPasswordLoading] = useState(false);
+
+	useEffect(() => {
+		if (!userData) return;
+		setFirstName(userData.firstName || '');
+		setLastName(userData.lastName || '');
+		setEmail(userData.email || '');
+		setPhoneNumber(userData.phoneNumber || '');
+	}, [userData]);
+
+	const roleFields = useMemo(() => {
+		const extraFields = userData as Record<string, unknown> | null;
+		if (!extraFields) return [] as { label: string; key: string }[];
+
+		const agentFields = [
+			{ label: 'License Number', key: 'licenseNumber' },
+			{ label: 'Brokerage', key: 'brokerage' },
+			{ label: 'Office Phone', key: 'officePhone' },
+		];
+
+		const clientFields = [
+			{ label: 'Preferred Areas', key: 'preferredAreas' },
+			{ label: 'Budget', key: 'budget' },
+			{ label: 'Move Timeline', key: 'moveTimeline' },
+		];
+
+		const selected = userData?.role === 'Agent' ? agentFields : clientFields;
+		return selected.filter((field) => Boolean(extraFields[field.key]));
+	}, [userData]);
+
+	const handleSave = async () => {
+		if (!user) {
+			Alert.alert('Error', 'You must be logged in to update your profile.');
+			return;
+		}
+
+		if (!firstName.trim() || !lastName.trim() || !email.trim()) {
+			Alert.alert('Missing Info', 'First name, last name, and email are required.');
+			return;
+		}
+
+		setSaving(true);
+		try {
+			const nextEmail = email.trim();
+			if (user.email !== nextEmail) {
+				await updateEmail(user, nextEmail);
+			}
+
+			await updateDoc(doc(db, 'users', user.uid), {
+				firstName: firstName.trim(),
+				lastName: lastName.trim(),
+				email: nextEmail,
+				phoneNumber: phoneNumber.trim() || null,
+			});
+
+			Alert.alert('Saved', 'Your profile has been updated.');
+		} catch (error: any) {
+			console.error('Profile update error:', error);
+			Alert.alert('Update Failed', error?.message || 'Unable to update your profile.');
+		} finally {
+			setSaving(false);
+		}
+	};
+
+	const handleChangePassword = async () => {
+		if (!user || !user.email) {
+			Alert.alert('Error', 'You must be logged in to change your password.');
+			return;
+		}
+
+		if (!currentPassword || !newPassword || !confirmPassword) {
+			Alert.alert('Missing Info', 'Please fill out all password fields.');
+			return;
+		}
+
+		if (newPassword !== confirmPassword) {
+			Alert.alert('Password Mismatch', 'New password and confirmation do not match.');
+			return;
+		}
+
+		setPasswordLoading(true);
+		try {
+			const credential = EmailAuthProvider.credential(user.email, currentPassword);
+			await reauthenticateWithCredential(user, credential);
+			await updatePassword(user, newPassword);
+			setCurrentPassword('');
+			setNewPassword('');
+			setConfirmPassword('');
+			Alert.alert('Success', 'Your password has been updated.');
+		} catch (error: any) {
+			console.error('Password update error:', error);
+			Alert.alert('Update Failed', error?.message || 'Unable to update your password.');
+		} finally {
+			setPasswordLoading(false);
+		}
+	};
+
+	const handlePasswordResetEmail = async () => {
+		const resetEmail = user?.email || email.trim();
+		if (!resetEmail) {
+			Alert.alert('Error', 'No email address available for reset.');
+			return;
+		}
+
+		try {
+			await sendPasswordResetEmail(auth, resetEmail);
+			Alert.alert('Email Sent', 'Check your inbox for password reset instructions.');
+		} catch (error: any) {
+			console.error('Password reset error:', error);
+			Alert.alert('Email Failed', error?.message || 'Unable to send reset email.');
+		}
+	};
+
+	if (!userData) {
+		return (
+			<View style={profileModule_styles.loadingContainer}>
+				<ActivityIndicator size="large" />
+			</View>
+		);
+	}
+
+	return (
+		<SafeAreaView style={landingStyles.container}>
+					{/* Header with logo and login button */}
+					<View style={landingStyles.header}>
+						<Text style={landingStyles.logoTitle}>{userData?.firstName} {userData?.lastName}&apos;s Profile</Text>
+					</View>
+			<ScrollView contentContainerStyle={profileModule_styles.container}>
+				<Text style={profileModule_styles.sectionTitle}>Profile Details</Text>
+				<Text style={profileModule_styles.roleText}>{userData.role}</Text>
+
+				<View style={profileModule_styles.fieldGroup}>
+					<Text style={profileModule_styles.label}>First Name</Text>
+					<TextInput
+						style={profileModule_styles.input}
+						value={firstName}
+						onChangeText={setFirstName}
+						autoCapitalize="words"
+					/>
+				</View>
+
+				<View style={profileModule_styles.fieldGroup}>
+					<Text style={profileModule_styles.label}>Last Name</Text>
+					<TextInput
+						style={profileModule_styles.input}
+						value={lastName}
+						onChangeText={setLastName}
+						autoCapitalize="words"
+					/>
+				</View>
+
+				<View style={profileModule_styles.fieldGroup}>
+					<Text style={profileModule_styles.label}>Email</Text>
+					<TextInput
+						style={profileModule_styles.input}
+						value={email}
+						onChangeText={setEmail}
+						autoCapitalize="none"
+						keyboardType="email-address"
+					/>
+				</View>
+
+				<View style={profileModule_styles.fieldGroup}>
+					<Text style={profileModule_styles.label}>Phone Number</Text>
+					<TextInput
+						style={profileModule_styles.input}
+						value={phoneNumber}
+						onChangeText={setPhoneNumber}
+						keyboardType="phone-pad"
+					/>
+				</View>
+
+				<TouchableOpacity
+					style={[profileModule_styles.primaryButton, saving && profileModule_styles.disabledButton]}
+					onPress={handleSave}
+					disabled={saving}>
+					<Text style={profileModule_styles.primaryButtonText}>{saving ? 'Saving...' : 'Save Changes'}</Text>
+				</TouchableOpacity>
+
+				{roleFields.length > 0 && (
+					<View style={profileModule_styles.extraSection}>
+						<Text style={profileModule_styles.sectionTitle}>Additional Details</Text>
+						{roleFields.map((field) => (
+							<View key={field.key} style={profileModule_styles.fieldRow}>
+								<Text style={profileModule_styles.fieldLabel}>{field.label}</Text>
+								<Text style={profileModule_styles.fieldValue}>{String((userData as any)[field.key])}</Text>
+							</View>
+						))}
+					</View>
+				)}
+
+				<View style={profileModule_styles.extraSection}>
+					<Text style={profileModule_styles.sectionTitle}>Change Password</Text>
+					<View style={profileModule_styles.fieldGroup}>
+						<Text style={profileModule_styles.label}>Current Password</Text>
+						<TextInput
+							style={profileModule_styles.input}
+							value={currentPassword}
+							onChangeText={setCurrentPassword}
+							secureTextEntry
+						/>
+					</View>
+					<View style={profileModule_styles.fieldGroup}>
+						<Text style={profileModule_styles.label}>New Password</Text>
+						<TextInput
+							style={profileModule_styles.input}
+							value={newPassword}
+							onChangeText={setNewPassword}
+							secureTextEntry
+						/>
+					</View>
+					<View style={profileModule_styles.fieldGroup}>
+						<Text style={profileModule_styles.label}>Confirm New Password</Text>
+						<TextInput
+							style={profileModule_styles.input}
+							value={confirmPassword}
+							onChangeText={setConfirmPassword}
+							secureTextEntry
+						/>
+					</View>
+					<TouchableOpacity
+						style={[profileModule_styles.primaryButton, passwordLoading && profileModule_styles.disabledButton]}
+						onPress={handleChangePassword}
+						disabled={passwordLoading}>
+						<Text style={profileModule_styles.primaryButtonText}>
+							{passwordLoading ? 'Updating...' : 'Update Password'}
+						</Text>
+					</TouchableOpacity>
+
+					<TouchableOpacity
+						style={profileModule_styles.secondaryButton}
+						onPress={handlePasswordResetEmail}>
+						<Text style={profileModule_styles.secondaryButtonText}>Send Reset Email</Text>
+					</TouchableOpacity>
+				</View>
+			</ScrollView>
+		</SafeAreaView>
+	);
+}

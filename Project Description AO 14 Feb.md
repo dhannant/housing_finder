@@ -64,6 +64,28 @@ A cross-platform real estate application for clients and realtors, built with Re
 
 ---
 
+### Firebase Functions
+
+- **Cloud Functions for Firebase** are used to run backend code in response to events in Firestore, HTTP requests, or other Firebase services.
+- Example: Firestore-triggered function to log property updates:
+
+```typescript
+import {onDocumentWritten} from "firebase-functions/v2/firestore";
+
+export const logPropertyUpdate = onDocumentWritten("properties/{propertyId}", (event) => {
+  const before = event.data?.before.data();
+  const after = event.data?.after.data();
+  console.log(`Property ${event.params.propertyId} updated.`);
+  console.log("Before:", before);
+  console.log("After:", after);
+});
+```
+
+- Functions are defined in the `functions/src/index.ts` file and deployed using the Firebase CLI.
+- Common use cases: sending notifications, validating data, integrating with third-party APIs, and automating backend tasks.
+
+---
+
 ### Workflow
 
 1. **User Registration/Login**

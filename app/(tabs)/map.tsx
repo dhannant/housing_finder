@@ -235,7 +235,7 @@ export default function HomeScreen() {
 				fetchHouses(loc.coords.latitude, loc.coords.longitude);
 			}
 		})();
-	}, []);
+	},[]);
 	
 	const fetchHouses = async (lat: number, lon: number, city?: string) => {
 		setLoading(true);
