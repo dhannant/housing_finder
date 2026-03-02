@@ -45,26 +45,20 @@ To learn more about developing your project with Expo, look at the following res
 
 ## Backend & API Integrations
 
-### Vercel (Serverless Backend API)
-- The `/api` directory contains serverless functions deployed to [Vercel](https://vercel.com/).
-- Used for securely proxying third-party API requests and caching results.
-- Deploy manually with the Vercel CLI or connect a repo for automatic deployments.
-- Set environment variables (API keys, Firebase credentials) in the Vercel dashboard.
-
 ### Firebase & Firestore
 - Firebase Authentication is used for user registration and login.
 - Firestore is used for storing user data, app settings, and caching property search results.
-- Firebase Admin SDK is used in Vercel serverless functions for secure backend access.
+- Firebase Cloud Functions are used for backend APIs, ingestion, and scheduled jobs.
 - Store your Firebase credentials as environment variables (never in client code).
 
 ### RapidAPI (Realtor API)
 - Property data is fetched from a Realtor API via [RapidAPI](https://rapidapi.com/).
-- API requests are proxied through Vercel serverless functions to keep your RapidAPI key secret.
+- API requests are executed from Firebase Functions using Firebase Secrets for API key protection.
 - Results can be cached in Firestore to reduce API calls and improve performance.
 
 #### Example API Flow
-1. App requests property data from `/api/proxy` endpoint (hosted on Vercel).
-2. The function checks Firestore for cached results.
-3. If not cached, it fetches from RapidAPI, stores the result in Firestore, and returns it to the app.
+1. Firebase Functions fetch property data from RapidAPI on schedule or HTTP trigger.
+2. Function normalizes/upserts records into Firestore `properties`.
+3. App reads from Firestore collections directly.
 
 ---

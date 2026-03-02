@@ -1,0 +1,147 @@
+import { mapStyles } from '@/constants/styles';
+import type { Property } from '@/utils/interfaces';
+import { useEffect, useMemo, useState } from 'react';
+import { Image, Modal, Text, TouchableOpacity, View } from 'react-native';
+
+type PropertyDetails = Property & {
+	id?: string;
+	propertyId?: string;
+};
+
+interface PropertyDetailsModalProps {
+	visible: boolean;
+	property: PropertyDetails | null;
+	onClose: () => void;
+	headerRight?: React.ReactNode;
+}
+
+function toHttpsUrl(url: string): string {
+	return url.replace(/^http:\/\//i, 'https://');
+}
+
+function getRdcpixPhotoCandidates(url: string | null | undefined): string[] {
+	if (!url) return [];
+	const cleaned = toHttpsUrl(url.trim().replace(/"+$/g, ''));
+	if (!cleaned.includes('rdcpix.com')) return [cleaned];
+
+	const [base, query] = cleaned.split('?');
+	const withQuery = (value: string) => (query ? `${value}?${query}` : value);
+
+	const candidates: string[] = [];
+	const webp1280 = base.replace(/-m(\d+)s\.jpg$/i, '-m$1rd-w1280_h960.webp');
+	const nonSmallJpg = base.replace(/-m(\d+)s\.jpg$/i, '-m$1.jpg');
+
+	if (webp1280 !== base) candidates.push(withQuery(webp1280));
+	if (nonSmallJpg !== base) candidates.push(withQuery(nonSmallJpg));
+	candidates.push(withQuery(base));
+
+	return Array.from(new Set(candidates));
+}
+
+function toPhotoArray(photos: any, primaryPhoto: string | null): { href: string }[] {
+	if (Array.isArray(photos) && photos.length > 0) {
+		const normalized = photos
+			.map((photo) => {
+				if (typeof photo === 'string') return { href: photo };
+				if (photo && typeof photo.href === 'string') return { href: photo.href };
+				return null;
+			})
+			.filter(Boolean) as { href: string }[];
+		if (normalized.length > 0) return normalized;
+	}
+	return primaryPhoto ? [{ href: primaryPhoto }] : [];
+}
+
+export default function PropertyDetailsModal({ visible, property, onClose, headerRight }: PropertyDetailsModalProps) {
+	const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+	const [failedEnhancedPhotoUrls, setFailedEnhancedPhotoUrls] = useState<Record<string, true>>({});
+
+	useEffect(() => {
+		if (!visible) {
+			setCurrentPhotoIndex(0);
+			setFailedEnhancedPhotoUrls({});
+		}
+	}, [visible, property?.id, property?.propertyId]);
+
+	const photos = useMemo(() => {
+		if (!property) return [] as { href: string }[];
+		return toPhotoArray(property.photos, property.primaryPhoto);
+	}, [property]);
+
+	if (!property) return null;
+
+	const clampedPhotoIndex = Math.min(currentPhotoIndex, Math.max(photos.length - 1, 0));
+	const currentPhotoHref = photos[clampedPhotoIndex]?.href ?? null;
+	const currentPhotoCandidates = getRdcpixPhotoCandidates(currentPhotoHref);
+	const currentPhotoUri =
+		currentPhotoCandidates.find((uri) => !failedEnhancedPhotoUrls[uri]) ??
+		currentPhotoCandidates[0] ??
+		null;
+
+	return (
+		<Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
+			<View style={mapStyles.modalContainer}>
+				<View style={mapStyles.modalHeader}>
+					<TouchableOpacity onPress={onClose} style={mapStyles.closeButton}>
+						<Text style={mapStyles.closeButtonText}>✕</Text>
+					</TouchableOpacity>
+					<Text style={mapStyles.modalTitle}>{property.address}</Text>
+					{headerRight}
+				</View>
+
+				{photos.length > 0 ? (
+					<View style={mapStyles.photoContainer}>
+						<Image
+							source={{ uri: currentPhotoUri ?? photos[clampedPhotoIndex].href }}
+							style={mapStyles.photo}
+							resizeMode="contain"
+							onError={() => {
+								if (!currentPhotoUri) return;
+								setFailedEnhancedPhotoUrls((prev) => {
+									if (prev[currentPhotoUri]) return prev;
+									return { ...prev, [currentPhotoUri]: true };
+								});
+							}}
+						/>
+
+						{photos.length > 1 && (
+							<View style={mapStyles.photoNavigation}>
+								<TouchableOpacity
+									onPress={() => setCurrentPhotoIndex(Math.max(0, clampedPhotoIndex - 1))}
+									disabled={clampedPhotoIndex === 0}
+									style={[mapStyles.navButton, clampedPhotoIndex === 0 && mapStyles.navButtonDisabled]}
+								>
+									<Text style={mapStyles.navButtonText}>←</Text>
+								</TouchableOpacity>
+
+								<Text style={mapStyles.photoCounter}>
+									{clampedPhotoIndex + 1} / {photos.length}
+								</Text>
+
+								<TouchableOpacity
+									onPress={() => setCurrentPhotoIndex(Math.min(photos.length - 1, clampedPhotoIndex + 1))}
+									disabled={clampedPhotoIndex === photos.length - 1}
+									style={[mapStyles.navButton, clampedPhotoIndex === photos.length - 1 && mapStyles.navButtonDisabled]}
+								>
+									<Text style={mapStyles.navButtonText}>→</Text>
+								</TouchableOpacity>
+							</View>
+						)}
+					</View>
+				) : (
+					<View style={mapStyles.noPhotoContainer}>
+						<Text style={mapStyles.noPhotoText}>No photos available</Text>
+					</View>
+				)}
+
+				<View style={mapStyles.detailsContainer}>
+					<Text style={mapStyles.price}>${property.price?.toLocaleString() || 'N/A'}</Text>
+					<Text style={mapStyles.details}>
+						{property.beds || '?'} beds • {property.baths || '?'} baths
+					</Text>
+					<Text style={mapStyles.status}>Status: {property.status?.replace('_', ' ') || 'N/A'}</Text>
+				</View>
+			</View>
+		</Modal>
+	);
+}

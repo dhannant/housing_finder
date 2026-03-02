@@ -7,6 +7,9 @@ export interface UserData {
 	email: string;
 	role: string;
 	phoneNumber?: string;
+	teamMemberId?: string;
+	profileImageUrl?: string;
+	bioImageUrl?: string;
 	createdAt?: any;
 	selectedRealtorId?: string;
 	is_active?: boolean;

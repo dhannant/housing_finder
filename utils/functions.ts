@@ -1,79 +1,140 @@
-import { db } from "@/components/firebaseConfig";
-import { addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, getFirestore, query, updateDoc, where } from "firebase/firestore";
-import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
-import { Alert, Linking } from "react-native";
-import * as interfaces from "./interfaces";
-
-
-
-
-
-/** Fetches a specific property in the clientFavorites collection for the propertyId provided.
- *   @param propertyId: string - The Firestore document ID for the property.
- *   @param clientId: string - The Firestore document ID for the user.  Needed to find the user's favorites.
- *   @return: Property object or null if not found.
- *   @useage const property = await fetchPropertyData(propertyId);
- */
-export const fetchPropertyData = async (propertyId: string, userId: string): Promise<interfaces.Property | null> => {
-	try {
-		// Fetch from clientFavorites collection by propertyId
-		console.log(`Attemping to fetch favorites for propertyId: ${propertyId} and user: ${userId}`);
-		const favoritesRef = collection(db, 'clientFavorites');
-		const q = query(favoritesRef, where('propertyId', '==', propertyId), where('userId', '==', userId));
-		const snapshot = await getDocs(q);
-		if (!snapshot.empty) {
-			// Return the first matching favorite property
-			return snapshot.docs[0].data() as interfaces.Property;
-		}
-		return null;
-	} catch (error) {
-		console.error(`[fetchPropertyData] Error fetching property ${propertyId} from clientFavorites:`, error);
-		return null;
-	}
-};
+import { db } from '@/components/firebaseConfig';
+import { Alert, Linking } from 'react-native';
+import {
+	addDoc,
+	arrayUnion,
+	collection,
+	deleteDoc,
+	doc,
+	getDoc,
+	getDocs,
+	getFirestore,
+	query,
+	setDoc,
+	updateDoc,
+	where,
+} from 'firebase/firestore';
+import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
+import * as interfaces from './interfaces';
 
 /**
- * Fetch a clients favorite using the favorite ID document ID
- * @param favoriteId
- * @returns 
+ * Data access helpers for Firestore-backed app workflows.
  */
-export const fetchFavoriteByID = async (favoriteId: string): Promise<interfaces.FavoriteProperty | null> => {
-	try {
-		const favRef = doc(db, "clientFavorites", favoriteId);
-		const favSnap = await getDoc(favRef);
-		if (favSnap.exists()) {
-		  return favSnap.data() as interfaces.FavoriteProperty;
-		}
-		return null;
-	 } catch (error) {
-		console.error(`[fetchFavoriteByID] Error fetching favorite for ID: ${favoriteId}:`, error);
-		return null;
-	 }
+
+const toFavoritePhotos = (photos: any): { href: string }[] => {
+	if (!Array.isArray(photos)) return [];
+	return photos
+		.map((photo) => {
+			if (typeof photo === 'string') return { href: photo };
+			if (photo && typeof photo.href === 'string') return { href: photo.href };
+			return null;
+		})
+		.filter(Boolean) as { href: string }[];
 };
 
-/** Fetch user data from the users collection for a single user.
- * @param userId 
- * @returns 
- */
+export const mapPropertyDocToFavorite = (
+	propertyId: string,
+	data: any,
+	favoriteDocId: string,
+	userId = '',
+	savedAt: any = null,
+): interfaces.FavoriteProperty => {
+	const photos = toFavoritePhotos(data?.photos);
+	const primaryPhoto = data?.primary_photo?.href ?? data?.primaryPhoto ?? photos[0]?.href ?? null;
+
+	const addressLine = data?.location?.address?.line ?? data?.address ?? 'Address not available';
+	const city = data?.location?.address?.city ?? '';
+	const state = data?.location?.address?.state_code ?? '';
+	const fullAddress = [addressLine, city, state].filter(Boolean).join(', ') || addressLine;
+
+	const latitude = data?.location?.address?.coordinate?.lat ?? data?.latitude ?? null;
+	const longitude = data?.location?.address?.coordinate?.lon ?? data?.longitude ?? null;
+
+	return {
+		id: favoriteDocId,
+		userId,
+		propertyId,
+		savedAt,
+		favoriteId: favoriteDocId,
+		price: data?.list_price ?? data?.price?.list_price ?? data?.price?.value ?? data?.price ?? null,
+		address: fullAddress,
+		beds: data?.description?.beds ?? data?.beds ?? null,
+		baths: data?.description?.baths ?? data?.baths ?? null,
+		latitude: typeof latitude === 'number' ? latitude : latitude !== null ? Number(latitude) : null,
+		longitude: typeof longitude === 'number' ? longitude : longitude !== null ? Number(longitude) : null,
+		lot_sqft: data?.description?.lot_sqft ?? data?.lot_sqft ?? null,
+		status: data?.status ?? data?.status_code ?? null,
+		sqft: data?.description?.sqft ?? data?.sqft ?? null,
+		type: data?.description?.type ?? data?.type ?? null,
+		photos,
+		primaryPhoto,
+	};
+};
+
+export const makeFavoriteDocId = (userId: string, propertyId: string): string => {
+	const safeUser = String(userId).replace(/[^a-zA-Z0-9_-]/g, '_');
+	const safeProperty = String(propertyId).replace(/[^a-zA-Z0-9_-]/g, '_');
+	return `${safeUser}__${safeProperty}`;
+};
+
 export const fetchUserData = async (userId: string): Promise<interfaces.UserData | null> => {
 	try {
-		const userDoc = await getDoc(doc(db, "users", userId));
-		if (userDoc.exists()) {
-			const userData = userDoc.data() as interfaces.UserData;
-			console.log(`[fetchUserData] ✓ Found user:`, { id: userId, name: `${userData.firstName} ${userData.lastName}`, role: userData.role });
-			return userData;
-		}
-		// console.log(`[fetchUserData] ✗ User not found: ${userId}`);
-		return null;
+		if (!userId) return null;
+		const userRef = doc(db, 'users', userId);
+		const userSnap = await getDoc(userRef);
+		if (!userSnap.exists()) return null;
+		return { id: userSnap.id, ...userSnap.data() } as interfaces.UserData;
 	} catch (error) {
 		console.error(`[fetchUserData] ✗ Error fetching user ${userId}:`, error);
-		throw error;
+		return null;
 	}
 };
 
-/** Fetches all users with a 'Client' Role
- * @returns
- */
+export const fetchPropertyData = async (
+	propertyId: string,
+	_clientId?: string,
+): Promise<interfaces.FavoriteProperty | null> => {
+	try {
+		if (!propertyId) return null;
+		const propertyRef = doc(db, 'properties', propertyId);
+		const propertySnap = await getDoc(propertyRef);
+		if (!propertySnap.exists()) return null;
+
+		return mapPropertyDocToFavorite(propertyId, propertySnap.data(), propertyId);
+	} catch (error) {
+		console.error(`[fetchPropertyData] ✗ Error fetching property ${propertyId}:`, error);
+		return null;
+	}
+};
+
+export const fetchFavoriteByID = async (favoriteDocId: string): Promise<interfaces.FavoriteProperty | null> => {
+	try {
+		if (!favoriteDocId) return null;
+		const favoriteRef = doc(db, 'clientFavorites', favoriteDocId);
+		const favoriteSnap = await getDoc(favoriteRef);
+		if (!favoriteSnap.exists()) return null;
+
+		const favoriteData = favoriteSnap.data() as { userId?: string; propertyId?: string; savedAt?: any };
+		const propertyId = favoriteData?.propertyId;
+		if (!propertyId) return null;
+
+		const propertyRef = doc(db, 'properties', propertyId);
+		const propertySnap = await getDoc(propertyRef);
+		if (!propertySnap.exists()) return null;
+
+		return mapPropertyDocToFavorite(
+			propertyId,
+			propertySnap.data(),
+			favoriteSnap.id,
+			favoriteData?.userId ?? '',
+			favoriteData?.savedAt ?? null,
+		);
+	} catch (error) {
+		console.error(`[fetchFavoriteByID] ✗ Error fetching favorite ${favoriteDocId}:`, error);
+		return null;
+	}
+};
+
 export const fetchClients = async (): Promise<interfaces.ClientData[]> => {
 	try {
 		const usersRef = collection(db, "users");
@@ -283,37 +344,31 @@ export const checkIfFavorite = async (userId: string, propertyId: string): Promi
  */
 export const toggleFavorite = async (userId: string, property: interfaces.Property): Promise<boolean> => {
 	try {
-		const isFavorite = await checkIfFavorite(userId, property.favoriteId);
+		const propertyId = String((property as any).favoriteId || (property as any).id || (property as any).propertyId || "").trim();
+		if (!propertyId) {
+			throw new Error("Property ID is required to toggle favorite");
+		}
+
+		const isFavorite = await checkIfFavorite(userId, propertyId);
 		
 		if (isFavorite) {
 			// Property is already favorited - need to delete it
-			// First, find the document by querying
 			const favsRef = collection(db, 'clientFavorites');
-			const q = query(favsRef, where("userId", "==", userId), where("propertyId", "==", property.favoriteId));
+			const q = query(favsRef, where("userId", "==", userId), where("propertyId", "==", propertyId));
 			const querySnapshot = await getDocs(q);
 			
-			// Delete the document using its ID
-			if (!querySnapshot.empty) {
-				const docId = querySnapshot.docs[0].id;
-				await deleteDoc(doc(db, "clientFavorites", docId));
+			for (const favoriteDoc of querySnapshot.docs) {
+				await deleteDoc(doc(db, "clientFavorites", favoriteDoc.id));
 			}
 			return false;
 		} else {
-			// Property is not favorited - add it with snapshot data
-			await addDoc(collection(db, "clientFavorites"), {
-				userId: userId,
-				propertyId: property.favoriteId,
-				address: property.address,
-				price: property.price,
-				beds: property.beds,
-				baths: property.baths,
-				status: property.status,
-				photos: property.photos || [],
-				primaryPhoto: property.primaryPhoto || (property.photos && property.photos[0]) || null,
-				squareFootage: property.sqft || null,
-				landArea: property.lot_sqft || null,
-				savedAt: new Date()
-			});
+			// Property is not favorited - store minimal linkage data only
+			const favoriteDocId = makeFavoriteDocId(userId, propertyId);
+			await setDoc(doc(db, "clientFavorites", favoriteDocId), {
+				userId,
+				propertyId,
+				savedAt: new Date(),
+			}, { merge: true });
 			return true;
 		}
 	} catch (error) {
@@ -332,16 +387,11 @@ export const fetchClientFavorites = async (userId: string): Promise<interfaces.F
 		const q = query(ref, where("userId", "==", userId));
 		const querySnapshot = await getDocs(q);
 
-		// Build an array called favorites that uses the FavoriteProperty interface
-		const favorites: interfaces.FavoriteProperty[] = [];
+		const favorites = await Promise.all(
+			querySnapshot.docs.map((favoriteDoc) => fetchFavoriteByID(favoriteDoc.id)),
+		);
 
-		//Build the array with the information in the querySnapshot variable.
-		querySnapshot.forEach((doc) => { 
-			// assign each field to it's proper position in the FavoriteProperty interface.
-			favorites.push({ id:doc.id, ...doc.data() } as interfaces.FavoriteProperty);  // Spread operator (elipsis) maps Firestore fields to interface fields automatically
-		})
-
-		return favorites;
+		return favorites.filter(Boolean) as interfaces.FavoriteProperty[];
 
 	} catch (error) {
 		console.error(`[fetchClientFavorites] Error retrieving favorites list:`, error);
@@ -419,213 +469,6 @@ export async function uploadFileAndSaveUrl({
 
 
 
-// PROPERTY SERVICES FUNCTIONS //
-/**
- * Formats location string for RealtyUS API
- * Examples: "commerce, ga" -> "city:Commerce,GA"
- */
-export function formatLocation(location: string): string {
-	if (location.includes(":")) {
-		return location; // Already formatted
-	}
-
-	// Convert "commerce, ga" to "city:Commerce,GA"
-	const parts = location.split(",").map(s => s.trim());
-	if (parts.length === 2) {
-		const city = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
-		const state = parts[1].toUpperCase();
-		return `city:${city},${state}`;
-	}
-
-	return `city:${location}`;
-}
-
-/**
- * Builds the RealtyUS API URL with all parameters
- */
-export function buildApiUrl(options: interfaces.SearchOptions): string {
-	const formattedLocation = formatLocation(options.location);
-	const params = new URLSearchParams({ location: formattedLocation });
-
-	// Add all optional parameters
-	const optionalParams: (keyof Omit<interfaces.SearchOptions, 'location'>)[] = [
-		"zoneId",
-		"resultsPerPage",
-		"page",
-		"sortBy",
-		"expandSearchArea",
-		"propertyType",
-		"prices",
-		"bedrooms",
-		"bathrooms",
-		"homeSize",
-		"lotSize",
-		"homeAge",
-		"hidePendingContingent",
-		"newConstructionOnly",
-		"hideHomesNotYetBuilt",
-		"foreclosuresOnly",
-		"hideForeclosures",
-		"seniorCommunityOnly",
-		"openHousesOnly",
-		"priceRecentlyReducedOnly",
-		"virtualToursOnly",
-		"threeDtoursOnly",
-		"maxHoaFeesPerMonth",
-		"showHomesWhereHoaIsNotKnown",
-		"daysOnRealtor",
-		"garageParking",
-		"heatingCooling",
-		"homeFeatures",
-		"lotFeatures",
-		"communityFeatures",
-		"nycAmenities",
-		"minListDate",
-		"maxListDate",
-	];
-
-	optionalParams.forEach((key) => {
-		const value = options[key];
-		if (value !== undefined && value !== null && value !== "") {
-			params.set(key, String(value));
-		}
-	});
-
-	return `https://realty-us.p.rapidapi.com/properties/search-buy?${params.toString()}`;
-}
-
-/**
- * Normalizes raw API property data to consistent format
- */
-export function normalizeProperty(property: any): interfaces.Property {
-	const latitude =
-		property.location?.address?.coordinate?.lat ??
-		property.location?.coordinates?.lat ??
-		property.location?.latitude ??
-		property.latitude ??
-		null;
-
-	const longitude =
-		property.location?.address?.coordinate?.lon ??
-		property.location?.coordinates?.lon ??
-		property.location?.longitude ??
-		property.longitude ??
-		null;
-
-	return {
-		favoriteId: property.property_id ?? property.favoriteId ?? property.listing_id ?? "",
-		price: property.list_price ?? property.price ?? property.price?.list_price ?? property.price?.value ?? null,
-		address:
-			property.location?.address?.line ||
-			property.address?.line ||
-			property.location?.address ||
-			property.address ||
-			"Address not available",
-		beds: property.description?.beds ?? property.beds ?? null,
-		baths: property.description?.baths ?? property.baths ?? null,
-		latitude,
-		longitude,
-		lot_sqft: property.description?.lot_sqft ?? property.lot_sqft ?? null,
-		status: property.status ?? property.status_code ?? null,
-		sqft: property.description?.sqft ?? property.sqft ?? null,
-		type: property.description?.type ?? property.prop_type ?? property.type ?? null,
-		photos: property.photos || property.photos?.list || [],
-		primaryPhoto:
-			property.primary_photo?.href ||
-			property.primary_photo ||
-			property.thumbnail ||
-			property.photos?.[0]?.href ||
-			null,
-	};
-}
-
-/**
- * Parses raw API response to extract properties array
- */
-export function parsePropertiesFromResponse(apiData: any): any[] {
-	// Try multiple possible response structures
-	const rawResults =
-		(apiData?.data?.results && Array.isArray(apiData.data.results) && apiData.data.results) ||  // RealtyUS actual path
-		(apiData?.properties && Array.isArray(apiData.properties) && apiData.properties) ||
-		(apiData?.data?.home_search?.results && Array.isArray(apiData.data.home_search.results) && apiData.data.home_search.results) ||
-		(apiData?.data?.home_search?.properties && Array.isArray(apiData.data.home_search.properties) && apiData.data.home_search.properties) ||
-		[];
-
-	return rawResults;
-}
-
-/**
- * Main function to search for properties
- * This calls the Vercel proxy which adds the API key
- */
-export async function searchProperties(options: interfaces.SearchOptions): Promise<interfaces.Property[]> {
-	try {
-		// Build the full RealtyUS API URL client-side
-		const apiUrl = buildApiUrl(options);
-
-		console.log('🔍 Searching properties with URL:', apiUrl);
-
-		// Use the Vercel deployment URL (not relative path to avoid calling localhost)
-		const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://leading-edge-realty.vercel.app';
-		const proxyUrl = `${apiBaseUrl}/api/proxy?apiUrl=${encodeURIComponent(apiUrl)}`;
-		console.log('🔗 Calling Vercel proxy at:', proxyUrl);
-
-		const response = await fetch(proxyUrl);
-		console.log('📡 Response status:', response.status);
-		console.log('📋 Content-Type:', response.headers.get('content-type'));
-
-		// Get response as text first to see what we actually got
-		const responseText = await response.text();
-		console.log('📄 Raw response (first 200 chars):', responseText.substring(0, 200));
-
-		if (!response.ok) {
-			console.error('❌ Non-OK response. Full text:', responseText.substring(0, 500));
-			let error;
-			try {
-				error = JSON.parse(responseText);
-			} catch {
-				throw new Error(`Proxy failed with status ${response.status}. Response: ${responseText.substring(0, 200)}`);
-			}
-			throw new Error(error.error || 'API request failed');
-		}
-
-		// Try to parse as JSON
-		let rawData;
-		try {
-			rawData = JSON.parse(responseText);
-			console.log('✅ Successfully parsed JSON');
-			console.log('📦 Raw API response keys:', Object.keys(rawData));
-		} catch (parseError: any) {
-			console.error('💥 JSON PARSE ERROR:', parseError.message);
-			console.error('📄 Received content type:', response.headers.get('content-type'));
-			console.error('📄 Full response (first 1000 chars):', responseText.substring(0, 1000));
-			throw new Error(`Failed to parse JSON: ${parseError.message}`);
-		}
-
-		// Parse properties from response
-		const rawProperties = parsePropertiesFromResponse(rawData);
-		console.log(`📊 Found ${rawProperties.length} raw properties`);
-
-		if (rawProperties.length > 0) {
-			console.log('🏠 Sample property (raw):', rawProperties[0]);
-		}
-
-		// Normalize all properties
-		const properties = rawProperties.map(normalizeProperty);
-		console.log(`✅ Normalized ${properties.length} properties`);
-
-		if (properties.length > 0) {
-			console.log('🏡 Sample property (normalized):', properties[0]);
-		}
-
-		return properties;
-
-	} catch (error) {
-		console.error('💥 Error in searchProperties:', error);
-		throw error;
-	}
-}
-
 /** OFFERS QUERIES */
 /**
  * Fetches only the active offer for a specific client
@@ -637,10 +480,7 @@ export const fetchActiveOfferForClient = async (
 ) : Promise<interfaces.OfferData | null> => {
 	try {
 		const offersRef = collection(db, "clientOffers");
-		const q = query(
-			offersRef,
-			where("clientId", "==", clientId),
-		);
+		const q = query(offersRef,where("clientId", "==", clientId));
 		const querySnapshot = await getDocs(q);
 		for (const doc of querySnapshot.docs) {
 			const offer = doc.data();
@@ -664,7 +504,6 @@ export const fetchActiveOfferForClient = async (
 
 /**
  * Fetches only the active offer for a specific property 
- * @param clientId 
  * @param propertyId 
  * @returns 
  */
@@ -673,10 +512,7 @@ export const fetchActiveOfferForProperty = async (
 ) : Promise<interfaces.OfferData | null> => {
 	try {
 		const offersRef = collection(db, "clientOffers");
-		const q = query(
-			offersRef,
-			where("propertyId", "==", propertyId)
-		);
+		const q = query(offersRef,where("propertyId", "==", propertyId));
 		const querySnapshot = await getDocs(q);
 		for (const doc of querySnapshot.docs) {
 			const offer = doc.data();

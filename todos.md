@@ -1,5 +1,19 @@
 # TODO Notes
 
+## 🔒 Pinned Checkpoint — Return Here First
+
+- Date: 2026-02-28
+- Context: RapidAPI → Firebase Functions ingestion pipeline work (critical milestone)
+- Status: In-progress and working in test mode
+- Current key implementation state:
+  - `countPropertiesByCity` exists for diagnostics and request counting
+  - Pagination implemented (`limit`/`offset`) with per-batch/page diagnostics
+  - Invalid zip isolation added for failed 400 batches
+  - `fetchAndStoreProperties` uses upsert by `property_id` (no duplicate `.add` behavior)
+  - Metadata fields in writes: `apiPullDate`, `apiFirstSeenDate`, `apiLastSeenDate`, `apiPullRunId`, `apiSource`, `apiActive`
+  - `fetchAndStorePropertiesSample` exists for controlled single-batch write testing
+- If unrelated errors come up, return to this checkpoint before making large directional changes.
+
 1. Add SDKs for Firebase products that you want to use from the file components/firebaseConfig.ts. More details can be viewed [here](https://github.com/dhannant/housing_finder/blob/b4ca3557897d0a6d94309b16d2a6aebd2417a31b/components/firebaseConfig.ts).
 2. Six-month inactivity check: Recent login should pop new lead. Original note sourced from general request input.
 3. Review and clean up Firebase imports: Ensure only the firebase JS SDK is used (no @react-native-firebase). Confirm db and auth are imported from firebaseConfig.ts everywhere they're used.
@@ -9,8 +23,8 @@
 
 7. Add min/max validation for map filters: Implement and test min/max validation for all map filters, especially for bedrooms and bathrooms, to prevent invalid ranges and provide user feedback.
 8. Test min/max filter edge cases: Test the map filter UI for edge cases: min > max, equal values, empty values, and ensure warnings or corrections are shown for bedrooms and bathrooms.
-
-
+9. Update code for user role = Admin
+10. Incorporate phone push notifications for major milestones / events.
 11. Refactor agent-dashboard.tsx with React Native Paper: Replace TouchableOpacity buttons with Paper Button components, convert View cards to Paper Card, and simplify custom styles. Benefits: Material Design consistency, built-in ripple effects, better accessibility, and reduced boilerplate.
 12. Roughly 15 days after closing (or move in date?  maybe which ever is later), we need to delete the users profile along with all related documents created (favorites, etc...)
 

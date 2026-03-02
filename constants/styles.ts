@@ -599,10 +599,10 @@ export const mapStyles = StyleSheet.create({
 export const clientDashboard_styles = StyleSheet.create({
 	bottomButtonsContainer: {
 		backgroundColor: '#F8F9FA',
-		paddingBottom: 24,
+    paddingBottom: 8,
 		paddingTop: 8,
 		alignItems: 'center',
-		marginTop: 24,
+    marginTop: 12,
 	},
 	container: { flex: 1, backgroundColor: "#F8F9FA" },
 	header: {
@@ -622,7 +622,7 @@ export const clientDashboard_styles = StyleSheet.create({
 	logoutButton: { backgroundColor: "#FF4444", paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
 	logoutButtonText: { color: "#FFFFFF", fontWeight: "600", fontSize: 14 },
 	scrollView: { flex: 1 },
-	scrollContent: { paddingBottom: 100 },
+  scrollContent: { paddingBottom: 16 },
 	loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
 	loadingText: { marginTop: 10, fontSize: 16, color: "#666666" },
 	section: { backgroundColor: "#FFFFFF", padding: 20, marginBottom: 16 },

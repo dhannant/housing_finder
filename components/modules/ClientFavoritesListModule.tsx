@@ -1,12 +1,13 @@
 import { db } from '@/components/firebaseConfig';
 import { landingStyles } from '@/constants/styles';
+import PropertyDetailsModal from '@/components/modules/PropertyDetailsModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClientOffer, fetchClientFavorites, fetchFavoriteByID, fetchUserData } from '@/utils/functions';
 import { FavoriteProperty, OfferData } from '@/utils/interfaces';
 import { router, useLocalSearchParams } from 'expo-router';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: string[] }) {
@@ -16,6 +17,7 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
 	const [offers, setOffers] = useState<{ [propertyId: string]: OfferData | null }>({});
 	const [clientHasActiveOffer, setClientHasActiveOffer] = useState<{ [clientId: string]: boolean }>({});
 	const [propertyHasActiveOffer, setPropertyHasActiveOffer] = useState<{ [propertyId: string]: boolean }>({});
+	const [selectedProperty, setSelectedProperty] = useState<FavoriteProperty | null>(null);
 	const params = useLocalSearchParams();  // this gets all parameters that were passed from the router to the page, including clientId
 	const { user, userData } = useAuth();  //get current logged-in user
 	const [ clientData, setClientData ] = useState<any>(null);
@@ -167,7 +169,7 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
 			}
 		};
 		loadAll();
-	}, [params.clientId, user?.uid, isAgent, favoriteIds]);
+	}, [params.clientId, user?.uid, isAgent, isClient, favoriteIds]);
 
 	if (loading) {
 		if (loading) {
@@ -191,6 +193,11 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
 	// Render the list of favorite properties
 	return (
 		<SafeAreaView style={landingStyles.container}>
+			<PropertyDetailsModal
+				visible={selectedProperty !== null}
+				property={selectedProperty}
+				onClose={() => setSelectedProperty(null)}
+			/>
 			{/* Header with logo and login button */}
 			<View style={landingStyles.header}>
 				<Text style={landingStyles.logoTitle}>{clientData?.firstName} {clientData?.lastName}&apos;s Favorite List</Text>
@@ -200,7 +207,12 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
 				keyExtractor={(item, index) => item.id ? String(item.id) : String(index)}
 				renderItem={({ item }) => (
 					// Card container - this is the outer box for each favorite
-					<View style={{
+					<TouchableOpacity
+						onPress={() => {
+							setSelectedProperty(item);
+						}}
+						activeOpacity={0.9}
+						style={{
 						backgroundColor: '#fff',       // White background for the card
 						borderRadius: 8,                // Rounded corners (8px radius)
 						padding: 12,                    // Space inside the card (12px all around)
@@ -213,37 +225,49 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
 						shadowRadius: 4,                // Shadow blur radius (iOS)
 						shadowOffset: { width: 0, height: 2 },  // Shadow position (iOS)
 						elevation: 2,                   // Shadow (Android) - simulates depth
-					}}>
-						{/* Property address - displayed as the main title */}
-						<Text style={{
-							fontSize: 16,               	// Larger text for emphasis
-							fontWeight: 'bold',         	// Bold to make it stand out
-							marginBottom: 6,            	// Space below the address
-							color: '#333',              // Dark gray for readability
-						}}>
-							{item.address}
-						</Text>
+						}}
+					>
+						<View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+							{item.primaryPhoto ? (
+								<Image
+									source={{ uri: item.primaryPhoto }}
+									style={{ width: 64, height: 64, borderRadius: 8, marginRight: 12, backgroundColor: '#eee' }}
+									resizeMode="cover"
+								/>
+							) : (
+								<View style={{ width: 64, height: 64, borderRadius: 8, marginRight: 12, backgroundColor: '#eee', alignItems: 'center', justifyContent: 'center' }}>
+									<Text style={{ color: '#888', fontSize: 12 }}>No Photo</Text>
+								</View>
+							)}
 
-						{/* Price - formatted with dollar sign and commas */}
-						<Text style={{
-							fontSize: 18,               	// Large text for price
-							fontWeight: '600',          	// Semi-bold
-							color: '#2e7d32',           // Green color (represents money/value)
-							marginBottom: 4,            	// Small space below
-						}}>
-							{/* If price exists, format it with commas. Otherwise show 'Price N/A' */}
-							{item.price ? `$${item.price.toLocaleString()}` : 'Price N/A'}
-						</Text>
+							<View style={{ flex: 1 }}>
+								<Text style={{
+									fontSize: 16,
+									fontWeight: 'bold',
+									marginBottom: 6,
+									color: '#333',
+								}}>
+									{item.address}
+								</Text>
 
-						{/* Beds and Baths - displayed on one line */}
-						<Text style={{
-							fontSize: 14,               	// Medium-small text
-							color: '#666',              // Medium gray
-							marginBottom: 4,            	// Small space below
-						}}>
-							{/* Format: "3 bd | 2 ba" or show N/A if data is missing */}
-							{item.beds !== null ? `${item.beds} bd` : 'N/A'} | {item.baths !== null ? `${item.baths} ba` : 'N/A'}
-						</Text>
+								<Text style={{
+									fontSize: 18,
+									fontWeight: '600',
+									color: '#2e7d32',
+									marginBottom: 4,
+								}}>
+									{item.price ? `$${item.price.toLocaleString()}` : 'Price N/A'}
+								</Text>
+
+								<Text style={{
+									fontSize: 14,
+									color: '#666',
+									marginBottom: 4,
+								}}>
+									{item.beds !== null ? `${item.beds} bd` : 'N/A'} | {item.baths !== null ? `${item.baths} ba` : 'N/A'}
+								</Text>
+							</View>
+						</View>
 
 						{/* Offer status display: show real status to owner client and assigned agent, 'Offer Pending' to other clients */}
 						{(() => {
@@ -394,7 +418,7 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
 								</TouchableOpacity>
 							);
 						})()}
-					</View>
+					</TouchableOpacity>
 				)}
 				contentContainerStyle={{ paddingVertical: 8 }}  // Add padding at top and bottom of the entire list
 			/>

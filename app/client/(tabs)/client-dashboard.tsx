@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { OffersModule } from '../../../components/modules/OffersModule';
+import { SelectAgentModule } from '../../../components/modules/SelectAgentModule';
 import { YourAgentModule } from '../../../components/modules/YourAgentModule';
 import CalendarModule from '../../../components/modules/calendarModule';
 
@@ -21,13 +22,11 @@ export default function ClientDashboard() {
 	const { data: pendingRequestsRealtorId, refetch: refetchPendingRequests } = usePendingClientRequests(user?.uid || null, "client");
 	const { data: realtors = [], loading: realtorsLoading } = useRealtors();
 	const [requesting, setRequesting] = useState(false);
-	const [clientHasActiveOffer, setClientHasActiveOffer] = useState<{ [clientId: string]: boolean }>({});
-	const [propertyHasActiveOffer, setPropertyHasActiveOffer] = useState<{ [propertyId: string]: boolean }>({});
+	const [clientHasActiveOffer, setClientHasActiveOffer] = useState(false);
 
 	// Store only document IDs
 	const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
 	const [activeOfferId, setActiveOfferId] = useState<string | null>(null);
-	const [offerIds, setOfferIds] = useState<string[]>([]);
 
 	useEffect(() => {
 		async function fetchClientData() {
@@ -37,13 +36,14 @@ export default function ClientDashboard() {
 				setFavoriteIds(favorites.map(fav => fav.id));
 				const activeOffer = await fetchActiveOfferForClient(user.uid);
 				setActiveOfferId(activeOffer ? activeOffer.offerId : null);
+				setClientHasActiveOffer(Boolean(activeOffer?.offerId));
 				const allOffers = await fetchUserOffers(user.uid);
-				setOfferIds(allOffers.map(offer => offer.offerId));
 				console.log("favoriteIds:", favorites.map(fav => fav.id));
 				console.log("activeOfferId:", activeOffer ? activeOffer.offerId : null);
 				console.log("offerIds:", allOffers.map(offer => offer.offerId));
 			} catch (error) {
 				console.error("Error fetching client data:", error);
+				setClientHasActiveOffer(false);
 			}
 		}
 		fetchClientData();
@@ -106,7 +106,12 @@ export default function ClientDashboard() {
 					<Text style={clientDashboard_styles.logoutButtonText}>Logout</Text>
 				</TouchableOpacity>
 			</View>
-			<ScrollView style={clientDashboard_styles.scrollView} contentContainerStyle={clientDashboard_styles.scrollContent}>
+			<ScrollView
+				style={clientDashboard_styles.scrollView}
+				contentContainerStyle={clientDashboard_styles.scrollContent}
+				alwaysBounceVertical={false}
+				overScrollMode="never"
+			>
 			{!assignedRealtorId && (
 				<View>
 					<View style={clientDashboard_styles.section}>
@@ -115,46 +120,13 @@ export default function ClientDashboard() {
 						Choose a realtor to work with. They will be able to view your requests and help you find your dream property.
 						</Text>
 					</View>
-					{!realtors || realtors.length === 0 ? (
-						<View style={clientDashboard_styles.emptyState}>
-							<Text style={clientDashboard_styles.emptyStateText}>No realtors available at the moment.</Text>
-						</View>
-					) : (
-						<View style={clientDashboard_styles.realtorsContainer}>
-						{realtors.map((realtor: any) => {
-							const hasPending = pendingRequestsRealtorId && pendingRequestsRealtorId.some((req: any) => req.realtorId === realtor.id);
-							const hasAnyPendingOrApproved = pendingRequestsRealtorId && pendingRequestsRealtorId.some((req: any) => req.status === 'Pending' || req.status === 'Approved');
-							return (
-								<View key={realtor.id} style={clientDashboard_styles.realtorCard}>
-								<View style={clientDashboard_styles.realtorInfo}>
-									<View style={clientDashboard_styles.realtorAvatar}>
-										<Text style={clientDashboard_styles.realtorInitials}>{realtor.firstName[0]}{realtor.lastName[0]}</Text>
-									</View>
-									<View style={clientDashboard_styles.realtorDetails}>
-										<Text style={clientDashboard_styles.realtorName}>{realtor.firstName} {realtor.lastName}</Text>
-										<Text style={clientDashboard_styles.realtorEmail}>{realtor.email}</Text>
-										{realtor.phoneNumber && <Text style={clientDashboard_styles.realtorPhone}>{realtor.phoneNumber}</Text>}
-									</View>
-								</View>
-								{hasPending ? (
-									<View style={clientDashboard_styles.requestSentBadge}>
-										<Text style={clientDashboard_styles.requestSentText}>Request Sent</Text>
-									</View>
-								) : (
-								!hasAnyPendingOrApproved &&
-										<TouchableOpacity
-										style={[clientDashboard_styles.selectButton, requesting && clientDashboard_styles.disabledButton]}
-										onPress={() => handleSelectRealtor(realtor.id)}
-										disabled={requesting}
-									>
-										<Text style={clientDashboard_styles.selectButtonText}>Select Realtor</Text>
-									</TouchableOpacity>
-								)}
-								</View>
-							);
-						})}
-						</View>
-					)}
+					<SelectAgentModule
+						realtors={realtors}
+						pendingRequestsRealtorId={pendingRequestsRealtorId}
+						requesting={requesting}
+						onSelectRealtor={handleSelectRealtor}
+						styles={clientDashboard_styles}
+					/>
 				</View>
 				)}
 				{clientHasActiveOffer && user && (

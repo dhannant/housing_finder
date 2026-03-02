@@ -5,70 +5,12 @@ This document shows the expected response structure from the `realty-us.p.rapida
 ## How to Use
 
 1. Call `/api/api_test?location=city:Commerce,GA`
-2. Check the Vercel logs for console output showing:
+2. Check Firebase Functions logs for console output showing:
    - Total results count
    - A sample property object (full structure)
    - Response root keys
 
 3. Update [app/(tabs)/map.tsx](app/(tabs)/map.tsx) `House` interface based on the fields you see.
-
-## Example Response Structure
-
-The API typically returns data in one of these structures:
-
-```json
-{
-  "data": {
-    "home_search": {
-      "results": [
-        {
-          "property_id": "...",
-          "listing_id": "...",
-          "address": {
-            "line": "123 Main St",
-            "city": "Commerce",
-            "state": "GA",
-            "postal_code": "30529"
-          },
-          "location": {
-            "address": {
-              "line": "123 Main St",
-              "coordinate": {
-                "lat": 34.2029,
-                "lon": -83.4627
-              }
-            }
-          },
-          "price": {
-            "list_price": 350000,
-            "value": 350000
-          },
-          "description": {
-            "beds": 3,
-            "baths": 2,
-            "type": "single_family"
-          },
-          "photos": [
-            {
-              "href": "https://example.com/photo1.jpg"
-            },
-            {
-              "href": "https://example.com/photo2.jpg"
-            }
-          ],
-          "primary_photo": {
-            "href": "https://example.com/primary.jpg"
-          },
-          "status": "for_sale",
-          "status_code": "for_sale"
-        }
-      ],
-      "total": 350,
-      "page_num": 1
-    }
-  }
-}
-```
 
 ## Fields to Map to House Interface
 
@@ -85,6 +27,59 @@ From the sample above, these are the key fields:
 - `primary_photo.href` → `primaryPhoto`
 - `photos` array → `photos`
 
+## Field Annotation Template (Keep / Maybe / Drop)
+
+Use this section to quickly classify fields before finalizing normalization.
+
+### `must_keep` (required for current app behavior)
+
+- [Keep] `property.property_id` — Unique stable ID for upsert/doc ID
+- [Keep] `property.status` — Active status and lifecycle tracking
+- [Keep] `property.list_price`
+- [Keep] `property.location.address.line`
+- [Keep] `property.location.address.city`
+- [Keep] `property.location.address.state_code`
+- [Keep] `property.location.address.postal_code`
+- [Keep] `property.location.address.coordinate.lat`
+- [Keep] `property.location.address.coordinate.lon`
+- [Keep] `property.description.beds`
+- [Keep] `property.description.baths` (or fallback fields)
+- [Keep] `property.primary_photo.href`
+- [Keep] `property.photos[]`
+
+### `nice_to_have` (high-value enhancements)
+
+- [Keep] `property.is_new_construction`
+- [Keep] `property.description.baths_full_calc`
+- [Keep] `property.description.baths_partial_calc`
+- [Keep] `property.list_date`
+- [Keep] `property.location.county.name`
+- [Keep] `property.description.type`
+- [Keep] `property.photo_count`
+- [Keep] `property.last_sold_date`
+- [Keep] `property.last_sold_price`
+
+### `raw_only` (store only in raw payload, do not map yet)
+
+- [Drop] `property.flags`
+- [Drop] `property.products`
+- [Drop] `property.estimate`
+- [Drop] `property.advertisers`
+- [Drop] `property.branding`
+- [Drop] `property.lead_attributes`
+- [Maybe] `details[]`
+
+### `drop` (not needed in app or analytics right now)
+
+- [ ] Add fields here after review
+
+### Notes / Decisions
+
+- Date:
+- Reviewer:
+- Schema version tag (example: `v1-normalized-property`):
+- Open questions:
+
 ## Next Steps
 
 1. Run the test endpoint and paste the console output below
@@ -98,7 +93,7 @@ From the sample above, these are the key fields:
 
 _Below is where you'll paste the actual response structure once you run api_test_
 
-```
+```json
 {
   "details": [
     {

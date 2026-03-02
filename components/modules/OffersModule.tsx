@@ -15,22 +15,41 @@ export const OffersModule: React.FC<OffersModuleProps> = ({ userId, styles, acti
 	const router = useRouter();
 	const [offer, setOffer] = useState<OfferData | null>(null);
 	const [favorites, setFavorites] = useState<FavoriteProperty[]>([]);
-	const [loading, setLoading] = useState(true);
+	const [loading, setLoading] = useState(false);
 
 	useEffect(() => {
+		let cancelled = false;
+
 		async function loadOfferAndFavorites() {
 			setLoading(true);
-			let offerResult: OfferData | null = null;
-			if (activeOfferId) {
-				const fetchedOffer = await fetchOfferDatabyID(activeOfferId);
-				offerResult = fetchedOffer || null;
+			try {
+				let offerResult: OfferData | null = null;
+				if (activeOfferId) {
+					const fetchedOffer = await fetchOfferDatabyID(activeOfferId);
+					offerResult = fetchedOffer || null;
+				}
+				const favoriteResults = await Promise.all(favoriteIds.map(id => fetchFavoriteByID(id)));
+				if (!cancelled) {
+					setOffer(offerResult);
+					setFavorites(favoriteResults.filter(Boolean) as FavoriteProperty[]);
+				}
+			} finally {
+				if (!cancelled) {
+					setLoading(false);
+				}
 			}
-			const favoriteResults = await Promise.all(favoriteIds.map(id => fetchFavoriteByID(id)));
-			setOffer(offerResult);
-			setFavorites(favoriteResults.filter(Boolean) as FavoriteProperty[]);
+		}
+		if (activeOfferId || favoriteIds.length > 0) {
+			loadOfferAndFavorites();
+		} else {
+			setOffer(null);
+			setFavorites([]);
 			setLoading(false);
 		}
-		if (activeOfferId || favoriteIds.length > 0) loadOfferAndFavorites();
+
+		return () => {
+			cancelled = true;
+		};
 	}, [activeOfferId, favoriteIds]);
 
 	if (loading) {

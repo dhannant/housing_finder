@@ -3,7 +3,7 @@
 ## Project Overview: Housing Finder App
 
 ### Purpose
-A cross-platform real estate application for clients and realtors, built with React Native (Expo), using Firebase for authentication and data, Vercel for API hosting, and Expo Application Services (EAS) for cloud builds and deployment.
+A cross-platform real estate application for clients and realtors, built with React Native (Expo), using Firebase for authentication, data, and backend API hosting, plus Expo Application Services (EAS) for cloud builds and deployment.
 
 ---
 
@@ -12,16 +12,15 @@ A cross-platform real estate application for clients and realtors, built with Re
 - **React Native (Expo):** UI and navigation for iOS/Android.
 - **Expo Router:** File-based navigation and shared screens.
 - **Firebase:** Authentication, Firestore database, and storage.
-- **Vercel:** Hosting for backend APIs and environment variable management.
+- **Firebase Cloud Functions:** Hosting for backend APIs, ingestion jobs, and scheduled automation.
 - **EAS (Expo Application Services):** Cloud builds for distributing .apk/.aab/.ipa files, OTA updates, and credential management.
 
 ---
 
 ### Key Environment Variables
 
-- **EXPO_PUBLIC_API_BASE_URL:** Base URL for API requests (hosted on Vercel).
-- **FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, etc.:** Firebase project credentials (stored in .env or Vercel environment).
-- **VERCEL_OIDC_TOKEN:** Used for secure Vercel deployments and API access.
+- **FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, etc.:** Firebase client credentials for app initialization.
+- **Firebase Functions Secrets (e.g. RAPIDAPI_KEY):** Server-side API credentials used by Cloud Functions.
 
 ---
 
@@ -110,8 +109,8 @@ export const logPropertyUpdate = onDocumentWritten("properties/{propertyId}", (e
    - Team and client management features are available via dedicated tabs.
 
 6. **API & Hosting**
-   - Backend APIs (if any) are hosted on Vercel, with EXPO_PUBLIC_API_BASE_URL pointing to the deployed endpoint.
-   - Environment variables are managed via Vercel and .env files.
+   - Backend APIs are hosted in Firebase Cloud Functions.
+   - Environment variables and secrets are managed through Firebase config/secrets and local `.env` for client-safe values.
 
 7. **Build & Deployment**
    - EAS is used to build production-ready binaries for Android/iOS.
@@ -123,12 +122,12 @@ export const logPropertyUpdate = onDocumentWritten("properties/{propertyId}", (e
 ### Security & Best Practices
 
 - **Firestore Security Rules:** Enforced to restrict data access by user role.
-- **Environment Variables:** Sensitive keys are never hardcoded; managed via .env and Vercel.
+- **Environment Variables:** Sensitive keys are never hardcoded; managed via Firebase Secrets and .env for non-sensitive client config.
 - **Authentication:** All user actions are authenticated via Firebase.
 
 ---
 
 ### Summary
 
-This project provides a robust, scalable real estate platform with role-based access, modern navigation, and cloud-powered deployment. It leverages Firebase for real-time data and authentication, Vercel for API hosting, and EAS for seamless app distribution and updates.
+This project provides a robust, scalable real estate platform with role-based access, modern navigation, and cloud-powered deployment. It leverages Firebase for real-time data, authentication, and backend functions, with EAS for seamless app distribution and updates.
 

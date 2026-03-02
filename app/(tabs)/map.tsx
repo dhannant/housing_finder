@@ -1,12 +1,15 @@
+import { db } from '@/components/firebaseConfig';
 import { mapStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';
+import PropertyDetailsModal from '@/components/modules/PropertyDetailsModal';
 import * as Functions from '@/utils/functions';
 import type { Property } from '@/utils/interfaces';
 import { Picker } from '@react-native-picker/picker';
 import * as Location from "expo-location";
+import { collection, getDocs } from 'firebase/firestore';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Image, Modal, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { default as MapView, Marker, default as RNMapView } from 'react-native-maps';
 
 import PropertyFilters, { type PropertyFilterOptions } from "../property_filters";
@@ -134,52 +137,6 @@ const MOCK_HOUSES: House[] = [
 	},
 ];
 
-// Utility: Build a bounding box polygon around user's location
-function buildBoundingBox(lat: number, lon: number, delta = 0.01) {
-    return [
-        [lon - delta, lat + delta],
-        [lon + delta, lat + delta],
-        [lon + delta, lat - delta],
-        [lon - delta, lat - delta],
-        [lon - delta, lat + delta]
-    ];
-}
-
-// Search properties by coordinates (polygon)
-async function searchByCoordinates(lat: number, lon: number) {
-    const url = 'https://realty-us.p.rapidapi.com/properties/coords/search-buy?sortBy=relevance';
-    const coordinates = buildBoundingBox(lat, lon);
-    const options = {
-        method: 'POST',
-        headers: {
-            'x-rapidapi-key': 'YOUR_API_KEY',
-            'x-rapidapi-host': 'realty-us.p.rapidapi.com',
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ coordinates })
-    };
-    try {
-        const response = await fetch(url, options);
-        const result = await response.json();
-        // Map API result to your Property type as needed
-        return result.properties || [];
-    } catch (error) {
-        console.error(error);
-        return [];
-    }
-}
-
-// Search properties by city
-async function searchByCity(city: string) {
-    try {
-        const properties = await Functions.searchProperties({ location: city, resultsPerPage: 200 });
-        return properties;
-    } catch (error) {
-        console.error(error);
-        return [];
-    }
-}
-
 // Utility: Pin color
 function getPinColor(status: string) {
     switch (status) {
@@ -192,13 +149,79 @@ function getPinColor(status: string) {
     }
 }
 
+function toPhotoArray(photos: any): { href: string }[] {
+	if (!Array.isArray(photos)) return [];
+	return photos
+		.map((photo) => {
+			if (typeof photo === 'string') return { href: photo };
+			if (photo && typeof photo.href === 'string') return { href: photo.href };
+			return null;
+		})
+		.filter(Boolean) as { href: string }[];
+}
+
+function mapFirestoreProperty(docId: string, data: any): House | null {
+	const lat = data?.location?.address?.coordinate?.lat ?? data?.latitude ?? null;
+	const lon = data?.location?.address?.coordinate?.lon ?? data?.longitude ?? null;
+	if (lat === null || lon === null) return null;
+
+	const line = data?.location?.address?.line ?? data?.address ?? "";
+	const city = data?.location?.address?.city ?? "";
+	const state = data?.location?.address?.state_code ?? "";
+	const fullAddress = [line, city, state].filter(Boolean).join(", ") || "Address unavailable";
+
+	const photos = toPhotoArray(data?.photos);
+	const primaryPhoto = data?.primary_photo?.href ?? data?.primaryPhoto ?? photos[0]?.href ?? null;
+
+	const mapped: any = {
+		id: docId,
+		favoriteId: "",
+		price: data?.list_price ?? data?.price?.list_price ?? data?.price?.value ?? null,
+		address: fullAddress,
+		beds: data?.description?.beds ?? data?.beds ?? null,
+		baths: data?.description?.baths ?? data?.baths ?? null,
+		latitude: typeof lat === 'number' ? lat : Number(lat),
+		longitude: typeof lon === 'number' ? lon : Number(lon),
+		lot_sqft: data?.description?.lot_sqft ?? data?.lot_sqft ?? null,
+		status: data?.status ?? data?.status_code ?? null,
+		sqft: data?.description?.sqft ?? data?.sqft ?? null,
+		type: data?.description?.type ?? data?.type ?? null,
+		photos,
+		primaryPhoto,
+	};
+
+	if (!Number.isFinite(mapped.latitude) || !Number.isFinite(mapped.longitude)) return null;
+	return mapped as House;
+}
+
+// Utility: Build a bounding box polygon around user's location
+function buildBoundingBox(lat: number, lon: number, delta = 0.01) {
+	return {
+		minLat: lat - delta,
+		maxLat: lat + delta,
+		minLon: lon - delta,
+		maxLon: lon + delta,
+	};
+}
+
+function isWithinBoundingBox(house: House, lat: number, lon: number, delta = 0.01): boolean {
+	if (house.latitude === null || house.longitude === null) return false;
+	const box = buildBoundingBox(lat, lon, delta);
+	return (
+		house.latitude >= box.minLat &&
+		house.latitude <= box.maxLat &&
+		house.longitude >= box.minLon &&
+		house.longitude <= box.maxLon
+	);
+}
+
 export default function HomeScreen() {
 
 	/**
 	 * Set to true to use fake data instead of making API 
 	 * calls (for testing UI without hitting API limits)
 	 */
-	const [useMockData, setUseMockData] = useState(true);
+	const useMockData = false;
 
 	// Get current user from auth context
 	const { user, userData } = useAuth();
@@ -211,13 +234,57 @@ export default function HomeScreen() {
 	const [houses, setHouses] = useState<House[]>([]);
 	const [filteredHouses, setFilteredHouses] = useState<House[]>([]);
 	const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
-	const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
 	const [isFavorite, setIsFavorite] = useState(false);
 	const [filterVisible, setFilterVisible] = useState(false);
 	const [activeFilters, setActiveFilters] = useState<PropertyFilterOptions>({});
 	const params = useLocalSearchParams();
-	const userType = params.userType || 'buyer';
 	const [loading, setLoading] = useState(false);
+
+	const fetchHouses = useCallback(async (lat: number, lon: number, city?: string) => {
+		setLoading(true);
+		try {
+			let properties: House[] = [];
+			if (useMockData) {
+				properties = MOCK_HOUSES.filter(h => h.status === 'for_sale' || h.status === 'pending');
+				setTimeout(() => {
+					setHouses(properties);
+					setFilteredHouses(properties);
+					setLoading(false);
+					console.log(`Loaded ${properties.length} mock houses`);
+				}, 500);
+				return;
+			}
+
+			const snapshot = await getDocs(collection(db, "properties"));
+			properties = snapshot.docs
+				.map((doc) => mapFirestoreProperty(doc.id, doc.data()))
+				.filter(Boolean) as House[];
+
+			properties = properties.filter((house) => house.status === 'for_sale' || house.status === 'pending');
+
+			if (city && city.trim()) {
+				const cityLower = city.trim().toLowerCase();
+				properties = properties.filter((house) => house.address.toLowerCase().includes(cityLower));
+			} else {
+				properties = properties.filter((house) => isWithinBoundingBox(house, lat, lon));
+			}
+
+			if (properties.length > 0) {
+				setHouses(properties);
+				setFilteredHouses(properties);
+				console.log(`✅ Loaded ${properties.length} houses from Firestore`);
+			} else {
+				setHouses([]);
+				setFilteredHouses([]);
+				console.log('⚠️ No properties found');
+			}
+		} catch (error) {
+			console.error("💥 Error fetching houses from Firestore:", error);
+			Alert.alert("Error", "Failed to fetch houses from Firestore");
+		} finally {
+			setLoading(false);
+		}
+	}, [useMockData]);
 
 	useEffect(() => {
 		(async () => {
@@ -235,44 +302,7 @@ export default function HomeScreen() {
 				fetchHouses(loc.coords.latitude, loc.coords.longitude);
 			}
 		})();
-	},[]);
-	
-	const fetchHouses = async (lat: number, lon: number, city?: string) => {
-		setLoading(true);
-		try {
-			let properties: House[] = [];
-			if (useMockData) {
-				// Only show for_sale and pending properties in mock mode
-				properties = MOCK_HOUSES.filter(h => h.status === 'for_sale' || h.status === 'pending');
-				setTimeout(() => {
-					setHouses(properties);
-					setFilteredHouses(applyFilters(properties, activeFilters));
-					setLoading(false);
-					console.log(`Loaded ${properties.length} mock houses`);
-				}, 500);
-				return;
-			}
-			if (city) {
-				properties = await searchByCity(city);
-			} else {
-				properties = await searchByCoordinates(lat, lon);
-			}
-			if (properties.length > 0) {
-				setHouses(properties);
-				setFilteredHouses(applyFilters(properties, activeFilters));
-				console.log(`✅ Loaded ${properties.length} houses from API`);
-			} else {
-				setHouses([]);
-				setFilteredHouses([]);
-				console.log('⚠️ No properties found');
-			}
-		} catch (error) {
-			console.error("💥 Error fetching houses:", error);
-			Alert.alert("Error", "Failed to fetch houses from API");
-		} finally {
-			if (!useMockData) setLoading(false);
-		}
-	};
+	}, [fetchHouses]);
 
 	// Apply filters to the house list
 	function applyFilters(houses: House[], filters: PropertyFilterOptions): House[] {
@@ -296,6 +326,10 @@ export default function HomeScreen() {
 		setActiveFilters(filters);
 		setFilteredHouses(applyFilters(houses, filters));
 	}
+
+	useEffect(() => {
+		setFilteredHouses(applyFilters(houses, activeFilters));
+	}, [houses, activeFilters]);
 
 	async function handleRequestHelp() {
 		const userId = user?.uid;
@@ -337,6 +371,7 @@ const hasZoomedRef = useRef(false);
 
 	useEffect(() => {
 		if (location?.coords && mapRef.current) {
+			if (hasZoomedRef.current && !zoomToUser) return;
 			mapRef.current.animateToRegion({
 				latitude: location.coords.latitude,
 				longitude: location.coords.longitude,
@@ -351,191 +386,74 @@ const hasZoomedRef = useRef(false);
 	const renderPropertyModal = () => {
 		if (!selectedHouse) return null;
 
-		const photos = selectedHouse.photos && selectedHouse.photos.length > 0
-			? selectedHouse.photos
-			: selectedHouse.primaryPhoto
-				? [{ href: selectedHouse.primaryPhoto }]
-				: [];
+		const favoriteButton = (
+			<TouchableOpacity
+				onPress={async () => {
+					if (!user?.uid || !userData) {
+						Alert.alert('Please log in', 'You must be logged in to save favorites.');
+						return;
+					}
+					if (!selectedHouse) return;
+					if (userData.role === 'Agent') {
+						try {
+							const agentId = user?.uid;
+							if (!agentId) {
+								Alert.alert('Error', 'Agent ID not found.');
+								return;
+							}
+							const assignedClients = await Functions.fetchAssignedClients(agentId);
+							const eligible: any[] = [];
+							for (const client of assignedClients) {
+								const alreadyFavorite = await Functions.checkIfFavorite(client.clientId, selectedHouse.id);
+								if (!alreadyFavorite) {
+									const clientUser = await Functions.fetchUserData(client.clientId);
+									eligible.push({
+										clientId: client.clientId,
+										firstName: clientUser?.firstName || '',
+										lastName: clientUser?.lastName || '',
+									});
+								}
+							}
+							if (eligible.length === 0) {
+								Alert.alert('No eligible clients', 'All your assigned clients already have this property as a favorite.');
+								return;
+							}
+							setEligibleClients(eligible);
+							setSelectedClientId(null);
+							setShowAssignModal(true);
+						} catch (error) {
+							Alert.alert('Error', 'Failed to load assigned clients.');
+							console.error('Error loading assinged clients:', error);
+						}
+						return;
+					}
+
+					if (userData.role !== 'Agent') {
+						try {
+							const newStatus = await Functions.toggleFavorite(user.uid, selectedHouse);
+							setIsFavorite(newStatus);
+						} catch (error) {
+							Alert.alert('Error', 'Failed to update favorite status.');
+							console.error('Error toggling favorite:', error);
+						}
+					}
+				}}
+				style={mapStyles.starButton}
+			>
+				<Text style={mapStyles.starButtonText}>{isFavorite ? '⭐' : '☆'}</Text>
+			</TouchableOpacity>
+		);
 
 		return (
-			<Modal visible={selectedHouse !== null}
-				animationType="slide"
-				transparent={false}
-				onRequestClose={() => { setSelectedHouse(null); setCurrentPhotoIndex(0); }}>
-				<View style={mapStyles.modalContainer}>
-					{/* Header */}
-					<View style={mapStyles.modalHeader}>
-						{/* Close button */}
-						<TouchableOpacity
-							onPress={() => { setSelectedHouse(null); setCurrentPhotoIndex(0); }}
-							style={mapStyles.closeButton}>
-							<Text style={mapStyles.closeButtonText}>✕</Text>
-						</TouchableOpacity>
-						<Text style={mapStyles.modalTitle}>{selectedHouse.address}</Text>
-						{/* Favorite button */}
-						<TouchableOpacity
-							onPress={async () => {
-								if (!user?.uid || !userData) {
-									Alert.alert('Please log in', 'You must be logged in to save favorites.');
-									return;
-								}
-								if (!selectedHouse) return;
-								if (userData.role === 'Agent') {
-									// Agent: show modal with eligible clients
-									try {
-										const agentId = user?.uid;
-										if (!agentId) {
-											Alert.alert('Error', 'Agent ID not found.');
-											return;
-										}
-										const assignedClients = await Functions.fetchAssignedClients(agentId);
-										const eligible: any[] = [];
-										for (const client of assignedClients) {
-											const alreadyFavorite = await Functions.checkIfFavorite(client.clientId, selectedHouse.id);
-											if (!alreadyFavorite) {
-												const clientUser = await Functions.fetchUserData(client.clientId);
-												eligible.push({
-													clientId: client.clientId,
-													firstName: clientUser?.firstName || '',
-													lastName: clientUser?.lastName || ''
-												});
-											}
-										}
-										if (eligible.length === 0) {
-											Alert.alert('No eligible clients', 'All your assigned clients already have this property as a favorite.');
-											return;
-										}
-										setEligibleClients(eligible);
-										setSelectedClientId(null);
-										setShowAssignModal(true);
-									} catch (error) {
-										Alert.alert('Error', 'Failed to load assigned clients.');
-										console.error('Error loading assinged clients:', error)
-									}
-									return;
-								}
-								// Default: client or other user, just toggle for self
-								if (userData.role !== 'Agent') {
-									try {
-										const newStatus = await Functions.toggleFavorite(user.uid, selectedHouse);
-										setIsFavorite(newStatus);
-									} catch (error) {
-										Alert.alert('Error', 'Failed to update favorite status.');
-										console.error('Error toggling favorite:', error);
-									}
-								}
-							}}
-							style={mapStyles.starButton}>
-							<Text style={mapStyles.starButtonText}>{isFavorite ? '⭐' : '☆'}</Text>
-						</TouchableOpacity>
-						{/* Agent Assign Favorite Modal */}
-						{showAssignModal && (
-							<Modal
-								visible={showAssignModal}
-								animationType="slide"
-								transparent={true}
-								onRequestClose={() => setShowAssignModal(false)}
-							>
-								<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-									<View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 24, width: 320, alignItems: 'center' }}>
-										<Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>Assign Favorite to Client</Text>
-										<Text style={{ marginBottom: 12 }}>Select a client to assign this favorite:</Text>
-										<View style={{ width: '100%', marginBottom: 20, borderWidth: 1, borderColor: '#ccc', borderRadius: 6, overflow: 'hidden' }}>
-											<Picker
-												selectedValue={selectedClientId || 'placeholder'}
-												onValueChange={itemValue => {
-													if (itemValue !== 'placeholder') setSelectedClientId(itemValue);
-												}}
-												style={{ width: '100%' }}
-											>
-												<Picker.Item label="Select Client" value="placeholder" enabled={false} color="#888" />
-												{eligibleClients.map(client => (
-													<Picker.Item
-														key={client.clientId}
-														label={`${client.firstName} ${client.lastName}`}
-														value={client.clientId}
-													/>
-												))}
-											</Picker>
-										</View>
-										<View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-											<TouchableOpacity
-												style={{ backgroundColor: '#2C5F2D', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 6, marginRight: 12, opacity: (!selectedClientId || selectedClientId === 'placeholder') ? 0.5 : 1 }}
-												disabled={!selectedClientId || selectedClientId === 'placeholder'}
-												onPress={async () => {
-													if (!selectedClientId || selectedClientId === 'placeholder' || !selectedHouse) return;
-													try {
-														// Debug: log agent userId and selected clientId
-														console.log('[Assign Favorite] Agent userId:', user?.uid);
-														console.log('[Assign Favorite] Selected clientId:', selectedClientId);
-														await Functions.toggleFavorite(selectedClientId, selectedHouse);
-														setShowAssignModal(false);
-														Alert.alert('Success', 'Favorite assigned to client.');
-													} catch (err) {
-														console.error('[Assign Favorite] Error assigning favorite:', err);
-														Alert.alert('Error', 'Failed to assign favorite.');
-													}
-												}}
-											>
-												<Text style={{ color: '#fff', fontWeight: 'bold' }}>Assign</Text>
-											</TouchableOpacity>
-											<TouchableOpacity
-												style={{ backgroundColor: '#ccc', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 6 }}
-												onPress={() => setShowAssignModal(false)}
-											>
-												<Text style={{ color: '#333', fontWeight: 'bold' }}>Cancel</Text>
-											</TouchableOpacity>
-										</View>
-									</View>
-								</View>
-							</Modal>
-						)}
-					</View>
-
-					{/* Photo viewer */}
-					{photos.length > 0 ? (
-						<View style={mapStyles.photoContainer}>
-							<Image source={{ uri: photos[currentPhotoIndex].href }} style={mapStyles.photo} resizeMode="cover" />
-
-							{/* Photo navigation */}
-							{photos.length > 1 && (
-								<View style={mapStyles.photoNavigation}>
-									<TouchableOpacity
-										onPress={() => setCurrentPhotoIndex(Math.max(0, currentPhotoIndex - 1))}
-										disabled={currentPhotoIndex === 0}
-										style={[mapStyles.navButton, currentPhotoIndex === 0 && mapStyles.navButtonDisabled]}>
-										<Text style={mapStyles.navButtonText}>←</Text>
-									</TouchableOpacity>
-
-									<Text style={mapStyles.photoCounter}>
-										{currentPhotoIndex + 1} / {photos.length}
-									</Text>
-
-									<TouchableOpacity
-										onPress={() => setCurrentPhotoIndex(Math.min(photos.length - 1, currentPhotoIndex + 1))}
-										disabled={currentPhotoIndex === photos.length - 1}
-										style={[mapStyles.navButton, currentPhotoIndex === photos.length - 1 && mapStyles.navButtonDisabled]}>
-										<Text style={mapStyles.navButtonText}>→</Text>
-									</TouchableOpacity>
-								</View>
-							)}
-						</View>
-					) : (
-						<View style={mapStyles.noPhotoContainer}>
-							<Text style={mapStyles.noPhotoText}>No photos available</Text>
-						</View>
-					)}
-
-					{/* Property details */}
-					<View style={mapStyles.detailsContainer}>
-						<Text style={mapStyles.price}>${selectedHouse.price?.toLocaleString() || 'N/A'}</Text>
-						<Text style={mapStyles.details}>
-							{selectedHouse.beds || '?'} beds • {selectedHouse.baths || '?'} baths
-						</Text>
-						<Text style={mapStyles.status}>Status: {selectedHouse.status?.replace('_', ' ')}</Text>
-					</View>
-				</View>
-			</Modal>
+			<PropertyDetailsModal
+				visible={selectedHouse !== null}
+				property={selectedHouse}
+				onClose={() => {
+					setSelectedHouse(null);
+					setShowAssignModal(false);
+				}}
+				headerRight={favoriteButton}
+			/>
 		);
 	};
 
@@ -576,6 +494,64 @@ const hasZoomedRef = useRef(false);
 			</View>
 
 			{renderPropertyModal()}
+			{showAssignModal && (
+				<Modal
+					visible={showAssignModal}
+					animationType="slide"
+					transparent={true}
+					onRequestClose={() => setShowAssignModal(false)}
+				>
+					<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+						<View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 24, width: 320, alignItems: 'center' }}>
+							<Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>Assign Favorite to Client</Text>
+							<Text style={{ marginBottom: 12 }}>Select a client to assign this favorite:</Text>
+							<View style={{ width: '100%', marginBottom: 20, borderWidth: 1, borderColor: '#ccc', borderRadius: 6, overflow: 'hidden' }}>
+								<Picker
+									selectedValue={selectedClientId || 'placeholder'}
+									onValueChange={(itemValue) => {
+										if (itemValue !== 'placeholder') setSelectedClientId(itemValue);
+									}}
+									style={{ width: '100%' }}
+								>
+									<Picker.Item label="Select Client" value="placeholder" enabled={false} color="#888" />
+									{eligibleClients.map((client) => (
+										<Picker.Item
+											key={client.clientId}
+											label={`${client.firstName} ${client.lastName}`}
+											value={client.clientId}
+										/>
+									))}
+								</Picker>
+							</View>
+							<View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+								<TouchableOpacity
+									style={{ backgroundColor: '#2C5F2D', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 6, marginRight: 12, opacity: (!selectedClientId || selectedClientId === 'placeholder') ? 0.5 : 1 }}
+									disabled={!selectedClientId || selectedClientId === 'placeholder'}
+									onPress={async () => {
+										if (!selectedClientId || selectedClientId === 'placeholder' || !selectedHouse) return;
+										try {
+											await Functions.toggleFavorite(selectedClientId, selectedHouse);
+											setShowAssignModal(false);
+											Alert.alert('Success', 'Favorite assigned to client.');
+										} catch (err) {
+											console.error('[Assign Favorite] Error assigning favorite:', err);
+											Alert.alert('Error', 'Failed to assign favorite.');
+										}
+									}}
+								>
+									<Text style={{ color: '#fff', fontWeight: 'bold' }}>Assign</Text>
+								</TouchableOpacity>
+								<TouchableOpacity
+									style={{ backgroundColor: '#ccc', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 6 }}
+									onPress={() => setShowAssignModal(false)}
+								>
+									<Text style={{ color: '#333', fontWeight: 'bold' }}>Cancel</Text>
+								</TouchableOpacity>
+							</View>
+						</View>
+					</View>
+				</Modal>
+			)}
 			{loading && (
 				<View style={mapStyles.loadingContainer}>
 					<ActivityIndicator size="large" color="#0000ff" />
@@ -615,7 +591,6 @@ const hasZoomedRef = useRef(false);
 							pinColor={getPinColor(house.status || 'for_sale')}
 					onPress={async () => {
 						setSelectedHouse(house);
-						setCurrentPhotoIndex(0);
 						// Check if this property is favorited when opening modal
 						if (user?.uid) {
 							const favorited = await Functions.checkIfFavorite(user.uid, house.id);

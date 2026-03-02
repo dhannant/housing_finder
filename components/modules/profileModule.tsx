@@ -1,6 +1,8 @@
 import { auth, db } from '@/components/firebaseConfig';
 import { landingStyles, profileModule_styles } from '@/constants/styles';
+import { teamMembers } from '@/constants/team-data';
 import { useAuth } from '@/contexts/AuthContext';
+import { Picker } from '@react-native-picker/picker';
 import { EmailAuthProvider, reauthenticateWithCredential, sendPasswordResetEmail, updateEmail, updatePassword } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
@@ -13,6 +15,7 @@ export default function ProfileScreen() {
 	const [lastName, setLastName] = useState('');
 	const [email, setEmail] = useState('');
 	const [phoneNumber, setPhoneNumber] = useState('');
+	const [selectedTeamMemberId, setSelectedTeamMemberId] = useState('');
 	const [saving, setSaving] = useState(false);
 	const [currentPassword, setCurrentPassword] = useState('');
 	const [newPassword, setNewPassword] = useState('');
@@ -25,6 +28,16 @@ export default function ProfileScreen() {
 		setLastName(userData.lastName || '');
 		setEmail(userData.email || '');
 		setPhoneNumber(userData.phoneNumber || '');
+
+		const dynamicUserData = userData as any;
+		const savedTeamMemberId = typeof dynamicUserData?.teamMemberId === 'string' ? dynamicUserData.teamMemberId : '';
+		const matchedByName = teamMembers.find((member) => {
+			const memberName = member.name.trim().toLowerCase();
+			const userFullName = `${userData.firstName ?? ''} ${userData.lastName ?? ''}`.trim().toLowerCase();
+			return memberName === userFullName;
+		})?.id ?? '';
+
+		setSelectedTeamMemberId(savedTeamMemberId || matchedByName || '');
 	}, [userData]);
 
 	const roleFields = useMemo(() => {
@@ -65,11 +78,19 @@ export default function ProfileScreen() {
 				await updateEmail(user, nextEmail);
 			}
 
+			const selectedTeamMember =
+				userData?.role === 'Agent'
+					? teamMembers.find((member) => member.id === selectedTeamMemberId) ?? null
+					: null;
+
 			await updateDoc(doc(db, 'users', user.uid), {
 				firstName: firstName.trim(),
 				lastName: lastName.trim(),
 				email: nextEmail,
 				phoneNumber: phoneNumber.trim() || null,
+				teamMemberId: selectedTeamMember ? selectedTeamMember.id : null,
+				profileImageUrl: selectedTeamMember ? selectedTeamMember.imageUrl : null,
+				bioImageUrl: selectedTeamMember ? selectedTeamMember.imageUrl : null,
 			});
 
 			Alert.alert('Saved', 'Your profile has been updated.');
@@ -147,6 +168,23 @@ export default function ProfileScreen() {
 			<ScrollView contentContainerStyle={profileModule_styles.container}>
 				<Text style={profileModule_styles.sectionTitle}>Profile Details</Text>
 				<Text style={profileModule_styles.roleText}>{userData.role}</Text>
+
+				{userData.role === 'Agent' && (
+					<View style={profileModule_styles.fieldGroup}>
+						<Text style={profileModule_styles.label}>Team Bio Profile</Text>
+						<View style={profileModule_styles.input}>
+							<Picker
+								selectedValue={selectedTeamMemberId}
+								onValueChange={(itemValue) => setSelectedTeamMemberId(String(itemValue))}
+							>
+								<Picker.Item label="Select your team profile" value="" />
+								{teamMembers.map((member) => (
+									<Picker.Item key={member.id} label={member.name} value={member.id} />
+								))}
+							</Picker>
+						</View>
+					</View>
+				)}
 
 				<View style={profileModule_styles.fieldGroup}>
 					<Text style={profileModule_styles.label}>First Name</Text>
