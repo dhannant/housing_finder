@@ -11,7 +11,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { OffersModule } from '../../../components/modules/OffersModule';
 import { SelectAgentModule } from '../../../components/modules/SelectAgentModule';
 import { YourAgentModule } from '../../../components/modules/YourAgentModule';
-import CalendarModule from '../../../components/modules/calendarModule';
 
 export default function ClientDashboard() {
 	const router = useRouter();
@@ -138,7 +137,6 @@ export default function ClientDashboard() {
 					/>
 				)}
 				{assignedRealtorId && <YourAgentModule realtorId={assignedRealtorId} styles={clientDashboard_styles} />}
-				{clientHasActiveOffer && <CalendarModule role="client" activeOfferId={activeOfferId} />}
 				{!clientHasActiveOffer && 
 				<View style={clientDashboard_styles.bottomButtonsContainer}>
 					<TouchableOpacity style={[landingStyles.actionButton, landingStyles.buyButton, { marginHorizontal: 16, marginTop: 8, paddingVertical: 16, paddingHorizontal: 16 }]} onPress={() => router.push({ pathname: '/(tabs)/map', params: { userType: 'buy', zoomToUser: 'false' } })} activeOpacity={0.8}>

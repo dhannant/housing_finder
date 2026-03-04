@@ -1,5 +1,5 @@
 import { db } from '@/components/firebaseConfig';
-import { Alert, Linking } from 'react-native';
+import { Alert, Linking, Platform } from 'react-native';
 import {
 	addDoc,
 	arrayUnion,
@@ -405,6 +405,16 @@ export function getShortDateString(date = new Date()) {
 	const yyyy = date.getFullYear();
 	return `${mm}/${dd}/${yyyy}`;
  }
+
+export async function saveUserPushToken(userId: string, pushToken: string): Promise<void> {
+	if (!userId || !pushToken) return;
+
+	await setDoc(doc(db, 'users', userId), {
+		pushToken,
+		pushTokenPlatform: Platform.OS,
+		pushTokenUpdatedAt: new Date(),
+	}, { merge: true });
+}
  
  /** Used to send emails to the assigned agent for specific issues / tasks from the app.
   * This will first check if the logged in user has an account, and require them to create one if they don't.

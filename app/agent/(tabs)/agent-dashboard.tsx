@@ -1,5 +1,4 @@
 import { auth, db } from "@/components/firebaseConfig";
-import CalendarModule from "@/components/modules/calendarModule";
 import { agentDashboardStyles } from "@/constants/styles";
 import { useAssignedClients, usePendingClientRequests, useUnassignedClients, useUserData } from "@/hooks/useFunctions";
 import { fetchUserData, formatDate } from "@/utils/functions";
@@ -70,6 +69,33 @@ export default function RealtorDashboard() {
 	const { data: pendingRequests = [], refetch: refetchPendingRequests } = usePendingClientRequests(user?.uid || null, "agent");
 	const { data: availableClients = [], refetch: refetchAvailableClients } = useUnassignedClients();
 	const [clientDetails, setClientDetails] = useState<Record<string, UserData>>({});
+	const [expandedSections, setExpandedSections] = useState({
+		activeClients: true,
+		pendingRequests: true,
+		availableClients: true,
+	});
+
+	const toggleSection = (section: 'activeClients' | 'pendingRequests' | 'availableClients') => {
+		setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+	};
+
+	const renderSectionHeader = (
+		title: string,
+		description: string,
+		section: 'activeClients' | 'pendingRequests' | 'availableClients'
+	) => (
+		<TouchableOpacity
+			onPress={() => toggleSection(section)}
+			activeOpacity={0.8}
+			style={{ marginBottom: 12 }}
+		>
+			<View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+				<Text style={agentDashboardStyles.sectionTitle}>{title}</Text>
+				<Text style={{ fontSize: 18, color: '#666' }}>{expandedSections[section] ? '▾' : '▸'}</Text>
+			</View>
+			<Text style={agentDashboardStyles.sectionDescription}>{description}</Text>
+		</TouchableOpacity>
+	);
 
 
 	// Fetch details for all assigned and pending clients
@@ -233,10 +259,9 @@ export default function RealtorDashboard() {
 				contentContainerStyle={agentDashboardStyles.scrollContent}>
 				{/* Active Clients Section */}
 				<View style={agentDashboardStyles.section}>
-					<Text style={agentDashboardStyles.sectionTitle}>Active Clients</Text>
-					<Text style={agentDashboardStyles.sectionDescription}>These are your currently active clients.</Text>
+					{renderSectionHeader('Active Clients', 'These are your currently active clients.', 'activeClients')}
 
-					{assignedClients?.length === 0 ? (
+					{expandedSections.activeClients && (assignedClients?.length === 0 ? (
 						<View style={agentDashboardStyles.emptyState}>
 							<User
 								color="#CCCCCC"
@@ -307,15 +332,14 @@ export default function RealtorDashboard() {
 								);
 							})}
 						</View>
-					)}
+					))}
 				</View>
 
 				{/* Pending Requests Section */}
 				<View style={agentDashboardStyles.section}>
-					<Text style={agentDashboardStyles.sectionTitle}>Pending Requests</Text>
-					<Text style={agentDashboardStyles.sectionDescription}>These are clients who have requested to work with you.</Text>
+					{renderSectionHeader('Pending Requests', 'These are clients who have requested to work with you.', 'pendingRequests')}
 
-					{pendingRequests?.length === 0 ? (
+					{expandedSections.pendingRequests && (pendingRequests?.length === 0 ? (
 						<View style={agentDashboardStyles.emptyState}>
 							<User
 								color="#CCCCCC"
@@ -407,17 +431,18 @@ export default function RealtorDashboard() {
 								);
 							})}
 						</View>
-					)}
+					))}
 				</View>
 
 				{/* Available Clients Section */}
 				<View style={agentDashboardStyles.section}>
-					<Text style={agentDashboardStyles.sectionTitle}>Available Clients</Text>
-					<Text style={agentDashboardStyles.sectionDescription}>
-						New clients below do not currently have an agent assigned. Reach out to them to offer your services!
-					</Text>
+					{renderSectionHeader(
+						'Available Clients',
+						'New clients below do not currently have an agent assigned. Reach out to them to offer your services!',
+						'availableClients'
+					)}
 
-					{availableClients?.length === 0 ? (
+					{expandedSections.availableClients && (availableClients?.length === 0 ? (
 						<View style={agentDashboardStyles.emptyState}>
 							<User
 								color="#CCCCCC"
@@ -480,7 +505,7 @@ export default function RealtorDashboard() {
 								</View>
 							))}
 						</View>
-					)}
+					))}
 				</View>
 
 				<TouchableOpacity
@@ -489,10 +514,6 @@ export default function RealtorDashboard() {
 					<Text style={agentDashboardStyles.navigateButtonText}>View Properties</Text>
 				</TouchableOpacity>
 			</ScrollView>
-			{/* Always show calendar at the bottom */}
-			<View style={{ marginTop: 16 }}>
-				<CalendarModule role="agent" />
-			</View>
 		</SafeAreaView>
 	);
 }

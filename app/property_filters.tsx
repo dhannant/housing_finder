@@ -99,13 +99,37 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
           newFilters.maxLotSize = value;
         }
       } else if (filterName === 'minBedrooms') {
-        newFilters.minBedrooms = value;
+        if (currentFilters.maxBedrooms !== undefined && value !== undefined && value > currentFilters.maxBedrooms) {
+          setMinMaxWarning({ name: 'minBedrooms', message: 'Minimum bedrooms cannot be above maximum bedrooms' });
+          return currentFilters;
+        } else {
+          setMinMaxWarning({ name: '', message: '' });
+          newFilters.minBedrooms = value;
+        }
       } else if (filterName === 'maxBedrooms') {
-        newFilters.maxBedrooms = value;
+        if (currentFilters.minBedrooms !== undefined && value !== undefined && value < currentFilters.minBedrooms) {
+          setMinMaxWarning({ name: 'maxBedrooms', message: 'Maximum bedrooms cannot be below minimum bedrooms' });
+          return currentFilters;
+        } else {
+          setMinMaxWarning({ name: '', message: '' });
+          newFilters.maxBedrooms = value;
+        }
       } else if (filterName === 'minBathrooms') {
-        newFilters.minBathrooms = value;
+        if (currentFilters.maxBathrooms !== undefined && value !== undefined && value > currentFilters.maxBathrooms) {
+          setMinMaxWarning({ name: 'minBathrooms', message: 'Minimum bathrooms cannot be above maximum bathrooms' });
+          return currentFilters;
+        } else {
+          setMinMaxWarning({ name: '', message: '' });
+          newFilters.minBathrooms = value;
+        }
       } else if (filterName === 'maxBathrooms') {
-        newFilters.maxBathrooms = value;
+        if (currentFilters.minBathrooms !== undefined && value !== undefined && value < currentFilters.minBathrooms) {
+          setMinMaxWarning({ name: 'maxBathrooms', message: 'Maximum bathrooms cannot be below minimum bathrooms' });
+          return currentFilters;
+        } else {
+          setMinMaxWarning({ name: '', message: '' });
+          newFilters.maxBathrooms = value;
+        }
       }
       return newFilters;
     });
@@ -159,6 +183,11 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
             {/* BEDROOMS FILTER - Simple number inputs */}
             <View style={propertyFilter_styles.section}>
               <Text style={propertyFilter_styles.sectionTitle}>Bedrooms</Text>
+              {(minMaxWarning.name === 'minBedrooms' || minMaxWarning.name === 'maxBedrooms') && minMaxWarning.message ? (
+                <View style={{ backgroundColor: '#FFF9C4', padding: 8, borderRadius: 4, marginBottom: 8 }}>
+                  <Text style={{ color: '#B8860B' }}>{minMaxWarning.message}</Text>
+                </View>
+              ) : null}
               <View style={propertyFilter_styles.rangeContainer}>
                 
                 {/* Minimum bedrooms input */}
@@ -219,23 +248,30 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
             {/* BATHROOMS FILTER - Simple number inputs */}
             <View style={propertyFilter_styles.section}>
               <Text style={propertyFilter_styles.sectionTitle}>Bathrooms</Text>
+              {(minMaxWarning.name === 'minBathrooms' || minMaxWarning.name === 'maxBathrooms') && minMaxWarning.message ? (
+                <View style={{ backgroundColor: '#FFF9C4', padding: 8, borderRadius: 4, marginBottom: 8 }}>
+                  <Text style={{ color: '#B8860B' }}>{minMaxWarning.message}</Text>
+                </View>
+              ) : null}
               <View style={propertyFilter_styles.rangeContainer}>
                 
                 {/* Minimum bathrooms input */}
                 <View style={propertyFilter_styles.inputContainer}>
                   <Text style={propertyFilter_styles.inputLabel}>Min</Text>
-
-                  {/* <TextInput
+                  <Picker selectedValue={filters.minBathrooms}
                     style={propertyFilter_styles.input}
-                    keyboardType="numeric"
-                    value={filters.minBathrooms?.toString() || ''}
-                    onChangeText={(text) => {
-                      // parseFloat allows decimals like 1.5, 2.5
-                      const value = text ? parseFloat(text) : undefined;
-                      updateFilter('minBathrooms', value);
-                    }}
-                    placeholder="0"
-                  /> */}
+                    onValueChange={value => updateFilter('minBathrooms', value)}>
+                    <Picker.Item label="Any" value={undefined} />
+                    <Picker.Item label="1" value={1} />
+                    <Picker.Item label="1.5" value={1.5} />
+                    <Picker.Item label="2" value={2} />
+                    <Picker.Item label="2.5" value={2.5} />
+                    <Picker.Item label="3" value={3} />
+                    <Picker.Item label="3.5" value={3.5} />
+                    <Picker.Item label="4" value={4} />
+                    <Picker.Item label="4.5" value={4.5} />
+                    <Picker.Item label="5+" value={5} />
+                  </Picker>
                 </View>
 
                 <Text style={propertyFilter_styles.rangeSeparator}>to</Text>
@@ -243,16 +279,20 @@ const PropertyFilters: React.FC<PropertyFiltersProps> = ({
                 {/* Maximum bathrooms input */}
                 <View style={propertyFilter_styles.inputContainer}>
                   <Text style={propertyFilter_styles.inputLabel}>Max</Text>
-                  <TextInput
+                  <Picker selectedValue={filters.maxBathrooms}
                     style={propertyFilter_styles.input}
-                    keyboardType="numeric"
-                    value={filters.maxBathrooms?.toString() || ''}
-                    onChangeText={(text) => {
-                      const value = text ? parseFloat(text) : undefined;
-                      updateFilter('maxBathrooms', value);
-                    }}
-                    placeholder="Any"
-                  />
+                    onValueChange={value => updateFilter('maxBathrooms', value)}>
+                    <Picker.Item label="Any" value={undefined} />
+                    <Picker.Item label="1" value={1} />
+                    <Picker.Item label="1.5" value={1.5} />
+                    <Picker.Item label="2" value={2} />
+                    <Picker.Item label="2.5" value={2.5} />
+                    <Picker.Item label="3" value={3} />
+                    <Picker.Item label="3.5" value={3.5} />
+                    <Picker.Item label="4" value={4} />
+                    <Picker.Item label="4.5" value={4.5} />
+                    <Picker.Item label="5+" value={5} />
+                  </Picker>
                 </View>
               </View>
             </View>

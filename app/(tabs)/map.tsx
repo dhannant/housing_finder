@@ -10,7 +10,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Modal, Text, TouchableOpacity, View } from 'react-native';
-import { default as MapView, Marker, default as RNMapView } from 'react-native-maps';
+import { default as MapView, Marker, default as RNMapView, type Region } from 'react-native-maps';
 
 import PropertyFilters, { type PropertyFilterOptions } from "../property_filters";
 
@@ -195,18 +195,26 @@ function mapFirestoreProperty(docId: string, data: any): House | null {
 }
 
 // Utility: Build a bounding box polygon around user's location
-function buildBoundingBox(lat: number, lon: number, delta = 0.01) {
+function buildBoundingBox(lat: number, lon: number, latitudeDelta = 0.01, longitudeDelta = 0.01) {
+	const latHalf = latitudeDelta / 2;
+	const lonHalf = longitudeDelta / 2;
 	return {
-		minLat: lat - delta,
-		maxLat: lat + delta,
-		minLon: lon - delta,
-		maxLon: lon + delta,
+		minLat: lat - latHalf,
+		maxLat: lat + latHalf,
+		minLon: lon - lonHalf,
+		maxLon: lon + lonHalf,
 	};
 }
 
-function isWithinBoundingBox(house: House, lat: number, lon: number, delta = 0.01): boolean {
+function isWithinBoundingBox(
+	house: House,
+	lat: number,
+	lon: number,
+	latitudeDelta = 0.01,
+	longitudeDelta = 0.01,
+): boolean {
 	if (house.latitude === null || house.longitude === null) return false;
-	const box = buildBoundingBox(lat, lon, delta);
+	const box = buildBoundingBox(lat, lon, latitudeDelta, longitudeDelta);
 	return (
 		house.latitude >= box.minLat &&
 		house.latitude <= box.maxLat &&
@@ -239,10 +247,19 @@ export default function HomeScreen() {
 	const [activeFilters, setActiveFilters] = useState<PropertyFilterOptions>({});
 	const params = useLocalSearchParams();
 	const [loading, setLoading] = useState(false);
+	const [currentRegion, setCurrentRegion] = useState<Region | null>(null);
 
-	const fetchHouses = useCallback(async (lat: number, lon: number, city?: string) => {
+	const fetchHouses = useCallback(async (
+		lat: number,
+		lon: number,
+		city?: string,
+		searchRegion?: Pick<Region, 'latitudeDelta' | 'longitudeDelta'>,
+	) => {
 		setLoading(true);
 		try {
+			const latitudeDelta = searchRegion?.latitudeDelta ?? 0.01;
+			const longitudeDelta = searchRegion?.longitudeDelta ?? 0.01;
+			const regionLog = `center=(${lat.toFixed(5)}, ${lon.toFixed(5)}), latDelta=${latitudeDelta.toFixed(5)}, lonDelta=${longitudeDelta.toFixed(5)}`;
 			let properties: House[] = [];
 			if (useMockData) {
 				properties = MOCK_HOUSES.filter(h => h.status === 'for_sale' || h.status === 'pending');
@@ -266,17 +283,19 @@ export default function HomeScreen() {
 				const cityLower = city.trim().toLowerCase();
 				properties = properties.filter((house) => house.address.toLowerCase().includes(cityLower));
 			} else {
-				properties = properties.filter((house) => isWithinBoundingBox(house, lat, lon));
+				properties = properties.filter((house) =>
+					isWithinBoundingBox(house, lat, lon, latitudeDelta, longitudeDelta),
+				);
 			}
 
 			if (properties.length > 0) {
 				setHouses(properties);
 				setFilteredHouses(properties);
-				console.log(`✅ Loaded ${properties.length} houses from Firestore`);
+				console.log(`✅ Loaded ${properties.length} houses from Firestore (${regionLog})`);
 			} else {
 				setHouses([]);
 				setFilteredHouses([]);
-				console.log('⚠️ No properties found');
+				console.log(`⚠️ No properties found (${regionLog})`);
 			}
 		} catch (error) {
 			console.error("💥 Error fetching houses from Firestore:", error);
@@ -372,13 +391,15 @@ const hasZoomedRef = useRef(false);
 	useEffect(() => {
 		if (location?.coords && mapRef.current) {
 			if (hasZoomedRef.current && !zoomToUser) return;
-			mapRef.current.animateToRegion({
+			const targetRegion = {
 				latitude: location.coords.latitude,
 				longitude: location.coords.longitude,
 				//if zoomerToUser is true, use .001, else use .07
 				latitudeDelta: zoomToUser ? 0.001 : 0.07,  
 				longitudeDelta: zoomToUser ? 0.001 : 0.07,
-			}, 500);
+			};
+			mapRef.current.animateToRegion(targetRegion, 500);
+			setCurrentRegion(targetRegion);
 			hasZoomedRef.current = true;
 		}
 	}, [zoomToUser, location]);
@@ -563,8 +584,9 @@ const hasZoomedRef = useRef(false);
 				   style={mapStyles.map}
 				   initialRegion={initialRegion}
 				   showsUserLocation={true}
-				   onRegionChangeComplete={zoomToUser ? undefined : (region) => {
-					   // Only update location if not zooming to user
+				   onRegionChangeComplete={(region) => {
+					   setCurrentRegion(region);
+					   if (zoomToUser) return;
 					   setLocation({
 						   coords: {
 							   latitude: region.latitude,
@@ -607,7 +629,17 @@ const hasZoomedRef = useRef(false);
 			style={mapStyles.searchButton}
 		onPress={() => {
 			if (location) {
-				fetchHouses(location.coords.latitude, location.coords.longitude);
+				fetchHouses(
+					location.coords.latitude,
+					location.coords.longitude,
+					undefined,
+					currentRegion
+						? {
+							latitudeDelta: currentRegion.latitudeDelta,
+							longitudeDelta: currentRegion.longitudeDelta,
+						}
+						: undefined,
+				);
 			}
 		}}>
 		<Text style={mapStyles.searchButtonText}>Search This Area</Text>

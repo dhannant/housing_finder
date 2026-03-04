@@ -36,6 +36,11 @@ initializeApp();
 const rapidApiKeySecret = defineSecret("RAPIDAPI_KEY");
 const rapidApiHost = "realty-us.p.rapidapi.com";
 const rapidApiBaseUrl = "https://realty-us.p.rapidapi.com/properties/search-buy";
+const rapidApiTimeoutMs = 25000;
+const rapidApiBaseBackoffMs = 800;
+const rapidApiMaxBackoffMs = 12000;
+const rapidApiMaxRetries = 2;
+const retryableStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
 const rapidApiZipCodes = [
 	"30102","30103","30114","30115","30120","30121","30123","30137","30139","30141","30142","30143","30188","30189",
 	"30501","30503","30504","30506","30510","30512","30513","30514","30516","30517","30518","30519","30520","30522",
@@ -145,6 +150,84 @@ function getRapidApiErrorMessage(errorText: string): string {
 	}
 }
 
+function sleep(ms: number) {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getRetryAfterMs(response: Response): number | null {
+	const retryAfter = response.headers.get("retry-after");
+	if (!retryAfter) return null;
+	const numeric = Number(retryAfter);
+	if (Number.isFinite(numeric) && numeric >= 0) {
+		return numeric * 1000;
+	}
+	const parsedDate = Date.parse(retryAfter);
+	if (!Number.isNaN(parsedDate)) {
+		const delta = parsedDate - Date.now();
+		return delta > 0 ? delta : 0;
+	}
+	return null;
+}
+
+function computeBackoffMs(attemptNumber: number): number {
+	const exponential = Math.min(
+		rapidApiBaseBackoffMs * Math.pow(2, attemptNumber),
+		rapidApiMaxBackoffMs,
+	);
+	const jitter = Math.floor(Math.random() * 400);
+	return exponential + jitter;
+}
+
+async function fetchRapidApiWithRetry(url: string, rapidApiKey: string) {
+	let attempts = 0;
+	let lastError: Error | null = null;
+
+	while (attempts <= rapidApiMaxRetries) {
+		const attemptNumber = attempts;
+		attempts += 1;
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), rapidApiTimeoutMs);
+
+		try {
+			const response = await fetch(url, {
+				headers: {
+					"X-RapidAPI-Key": rapidApiKey,
+					"X-RapidAPI-Host": rapidApiHost,
+				},
+				signal: controller.signal,
+			});
+			clearTimeout(timeout);
+
+			if (response.ok) {
+				return { response, attempts };
+			}
+
+			const shouldRetry = retryableStatuses.has(response.status) && attemptNumber < rapidApiMaxRetries;
+			if (!shouldRetry) {
+				return { response, attempts };
+			}
+
+			const retryAfterMs = getRetryAfterMs(response);
+			const backoffMs = retryAfterMs ?? computeBackoffMs(attemptNumber);
+			console.warn(`RapidAPI retry scheduled: status=${response.status}, attempt=${attemptNumber + 1}, waitMs=${backoffMs}`);
+			await sleep(backoffMs);
+		} catch (error: any) {
+			clearTimeout(timeout);
+			lastError = error instanceof Error ? error : new Error(String(error));
+			const shouldRetry = attemptNumber < rapidApiMaxRetries;
+			if (!shouldRetry) {
+				throw lastError;
+			}
+
+			const backoffMs = computeBackoffMs(attemptNumber);
+			console.warn(`RapidAPI retry scheduled: network error on attempt=${attemptNumber + 1}, waitMs=${backoffMs}, message=${lastError.message}`);
+			await sleep(backoffMs);
+		}
+	}
+
+	throw lastError || new Error("RapidAPI request failed after retries");
+}
+
 async function isolateFailedZips(batchZips: string[], rapidApiKey: string) {
 	const invalidZips: { zip: string; status?: number; message: string }[] = [];
 
@@ -227,7 +310,210 @@ async function upsertPropertiesForPage(
 	return { upserted, skippedNoPropertyId };
 }
 
+type IngestRunOptions = {
+	maxPagesPerBatch?: number;
+	maxBatches?: number;
+	dryRun?: boolean;
+	persistTelemetry?: boolean;
+	runLabel?: string;
+};
+
+async function runPropertyIngest(
+	db: FirebaseFirestore.Firestore,
+	rapidApiKey: string,
+	options: IngestRunOptions = {},
+) {
+	const startedAt = new Date().toISOString();
+	const runId = new Date().toISOString();
+	const pageSize = 20;
+	const maxPagesPerBatch = options.maxPagesPerBatch ?? 50;
+	const allBatches = chunkArray(rapidApiZipCodes, 10);
+	const batches = typeof options.maxBatches === "number"
+		? allBatches.slice(0, Math.max(0, options.maxBatches))
+		: allBatches;
+	const dryRun = options.dryRun === true;
+	const persistTelemetry = options.persistTelemetry !== false;
+
+	let requestsAttempted = 0;
+	let outboundAttempts = 0;
+	let retriesPerformed = 0;
+	let failedBatches = 0;
+	let failedPages = 0;
+	let successfulPages = 0;
+	let errorCount = 0;
+	let totalUpserted = 0;
+	let totalSkippedNoPropertyId = 0;
+	let totalReceivedProperties = 0;
+	let expectedPropertiesFromApiReported = 0;
+	let expectedBatchesKnown = 0;
+	let expectedBatchesUnknown = 0;
+
+	const failedBatchDetails: {
+		batchIndex: number;
+		batchZips: string[];
+		page: number;
+		offset: number;
+		status?: number;
+		message: string;
+	}[] = [];
+
+	const batchSummaries: {
+		batchIndex: number;
+		batchZips: string[];
+		pagesFetched: number;
+		successfulPages: number;
+		failedPages: number;
+		receivedProperties: number;
+		upserted: number;
+		skippedNoPropertyId: number;
+		apiReportedExpected: number | null;
+		batchStatus: "completed" | "completed_with_errors";
+	}[] = [];
+
+	for (const [batchIndex, batch] of batches.entries()) {
+		let batchStored = 0;
+		let batchSkippedNoPropertyId = 0;
+		let batchApiReportedTotal: number | null = null;
+		let batchReceivedProperties = 0;
+		let batchPagesFetched = 0;
+		let batchFailedPages = 0;
+		let batchStatus: "completed" | "completed_with_errors" = "completed";
+
+		for (let page = 0; page < maxPagesPerBatch; page++) {
+			const offset = page * pageSize;
+			const url = buildSearchUrl(batch, offset, pageSize);
+
+			try {
+				requestsAttempted += 1;
+				const fetchResult = await fetchRapidApiWithRetry(url, rapidApiKey);
+				const response = fetchResult.response;
+				outboundAttempts += fetchResult.attempts;
+				retriesPerformed += Math.max(0, fetchResult.attempts - 1);
+
+				if (!response.ok) {
+					failedPages += 1;
+					batchFailedPages += 1;
+					failedBatches += 1;
+					errorCount += 1;
+					batchStatus = "completed_with_errors";
+					const errorText = await response.text();
+					failedBatchDetails.push({
+						batchIndex,
+						batchZips: batch,
+						page: page + 1,
+						offset,
+						status: response.status,
+						message: getRapidApiErrorMessage(errorText).slice(0, 500),
+					});
+					break;
+				}
+
+				const data = await response.json();
+				const properties = getPropertiesArray(data);
+				const apiReportedTotal = getApiReportedTotal(data);
+				if (batchApiReportedTotal === null && apiReportedTotal !== null) {
+					batchApiReportedTotal = apiReportedTotal;
+				}
+
+				if (properties.length === 0) {
+					break;
+				}
+
+				successfulPages += 1;
+				batchPagesFetched += 1;
+				batchReceivedProperties += properties.length;
+				totalReceivedProperties += properties.length;
+
+				if (!dryRun) {
+					const pullDate = new Date().toISOString();
+					const result = await upsertPropertiesForPage(db, properties, pullDate, runId);
+					batchStored += result.upserted;
+					batchSkippedNoPropertyId += result.skippedNoPropertyId;
+				}
+
+				const progressCount = dryRun ? batchReceivedProperties : batchStored;
+				if (batchApiReportedTotal !== null && progressCount >= batchApiReportedTotal) {
+					break;
+				}
+			} catch (error) {
+				failedPages += 1;
+				batchFailedPages += 1;
+				failedBatches += 1;
+				errorCount += 1;
+				batchStatus = "completed_with_errors";
+				failedBatchDetails.push({
+					batchIndex,
+					batchZips: batch,
+					page: page + 1,
+					offset,
+					message: error instanceof Error ? error.message : String(error),
+				});
+				break;
+			}
+		}
+
+		if (batchApiReportedTotal === null) {
+			expectedBatchesUnknown += 1;
+		} else {
+			expectedBatchesKnown += 1;
+			expectedPropertiesFromApiReported += batchApiReportedTotal;
+		}
+
+		totalUpserted += batchStored;
+		totalSkippedNoPropertyId += batchSkippedNoPropertyId;
+
+		batchSummaries.push({
+			batchIndex,
+			batchZips: batch,
+			pagesFetched: batchPagesFetched,
+			successfulPages: batchPagesFetched,
+			failedPages: batchFailedPages,
+			receivedProperties: batchReceivedProperties,
+			upserted: batchStored,
+			skippedNoPropertyId: batchSkippedNoPropertyId,
+			apiReportedExpected: batchApiReportedTotal,
+			batchStatus,
+		});
+	}
+
+	const endedAt = new Date().toISOString();
+	const status = errorCount > 0 ? "completed_with_errors" : "completed";
+
+	const telemetryPayload = {
+		runId,
+		runLabel: options.runLabel || "scheduled",
+		startedAt,
+		endedAt,
+		status,
+		dryRun,
+		totalBatches: batches.length,
+		maxPagesPerBatch,
+		requestsAttempted,
+		outboundAttempts,
+		retriesPerformed,
+		successfulPages,
+		failedPages,
+		writes: totalUpserted,
+		skippedNoPropertyId: totalSkippedNoPropertyId,
+		receivedProperties: totalReceivedProperties,
+		expectedPropertiesFromApiReported,
+		expectedBatchesKnown,
+		expectedBatchesUnknown,
+		errors: errorCount,
+		failedBatches,
+		failedBatchDetails,
+		batchSummaries,
+	};
+
+	if (persistTelemetry) {
+		await db.collection("apiPullRuns").doc(runId).set(telemetryPayload, { merge: true });
+	}
+
+	return telemetryPayload;
+}
+
 async function fetchPropertyCounts(rapidApiKey: string) {
+	const startedAt = new Date().toISOString();
 	const cityCounts: Record<string, number> = {};
 	const batchSummaries: {
 		batchZips: string[];
@@ -243,6 +529,8 @@ async function fetchPropertyCounts(rapidApiKey: string) {
 	let failedBatches = 0;
 	let successfulBatches = 0;
 	let requestsAttempted = 0;
+	let outboundAttempts = 0;
+	let retriesPerformed = 0;
 	let sampleResponseKeys: string[] = [];
 	let sampleRapidApiHeaders: Record<string, string> = {};
 	const pageSize = 20;
@@ -262,12 +550,10 @@ async function fetchPropertyCounts(rapidApiKey: string) {
 
 			try {
 				requestsAttempted += 1;
-				const response = await fetch(url, {
-					headers: {
-						"X-RapidAPI-Key": rapidApiKey,
-						"X-RapidAPI-Host": rapidApiHost,
-					},
-				});
+				const fetchResult = await fetchRapidApiWithRetry(url, rapidApiKey);
+				const response = fetchResult.response;
+				outboundAttempts += fetchResult.attempts;
+				retriesPerformed += Math.max(0, fetchResult.attempts - 1);
 
 				const statusKey = String(response.status);
 				statusCounts[statusKey] = (statusCounts[statusKey] || 0) + 1;
@@ -357,9 +643,13 @@ async function fetchPropertyCounts(rapidApiKey: string) {
 	}
 
 	return {
+		startedAt,
+		endedAt: new Date().toISOString(),
 		totalZipCodes: rapidApiZipCodes.length,
 		totalBatches: batches.length,
 		requestsAttempted,
+		outboundAttempts,
+		retriesPerformed,
 		successfulBatches,
 		failedBatches,
 		statusCounts,
@@ -388,163 +678,67 @@ export const countPropertiesByCity = onRequest({ secrets: [rapidApiKeySecret] },
 	}
 });
 
-export const fetchAndStorePropertiesSample = onRequest({ secrets: [rapidApiKeySecret] }, async (req, res) => {
-	try {
-		const db = getFirestore();
-		const rapidApiKey = rapidApiKeySecret.value();
-		const batches = chunkArray(rapidApiZipCodes, 10);
-		const requestedBatchIndex = Number(req.query.batchIndex ?? 0);
-		const requestedMaxPages = Number(req.query.maxPages ?? 1);
-
-		const batchIndex = Number.isFinite(requestedBatchIndex) && requestedBatchIndex >= 0 ? requestedBatchIndex : 0;
-		const maxPages = Number.isFinite(requestedMaxPages) && requestedMaxPages > 0 ? Math.min(requestedMaxPages, 10) : 1;
-
-		if (batchIndex >= batches.length) {
-			res.status(400).json({
-				ok: false,
-				message: `batchIndex out of range. Must be between 0 and ${batches.length - 1}`,
-			});
-			return;
-		}
-
-		const pageSize = 20;
-		const runId = new Date().toISOString();
-		const batch = batches[batchIndex];
-
-		let requestsAttempted = 0;
-		let pagesFetched = 0;
-		let upserted = 0;
-		let skippedNoPropertyId = 0;
-		let apiReportedTotal: number | null = null;
-
-		for (let page = 0; page < maxPages; page++) {
-			const offset = page * pageSize;
-			const url = buildSearchUrl(batch, offset, pageSize);
-
-			requestsAttempted += 1;
-			const response = await fetch(url, {
-				headers: {
-					"X-RapidAPI-Key": rapidApiKey,
-					"X-RapidAPI-Host": rapidApiHost,
-				},
-			});
-
-			if (!response.ok) {
-				const errorText = await response.text();
-				res.status(response.status).json({
-					ok: false,
-					batchIndex,
-					batchZips: batch,
-					requestsAttempted,
-					message: getRapidApiErrorMessage(errorText),
-				});
-				return;
-			}
-
-			const data = await response.json();
-			const properties = getPropertiesArray(data);
-			if (apiReportedTotal === null) {
-				apiReportedTotal = getApiReportedTotal(data);
-			}
-
-			if (properties.length === 0) {
-				break;
-			}
-
-			const pullDate = new Date().toISOString();
-			const result = await upsertPropertiesForPage(db, properties, pullDate, runId);
-			upserted += result.upserted;
-			skippedNoPropertyId += result.skippedNoPropertyId;
-			pagesFetched += 1;
-
-			if (apiReportedTotal !== null && upserted >= apiReportedTotal) {
-				break;
-			}
-		}
-
-		res.status(200).json({
-			ok: true,
-			runId,
-			batchIndex,
-			batchZips: batch,
-			maxPages,
-			requestsAttempted,
-			pagesFetched,
-			upserted,
-			skippedNoPropertyId,
-			apiReportedTotal,
-		});
-		return;
-	} catch (error: any) {
-		console.error("fetchAndStorePropertiesSample failed:", error);
-		res.status(500).json({ ok: false, message: error?.message || "Unknown error" });
-		return;
-	}
-});
-
 export const fetchAndStoreProperties = onSchedule({ schedule: "every 24 hours", secrets: [rapidApiKeySecret] }, async (event) => {
 	const db = getFirestore();
 	const rapidApiKey = rapidApiKeySecret.value();
-	const batches = chunkArray(rapidApiZipCodes, 10);
-	const pageSize = 20;
-	const maxPagesPerBatch = 50;
-	const runId = new Date().toISOString();
-	let totalUpserted = 0;
-	let totalSkippedNoPropertyId = 0;
+	const result = await runPropertyIngest(db, rapidApiKey, {
+		maxPagesPerBatch: 50,
+		runLabel: "scheduled",
+		persistTelemetry: true,
+		dryRun: false,
+	});
 
-	for (const batch of batches) {
-		let batchStored = 0;
-		let batchSkippedNoPropertyId = 0;
-		let batchApiReportedTotal: number | null = null;
+	console.log(
+		`fetchAndStoreProperties summary: runId=${result.runId}, requestsAttempted=${result.requestsAttempted}, outboundAttempts=${result.outboundAttempts}, retriesPerformed=${result.retriesPerformed}, received=${result.receivedProperties}, expectedKnown=${result.expectedPropertiesFromApiReported}, writes=${result.writes}, errors=${result.errors}, failedBatches=${result.failedBatches}, failedPages=${result.failedPages}`,
+	);
+});
 
-		for (let page = 0; page < maxPagesPerBatch; page++) {
-			const offset = page * pageSize;
-			const url = buildSearchUrl(batch, offset, pageSize);
-			try {
-				const response = await fetch(url, {
-					headers: {
-						"X-RapidAPI-Key": rapidApiKey,
-						"X-RapidAPI-Host": rapidApiHost,
-					},
-				});
+export const runPropertyIngestNow = onRequest({ secrets: [rapidApiKeySecret] }, async (req, res) => {
+	try {
+		const db = getFirestore();
+		const rapidApiKey = rapidApiKeySecret.value();
 
-				if (!response.ok) {
-					const errorText = await response.text();
-					console.error(`RapidAPI request failed for batch ${batch.join(",")} page=${page + 1}:`, errorText);
-					break;
-				}
+		const requestedMaxPages = Number(req.query.maxPagesPerBatch ?? 10);
+		const requestedMaxBatches = Number(req.query.maxBatches ?? 2);
+		const dryRunRaw = String(req.query.dryRun ?? "false").toLowerCase();
+		const dryRun = dryRunRaw === "true" || dryRunRaw === "1";
 
-				const data = await response.json();
-				const properties = getPropertiesArray(data);
-				const apiReportedTotal = getApiReportedTotal(data);
-				if (batchApiReportedTotal === null && apiReportedTotal !== null) {
-					batchApiReportedTotal = apiReportedTotal;
-				}
+		const maxPagesPerBatch = Number.isFinite(requestedMaxPages) && requestedMaxPages > 0
+			? Math.min(requestedMaxPages, 50)
+			: 10;
+		const maxBatches = Number.isFinite(requestedMaxBatches) && requestedMaxBatches > 0
+			? Math.min(requestedMaxBatches, chunkArray(rapidApiZipCodes, 10).length)
+			: 2;
 
-				if (properties.length === 0) {
-					break;
-				}
+		const result = await runPropertyIngest(db, rapidApiKey, {
+			maxPagesPerBatch,
+			maxBatches,
+			dryRun,
+			persistTelemetry: true,
+			runLabel: "on_demand_test",
+		});
 
-				const pullDate = new Date().toISOString();
-				const result = await upsertPropertiesForPage(db, properties, pullDate, runId);
-				batchStored += result.upserted;
-				batchSkippedNoPropertyId += result.skippedNoPropertyId;
-
-				if (batchApiReportedTotal !== null && batchStored >= batchApiReportedTotal) {
-					break;
-				}
-			} catch (error) {
-				console.error(`Error fetching batch ${batch.join(",")} page=${page + 1}:`, error);
-				break;
-			}
-		}
-
-		totalUpserted += batchStored;
-		totalSkippedNoPropertyId += batchSkippedNoPropertyId;
-		console.log(`Properties upserted for batch: ${batch.join(",")} count=${batchStored}, skippedNoPropertyId=${batchSkippedNoPropertyId}`);
+		res.status(200).json({
+			ok: true,
+			message: "On-demand ingest test completed",
+			...result,
+			summary: {
+				expectedPropertiesFromApiReported: result.expectedPropertiesFromApiReported,
+				receivedProperties: result.receivedProperties,
+				receivedMinusExpectedKnown: result.receivedProperties - result.expectedPropertiesFromApiReported,
+				failedBatches: result.failedBatches,
+				failedPages: result.failedPages,
+				retriesPerformed: result.retriesPerformed,
+				writes: result.writes,
+				errors: result.errors,
+			},
+		});
+		return;
+	} catch (error: any) {
+		console.error("runPropertyIngestNow failed:", error);
+		res.status(500).json({ ok: false, message: error?.message || "Unknown error" });
+		return;
 	}
-
-	console.log(`fetchAndStoreProperties summary: runId=${runId}, upserted=${totalUpserted}, skippedNoPropertyId=${totalSkippedNoPropertyId}`);
 });
 
 
@@ -552,8 +746,7 @@ export const fetchAndStoreProperties = onSchedule({ schedule: "every 24 hours", 
 async function runDeactivateInactiveUsers() {
 	const db = getFirestore();
 	const auth = getAuth();
-	// const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
-	const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+	const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
 	let processedUsers = 0;
 	let deactivatedUsers = 0;
 	let skippedUsers = 0;
@@ -565,7 +758,7 @@ async function runDeactivateInactiveUsers() {
 		processedUsers += 1;
 		if (user.metadata.lastSignInTime) {
 			const lastSignIn = new Date(user.metadata.lastSignInTime).getTime();
-			if (lastSignIn < oneWeekAgo) {
+			if (lastSignIn < ninetyDaysAgo) {
 				await db.collection("users").doc(user.uid).update({ is_active: false });
 				deactivatedUsers += 1;
 				deactivatedUserIds.push(user.uid);
@@ -591,7 +784,6 @@ export const deactivateInactiveUsers = onSchedule("every 24 hours", async (event
 		`deactivateInactiveUsers summary: processed=${result.processedUsers}, deactivated=${result.deactivatedUsers}, skipped=${result.skippedUsers}`,
 	);
 });
-
 export const deactivateInactiveUsersNow = onRequest(async (req, res) => {
 	try {
 		const result = await runDeactivateInactiveUsers();

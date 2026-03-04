@@ -1,7 +1,9 @@
-import { auth } from '@/components/firebaseConfig';
-import { fetchUserData } from '@/utils/functions';
+import { auth, db } from '@/components/firebaseConfig';
+import { fetchUserData, saveUserPushToken } from '@/utils/functions';
 import { UserData } from '@/utils/interfaces';
+import { registerForPushNotificationsAsync } from '@/utils/pushNotifications';
 import { User, onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 
 interface AuthContextType {
@@ -24,11 +26,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(firebaseUser);
       
       if (firebaseUser) {
-        // Fetch additional user data from Firestore
         try {
+          await setDoc(
+            doc(db, 'users', firebaseUser.uid),
+            {
+              is_active: true,
+            },
+            { merge: true }
+          );
+
           const data = await fetchUserData(firebaseUser.uid);
           setUserData(data);
           console.log('[AuthContext] User data loaded:', data?.role);
+
+          try {
+            const pushToken = await registerForPushNotificationsAsync();
+            if (pushToken) {
+              await saveUserPushToken(firebaseUser.uid, pushToken);
+            }
+          } catch (pushError) {
+            console.error('[AuthContext] Push token registration failed:', pushError);
+          }
         } catch (error) {
           console.error('[AuthContext] Failed to fetch user data:', error);
           setUserData(null);

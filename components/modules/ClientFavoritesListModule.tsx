@@ -1,6 +1,6 @@
 import { db } from '@/components/firebaseConfig';
-import { landingStyles } from '@/constants/styles';
 import PropertyDetailsModal from '@/components/modules/PropertyDetailsModal';
+import { landingStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClientOffer, fetchClientFavorites, fetchFavoriteByID, fetchUserData } from '@/utils/functions';
 import { FavoriteProperty, OfferData } from '@/utils/interfaces';
@@ -265,6 +265,29 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
 									marginBottom: 4,
 								}}>
 									{item.beds !== null ? `${item.beds} bd` : 'N/A'} | {item.baths !== null ? `${item.baths} ba` : 'N/A'}
+								</Text>
+
+								<Text style={{
+									fontSize: 13,
+									color: '#555',
+									marginBottom: 2,
+								}}>
+									Type: {item.type ? item.type.replace(/_/g, ' ') : 'N/A'}
+								</Text>
+
+								<Text style={{
+									fontSize: 13,
+									color: '#555',
+									marginBottom: 2,
+								}}>
+									Sqft: {item.sqft !== null ? item.sqft.toLocaleString() : 'N/A'} | Lot: {item.lot_sqft !== null ? item.lot_sqft.toLocaleString() : 'N/A'}
+								</Text>
+
+								<Text style={{
+									fontSize: 13,
+									color: '#555',
+								}}>
+									Status: {item.status ? item.status.replace(/_/g, ' ') : 'N/A'}
 								</Text>
 							</View>
 						</View>

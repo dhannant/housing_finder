@@ -139,6 +139,12 @@ export default function PropertyDetailsModal({ visible, property, onClose, heade
 					<Text style={mapStyles.details}>
 						{property.beds || '?'} beds • {property.baths || '?'} baths
 					</Text>
+					<Text style={mapStyles.details}>
+						Type: {property.type ? property.type.replace(/_/g, ' ') : 'N/A'}
+					</Text>
+					<Text style={mapStyles.details}>
+						Sqft: {property.sqft !== null ? property.sqft.toLocaleString() : 'N/A'} • Lot: {property.lot_sqft !== null ? property.lot_sqft.toLocaleString() : 'N/A'}
+					</Text>
 					<Text style={mapStyles.status}>Status: {property.status?.replace('_', ' ') || 'N/A'}</Text>
 				</View>
 			</View>

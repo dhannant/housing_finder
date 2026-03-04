@@ -13,6 +13,9 @@ export interface UserData {
 	createdAt?: any;
 	selectedRealtorId?: string;
 	is_active?: boolean;
+	pushToken?: string;
+	pushTokenPlatform?: string;
+	pushTokenUpdatedAt?: any;
 }
 
 export interface ClientData {

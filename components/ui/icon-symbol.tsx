@@ -24,6 +24,7 @@ const MAPPING = {
   'bookmark.fill': 'bookmark',
   'star.fill': 'star',
   'person.fill': 'person',
+  'calendar': 'calendar-today',
 } as IconMapping;
 
 /**

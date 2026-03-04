@@ -1,32 +1,43 @@
 # TODO Notes
 
-## 🔒 Pinned Checkpoint — Return Here First
+## Product & App Tasks
 
-- Date: 2026-02-28
-- Context: RapidAPI → Firebase Functions ingestion pipeline work (critical milestone)
-- Status: In-progress and working in test mode
-- Current key implementation state:
-  - `countPropertiesByCity` exists for diagnostics and request counting
-  - Pagination implemented (`limit`/`offset`) with per-batch/page diagnostics
-  - Invalid zip isolation added for failed 400 batches
-  - `fetchAndStoreProperties` uses upsert by `property_id` (no duplicate `.add` behavior)
-  - Metadata fields in writes: `apiPullDate`, `apiFirstSeenDate`, `apiLastSeenDate`, `apiPullRunId`, `apiSource`, `apiActive`
-  - `fetchAndStorePropertiesSample` exists for controlled single-batch write testing
-- If unrelated errors come up, return to this checkpoint before making large directional changes.
+- [X] Add SDKs for Firebase products needed in `components/firebaseConfig.ts`.
+  - Reference: [firebaseConfig.ts](https://github.com/dhannant/housing_finder/blob/b4ca3557897d0a6d94309b16d2a6aebd2417a31b/components/firebaseConfig.ts)
+- [X] Implement six-month inactivity check (recent login should surface new lead behavior).
+- [X] Review and clean Firebase imports (use Firebase JS SDK only; avoid `@react-native-firebase` where not required).
+- [X] Confirm `db` and `auth` are imported from `firebaseConfig.ts` everywhere used.
+- [X] Set permissive Firestore rules for development (`allow read, write: if true;`) and tighten for production.
+- [ ] Refactor `styles.ts` to combine duplicate style patterns (for example `actionButton`, `helpButton`).
+- [ ] Add Privacy Policy and Terms of Service.
+- [ ] Add min/max validation for map filters (especially bedrooms and bathrooms).
+- [ ] Test min/max filter edge cases (`min > max`, equal values, empty values) and show correction/warning UX.
+- [ ] Update code paths for user role = Admin.
+- [ ] Refactor `app/agent/(tabs)/agent-dashboard.tsx` with React Native Paper components.
+- [ ] Add account cleanup workflow: around 15 days after closing (or move-in date, whichever is later), delete user profile and related data.
 
-1. Add SDKs for Firebase products that you want to use from the file components/firebaseConfig.ts. More details can be viewed [here](https://github.com/dhannant/housing_finder/blob/b4ca3557897d0a6d94309b16d2a6aebd2417a31b/components/firebaseConfig.ts).
-2. Six-month inactivity check: Recent login should pop new lead. Original note sourced from general request input.
-3. Review and clean up Firebase imports: Ensure only the firebase JS SDK is used (no @react-native-firebase). Confirm db and auth are imported from firebaseConfig.ts everywhere they're used.
-4. Check Firestore rules for development: Set Firestore rules to allow read/write for development. Use: allow read, write: if true; and tighten for production.
-5. Refactor the styles.ts to combine like items (ie actionButton, helpButton)
-6. Add a privacy policy and terms of service
+## Push Notification Milestones
 
-7. Add min/max validation for map filters: Implement and test min/max validation for all map filters, especially for bedrooms and bathrooms, to prevent invalid ranges and provide user feedback.
-8. Test min/max filter edge cases: Test the map filter UI for edge cases: min > max, equal values, empty values, and ensure warnings or corrections are shown for bedrooms and bathrooms.
-9. Update code for user role = Admin
-10. Incorporate phone push notifications for major milestones / events.
-11. Refactor agent-dashboard.tsx with React Native Paper: Replace TouchableOpacity buttons with Paper Button components, convert View cards to Paper Card, and simplify custom styles. Benefits: Material Design consistency, built-in ripple effects, better accessibility, and reduced boilerplate.
-12. Roughly 15 days after closing (or move in date?  maybe which ever is later), we need to delete the users profile along with all related documents created (favorites, etc...)
+- [ ] Client requests an agent (`clientRequests` create with `status: Pending`) → notify selected agent.
+  - Source: `handleSelectRealtor` in `app/client/(tabs)/client-dashboard.tsx`
+- [ ] Agent approves client request (`clientRequests` update/create with `status: Approved`) → notify client.
+  - Source: `handleAssignClient` in `app/agent/(tabs)/agent-dashboard.tsx`
+- [ ] Agent declines client request (`clientRequests` update with `status: Declined` + `reason`) → notify client with decline reason.
+  - Source: `handleDeclineRequest` in `app/agent/(tabs)/agent-dashboard.tsx`
+- [ ] Agent releases client (delete `clientRequests` assignment) → notify client they are unassigned.
+  - Source: `handleReleaseClient` in `app/agent/(tabs)/agent-dashboard.tsx`
+- [ ] Agent creates offer (`clientOffers` create with `status: Offer Made`) → notify client.
+  - Source: `createClientOffer` call in `components/modules/ClientFavoritesListModule.tsx`
+- [ ] Offer status changed (`clientOffers.status`) → notify assigned agent + client.
+  - Source: `handleSave` in `app/(shared_screens)/client_offer_details.tsx`
+- [ ] Offer milestone dates changed (`dueDiligence*`, `inspectionDate`, `closingDate`, `earnestMoney*`) → notify both sides.
+  - Source: `handleSave` in `app/(shared_screens)/client_offer_details.tsx`
+- [ ] Agent assigns a property as favorite to client (`clientFavorites` create for another user) → notify client.
+  - Source: `toggleFavorite(selectedClientId, selectedHouse)` in `app/(tabs)/map.tsx`
+- [ ] Optional: client Request Help action (once stored in Firestore) → notify assigned agent.
+  - Source: `handleRequestHelp` in `app/(tabs)/map.tsx`
+- [ ] Optional: account deactivation warning (24h before scheduled inactive deactivation) → notify impacted user.
+  - Source: `runDeactivateInactiveUsers` / `deactivateUsersAfterCloseDate` in `functions/src/index.ts`
 
 
 
@@ -40,7 +51,15 @@
 - [ ] Enforce search area limits when user zooms or uses 'Search This Area' (prevent excessive/irrelevant results)
 
 
-# Todo List
+## Ingestion Hardening
+
+- [x] Add retry/backoff and timeout handling to RapidAPI ingestion calls
+- [x] Persist ingestion telemetry with batch/page failure detail in `apiPullRuns`
+- [x] Add on-demand ingestion test endpoint with expected vs received summary stats
+- [ ] Create a post-run function to mark unseen properties inactive (`apiActive: false` when not seen in the current ingest run)
+
+
+## Misc Todo List
 
 - [x] Add Request Help button and function
 - [ ] Store help request in Firestore
