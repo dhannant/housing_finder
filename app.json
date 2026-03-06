@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "housing-finder",
-    "slug": "housing-finder",
-    "version": "1.0.0",
+    "name": "Leading Edge Realty App",
+    "slug": "leading-edge-realty-app",
+    "version": "0.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "housingfinder",
+    "scheme": "leadingedgerealtyapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -20,7 +20,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.dhannant.housingfinder"
+      "package": "com.hitsolutions.leadingedgerealtyapp"
     },
     "web": {
       "output": "static",

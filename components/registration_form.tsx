@@ -1,3 +1,4 @@
+import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
@@ -16,6 +17,32 @@ export default function RegisterForm() {
 	const [phoneNumber, setPhoneNumber] = useState<string>("");
 	const [role, setRole] = useState<"Client" | "Agent">("Client"); // Will be set automatically
 	const [is_active, setIsActive] = useState<boolean>(true);
+
+	async function getSignupLocation(): Promise<{
+		latitude: number;
+		longitude: number;
+		accuracy: number | null;
+	} | null> {
+		try {
+			const { status } = await Location.requestForegroundPermissionsAsync();
+			if (status !== "granted") {
+				return null;
+			}
+
+			const position = await Location.getCurrentPositionAsync({
+				accuracy: Location.Accuracy.Balanced,
+			});
+
+			return {
+				latitude: position.coords.latitude,
+				longitude: position.coords.longitude,
+				accuracy: position.coords.accuracy ?? null,
+			};
+		} catch (locationError) {
+			console.warn("[Register] Unable to capture signup location:", locationError);
+			return null;
+		}
+	}
 
 	function formatPhoneNumber(value: string) {
 		// Remove all non-digit characters
@@ -61,6 +88,8 @@ export default function RegisterForm() {
 		setError("");
 		setSuccess("");
 		try {
+			const signupLocation = await getSignupLocation();
+
 			// Step 1: Register user with Auth
 			const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 			const user = userCredential.user;
@@ -77,6 +106,8 @@ export default function RegisterForm() {
 				email: user.email,
 				role: detectedRole,
 				is_active: true,
+				signupLocation,
+				signupLocationCapturedAt: signupLocation ? new Date() : null,
 				createdAt: new Date(),
 			});
 

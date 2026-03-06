@@ -155,6 +155,40 @@ To learn more about developing your project with Expo, look at the following res
 - API requests are executed from Firebase Functions using Firebase Secrets for API key protection.
 - Results can be cached in Firestore to reduce API calls and improve performance.
 
+### Google Maps Platform (Android map rendering)
+- The app map uses `react-native-maps`.
+- On Android release builds, this uses the native Google Maps SDK and requires a Google Maps API key.
+- Billing must be enabled on the Google Cloud project for Maps SDK usage.
+
+#### APIs currently in use
+1. RapidAPI Realtor API (server-side via Firebase Functions secrets)
+2. Google Maps Platform (Android client-side map SDK key)
+
+#### Android Maps key setup checklist
+1. In Google Cloud Console, enable `Maps SDK for Android`.
+2. Create an API key in `APIs & Services -> Credentials`.
+3. Restrict the key:
+   - Application restriction: `Android apps`
+   - Package name: `com.hitsolutions.leadingedgerealtyapp`
+   - SHA-1: use the EAS Android signing certificate fingerprint
+   - API restriction: `Maps SDK for Android` only
+4. Store the key in EAS as a build secret (do not commit key values):
+
+```bash
+eas secret:create --name GOOGLE_MAPS_ANDROID_API_KEY --value YOUR_ANDROID_MAPS_KEY
+```
+
+5. Inject the key at build time via app config (`app.config.ts`) or controlled config pipeline.
+6. Build a new Android binary after any maps key/config changes:
+
+```bash
+eas build --profile preview --platform android
+```
+
+#### iOS note
+- Default iOS map rendering uses Apple MapKit and does not require a Google Maps key.
+- If switching iOS provider to Google, create a separate iOS-restricted key.
+
 #### Example API Flow
 1. Firebase Functions fetch property data from RapidAPI on schedule or HTTP trigger.
 2. Function normalizes/upserts records into Firestore `properties`.

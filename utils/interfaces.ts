@@ -13,6 +13,12 @@ export interface UserData {
 	createdAt?: any;
 	selectedRealtorId?: string;
 	is_active?: boolean;
+	signupLocation?: {
+		latitude: number;
+		longitude: number;
+		accuracy: number | null;
+	} | null;
+	signupLocationCapturedAt?: any;
 	pushToken?: string;
 	pushTokenPlatform?: string;
 	pushTokenUpdatedAt?: any;

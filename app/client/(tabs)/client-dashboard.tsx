@@ -1,4 +1,5 @@
 import { auth, db } from "@/components/firebaseConfig";
+import CalendarModule from "@/components/modules/calendarModule";
 import { clientDashboard_styles, landingStyles } from '@/constants/styles';
 import { useAssignedRealtor, usePendingClientRequests, useRealtors, useUserData } from "@/hooks/useFunctions";
 import { fetchActiveOfferForClient, fetchClientFavorites, fetchUserOffers } from "@/utils/functions";
@@ -120,7 +121,7 @@ export default function ClientDashboard() {
 						</Text>
 					</View>
 					<SelectAgentModule
-						realtors={realtors}
+						realtors={realtors ?? []}
 						pendingRequestsRealtorId={pendingRequestsRealtorId}
 						requesting={requesting}
 						onSelectRealtor={handleSelectRealtor}
@@ -137,6 +138,7 @@ export default function ClientDashboard() {
 					/>
 				)}
 				{assignedRealtorId && <YourAgentModule realtorId={assignedRealtorId} styles={clientDashboard_styles} />}
+				{clientHasActiveOffer && <CalendarModule role="client" activeOfferId={activeOfferId} />}
 				{!clientHasActiveOffer && 
 				<View style={clientDashboard_styles.bottomButtonsContainer}>
 					<TouchableOpacity style={[landingStyles.actionButton, landingStyles.buyButton, { marginHorizontal: 16, marginTop: 8, paddingVertical: 16, paddingHorizontal: 16 }]} onPress={() => router.push({ pathname: '/(tabs)/map', params: { userType: 'buy', zoomToUser: 'false' } })} activeOpacity={0.8}>
