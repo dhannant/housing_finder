@@ -3,7 +3,7 @@ import { ConfigContext, ExpoConfig } from 'expo/config';
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: config.name ?? 'Leading Edge Realty App',
-  slug: config.slug ?? 'leading-edge-realty-app',
+  slug: config.slug ?? 'housing-finder',
   version: config.version ?? '0.0.2',
   android: {
     ...config.android,

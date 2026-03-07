@@ -1,20 +1,20 @@
 import { db } from '@/components/firebaseConfig';
-import { Alert, Linking, Platform } from 'react-native';
 import {
-	addDoc,
-	arrayUnion,
-	collection,
-	deleteDoc,
-	doc,
-	getDoc,
-	getDocs,
-	getFirestore,
-	query,
-	setDoc,
-	updateDoc,
-	where,
+    addDoc,
+    arrayUnion,
+    collection,
+    deleteDoc,
+    doc,
+    getDoc,
+    getDocs,
+    getFirestore,
+    query,
+    setDoc,
+    updateDoc,
+    where,
 } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
+import { Alert, Linking, Platform } from 'react-native';
 import * as interfaces from './interfaces';
 
 /**
@@ -55,7 +55,6 @@ export const mapPropertyDocToFavorite = (
 		userId,
 		propertyId,
 		savedAt,
-		favoriteId: favoriteDocId,
 		price: data?.list_price ?? data?.price?.list_price ?? data?.price?.value ?? data?.price ?? null,
 		address: fullAddress,
 		beds: data?.description?.beds ?? data?.beds ?? null,
@@ -338,13 +337,21 @@ export const checkIfFavorite = async (userId: string, propertyId: string): Promi
 	}
 };
 
+type FavoriteWriteMetadata = {
+	assignedByAgentId?: string;
+};
+
 /** Toggles a property as a favorite for the userId provided
  * @param userId
  * @returns boolean
  */
-export const toggleFavorite = async (userId: string, property: interfaces.Property): Promise<boolean> => {
+export const toggleFavorite = async (
+	userId: string,
+	property: interfaces.Property,
+	metadata: FavoriteWriteMetadata = {},
+): Promise<boolean> => {
 	try {
-		const propertyId = String((property as any).favoriteId || (property as any).id || (property as any).propertyId || "").trim();
+		const propertyId = String((property as any).id || (property as any).propertyId || "").trim();
 		if (!propertyId) {
 			throw new Error("Property ID is required to toggle favorite");
 		}
@@ -364,10 +371,19 @@ export const toggleFavorite = async (userId: string, property: interfaces.Proper
 		} else {
 			// Property is not favorited - store minimal linkage data only
 			const favoriteDocId = makeFavoriteDocId(userId, propertyId);
-			await setDoc(doc(db, "clientFavorites", favoriteDocId), {
+			const writePayload: Record<string, unknown> = {
 				userId,
 				propertyId,
 				savedAt: new Date(),
+			};
+
+			if (typeof metadata.assignedByAgentId === 'string' && metadata.assignedByAgentId.trim().length > 0) {
+				writePayload.assignedByAgentId = metadata.assignedByAgentId.trim();
+				writePayload.assignedAt = new Date();
+			}
+
+			await setDoc(doc(db, "clientFavorites", favoriteDocId), {
+				...writePayload,
 			}, { merge: true });
 			return true;
 		}
@@ -375,7 +391,7 @@ export const toggleFavorite = async (userId: string, property: interfaces.Proper
 		console.error(`[toggleFavorite] ✗ Error toggling favorite status:`, error);
 		throw error;
 	}
-}
+};
 
 /** Fetches all favorites for provided userId
  * @param userId

@@ -18,21 +18,21 @@
 
 ## Push Notification Milestones
 
-- [ ] Client requests an agent (`clientRequests` create with `status: Pending`) → notify selected agent.
+- [x] Client requests an agent (`clientRequests` create with `status: Pending`) → notify selected agent.
   - Source: `handleSelectRealtor` in `app/client/(tabs)/client-dashboard.tsx`
-- [ ] Agent approves client request (`clientRequests` update/create with `status: Approved`) → notify client.
+- [x] Agent approves client request (`clientRequests` update/create with `status: Approved`) → notify client.
   - Source: `handleAssignClient` in `app/agent/(tabs)/agent-dashboard.tsx`
-- [ ] Agent declines client request (`clientRequests` update with `status: Declined` + `reason`) → notify client with decline reason.
+- [x] Agent declines client request (`clientRequests` update with `status: Declined` + `reason`) → notify client with decline reason.
   - Source: `handleDeclineRequest` in `app/agent/(tabs)/agent-dashboard.tsx`
-- [ ] Agent releases client (delete `clientRequests` assignment) → notify client they are unassigned.
+- [x] Agent releases client (delete `clientRequests` assignment) → notify client they are unassigned.
   - Source: `handleReleaseClient` in `app/agent/(tabs)/agent-dashboard.tsx`
-- [ ] Agent creates offer (`clientOffers` create with `status: Offer Made`) → notify client.
+- [x] Agent creates offer (`clientOffers` create with `status: Offer Made`) → notify client.
   - Source: `createClientOffer` call in `components/modules/ClientFavoritesListModule.tsx`
-- [ ] Offer status changed (`clientOffers.status`) → notify assigned agent + client.
+- [x] Offer status changed (`clientOffers.status`) → notify assigned agent + client.
   - Source: `handleSave` in `app/(shared_screens)/client_offer_details.tsx`
-- [ ] Offer milestone dates changed (`dueDiligence*`, `inspectionDate`, `closingDate`, `earnestMoney*`) → notify both sides.
+- [x] Offer milestone dates changed (`dueDiligence*`, `inspectionDate`, `closingDate`, `earnestMoney*`) → notify both sides.
   - Source: `handleSave` in `app/(shared_screens)/client_offer_details.tsx`
-- [ ] Agent assigns a property as favorite to client (`clientFavorites` create for another user) → notify client.
+- [x] Agent assigns a property as favorite to client (`clientFavorites` create for another user) → notify client.
   - Source: `toggleFavorite(selectedClientId, selectedHouse)` in `app/(tabs)/map.tsx`
 - [ ] Optional: client Request Help action (once stored in Firestore) → notify assigned agent.
   - Source: `handleRequestHelp` in `app/(tabs)/map.tsx`

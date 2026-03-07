@@ -128,6 +128,7 @@ export default function RegisterForm() {
 			<TextInput
 				style={styles.input}
 				placeholder="First Name"
+				placeholderTextColor="#6B7280"
 				value={firstName}
 				onChangeText={setFirstName}
 				autoCapitalize="words"
@@ -136,6 +137,7 @@ export default function RegisterForm() {
 			<TextInput
 				style={styles.input}
 				placeholder="Last Name"
+				placeholderTextColor="#6B7280"
 				value={lastName}
 				onChangeText={setLastName}
 				autoCapitalize="words"
@@ -144,6 +146,7 @@ export default function RegisterForm() {
 			<TextInput
 				style={styles.phoneNumber}
 				placeholder="Phone Number"
+				placeholderTextColor="#6B7280"
 				// here we need to convert number to string for TextInput
 				value={phoneNumber?.toString() || ""}
 				// but unlike email and password, we convert string back to number
@@ -155,6 +158,7 @@ export default function RegisterForm() {
 			<TextInput
 				style={styles.input}
 				placeholder="Email"
+				placeholderTextColor="#6B7280"
 				value={email}
 				onChangeText={setEmail}
 				autoCapitalize="none"
@@ -164,6 +168,7 @@ export default function RegisterForm() {
 			<TextInput
 				style={styles.input}
 				placeholder="Password"
+				placeholderTextColor="#6B7280"
 				value={password}
 				onChangeText={setPassword}
 				secureTextEntry
@@ -181,10 +186,26 @@ export default function RegisterForm() {
 const styles = StyleSheet.create({
 	container: { padding: 20, backgroundColor: "#fff", borderRadius: 8, margin: 20, elevation: 2 },
 	title: { fontSize: 24, fontWeight: "bold", marginBottom: 16, textAlign: "center" },
-	input: { borderWidth: 1, borderColor: "#ccc", borderRadius: 4, padding: 10, marginBottom: 12 },
+	input: {
+		borderWidth: 1,
+		borderColor: "#ccc",
+		borderRadius: 4,
+		padding: 10,
+		marginBottom: 12,
+		backgroundColor: "#fff",
+		color: "#111827",
+	},
 	error: { color: "red", marginTop: 10, textAlign: "center" },
 	success: { color: "green", marginTop: 10, textAlign: "center" },
-	phoneNumber: { borderWidth: 1, borderColor: "#ccc", borderRadius: 4, padding: 10, marginBottom: 12 },
+	phoneNumber: {
+		borderWidth: 1,
+		borderColor: "#ccc",
+		borderRadius: 4,
+		padding: 10,
+		marginBottom: 12,
+		backgroundColor: "#fff",
+		color: "#111827",
+	},
 	pickerContainer: { borderWidth: 1, borderColor: "#ccc", borderRadius: 4, marginBottom: 12 },
 	pickerLabel: { fontSize: 14, fontWeight: "600", color: "#333", paddingHorizontal: 10, paddingTop: 8, paddingBottom: 4 },
 	picker: { height: 50 },

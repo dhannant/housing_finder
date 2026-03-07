@@ -1,13 +1,13 @@
 import { db } from '@/components/firebaseConfig';
+import PropertyDetailsModal from '@/components/modules/PropertyDetailsModal';
 import { mapStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';
-import PropertyDetailsModal from '@/components/modules/PropertyDetailsModal';
 import * as Functions from '@/utils/functions';
 import type { Property } from '@/utils/interfaces';
 import { Picker } from '@react-native-picker/picker';
 import * as Location from "expo-location";
-import { collection, getDocs } from 'firebase/firestore';
 import { router, useLocalSearchParams } from 'expo-router';
+import { collection, getDocs } from 'firebase/firestore';
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { default as MapView, Marker, default as RNMapView, type Region } from 'react-native-maps';
@@ -175,7 +175,6 @@ function mapFirestoreProperty(docId: string, data: any): House | null {
 
 	const mapped: any = {
 		id: docId,
-		favoriteId: "",
 		price: data?.list_price ?? data?.price?.list_price ?? data?.price?.value ?? null,
 		address: fullAddress,
 		beds: data?.description?.beds ?? data?.beds ?? null,
@@ -551,7 +550,9 @@ const hasZoomedRef = useRef(false);
 									onPress={async () => {
 										if (!selectedClientId || selectedClientId === 'placeholder' || !selectedHouse) return;
 										try {
-											await Functions.toggleFavorite(selectedClientId, selectedHouse);
+											await Functions.toggleFavorite(selectedClientId, selectedHouse, {
+												assignedByAgentId: user?.uid || undefined,
+											});
 											setShowAssignModal(false);
 											Alert.alert('Success', 'Favorite assigned to client.');
 										} catch (err) {

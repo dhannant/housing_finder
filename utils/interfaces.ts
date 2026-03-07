@@ -102,7 +102,7 @@ export interface OfferData {
  * Property Interface
  */
 export interface Property {
-	favoriteId: string;
+	id: string;
 	price: number | null;
 	address: string;
 	beds: number | null;

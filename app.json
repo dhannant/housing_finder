@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Leading Edge Realty App",
-    "slug": "leading-edge-realty-app",
+    "slug": "housing-finder",
     "version": "0.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

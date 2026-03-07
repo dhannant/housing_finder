@@ -12,7 +12,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { setGlobalOptions } from "firebase-functions";
 import { defineSecret } from "firebase-functions/params";
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentDeleted, onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 
@@ -45,6 +45,7 @@ const propertyIngestLockDocPath = "systemLocks/propertyIngest";
 const propertyIngestLeaseMs = 3 * 60 * 60 * 1000;
 const propertyIngestQueueCollection = "propertyIngestRequests";
 const retryableStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
+const expoPushApiUrl = "https://exp.host/--/api/v2/push/send";
 const rapidApiZipCodes = [
 	"30102","30103","30114","30115","30120","30121","30123","30137","30139","30141","30142","30143","30188","30189",
 	"30501","30503","30504","30506","30510","30512","30513","30514","30516","30517","30518","30519","30520","30522",
@@ -52,6 +53,12 @@ const rapidApiZipCodes = [
 	"30560","30567","30577","30580","30701","30705","30707","30710","30720","30721","30724","30725","30726","30728",
 	"30732","30734","30736","30738","30739","30740","30741","30742","30750","30752","30755","30757","30760"
 ];
+
+type NotificationPayload = {
+	title: string;
+	body: string;
+	data?: Record<string, unknown>;
+};
 
 // ===== Generic Utilities =====
 // Split an array into fixed-size chunks for batched API requests.
@@ -340,6 +347,98 @@ async function upsertPropertiesForPage(
 	}
 
 	return { upserted, skippedNoPropertyId };
+}
+
+// ===== Push Notifications =====
+// Build a readable user name for notification copy.
+function getDisplayName(userData: any, fallback: string) {
+	const firstName = typeof userData?.firstName === "string" ? userData.firstName.trim() : "";
+	const lastName = typeof userData?.lastName === "string" ? userData.lastName.trim() : "";
+	const fullName = `${firstName} ${lastName}`.trim();
+	return fullName || fallback;
+}
+
+function hasMeaningfulValue(value: unknown): boolean {
+	if (value === null || value === undefined) return false;
+	if (typeof value === "string") return value.trim().length > 0;
+	return true;
+}
+
+function normalizeComparableValue(value: unknown): string {
+	if (value === null || value === undefined) return "";
+	if (value instanceof Date) return value.toISOString();
+	if (typeof value === "object" && value && "toDate" in (value as any)) {
+		try {
+			const timestampDate = (value as any).toDate();
+			if (timestampDate instanceof Date) return timestampDate.toISOString();
+		} catch {
+			// Ignore conversion failures and fall back to string conversion.
+		}
+	}
+	if (typeof value === "number" || typeof value === "boolean") return String(value);
+	if (typeof value === "string") return value.trim();
+	try {
+		return JSON.stringify(value);
+	} catch {
+		return String(value);
+	}
+}
+
+async function getUserPushToken(userId: string): Promise<string | null> {
+	if (!userId) return null;
+	const db = getFirestore();
+	const userSnap = await db.collection("users").doc(userId).get();
+	if (!userSnap.exists) return null;
+	const token = userSnap.data()?.pushToken;
+	if (typeof token !== "string" || token.trim().length === 0) return null;
+	return token.trim();
+}
+
+async function sendExpoPushToUser(userId: string, payload: NotificationPayload): Promise<boolean> {
+	const token = await getUserPushToken(userId);
+	if (!token) return false;
+
+	const response = await fetch(expoPushApiUrl, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			Accept: "application/json",
+		},
+		body: JSON.stringify({
+			to: token,
+			sound: "default",
+			title: payload.title,
+			body: payload.body,
+			data: payload.data || {},
+		}),
+	});
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		console.warn(`Push send failed for user=${userId}, status=${response.status}, body=${errorText.slice(0, 400)}`);
+		return false;
+	}
+
+	return true;
+}
+
+async function sendExpoPushToUsers(userIds: string[], payload: NotificationPayload) {
+	const uniqueUserIds = Array.from(new Set(userIds.filter((id) => typeof id === "string" && id.trim().length > 0)));
+	if (uniqueUserIds.length === 0) {
+		return { sent: 0, attempted: 0 };
+	}
+
+	let sent = 0;
+	for (const userId of uniqueUserIds) {
+		try {
+			const ok = await sendExpoPushToUser(userId, payload);
+			if (ok) sent += 1;
+		} catch (error) {
+			console.warn(`Push send exception for user=${userId}`, error);
+		}
+	}
+
+	return { sent, attempted: uniqueUserIds.length };
 }
 
 type IngestRunOptions = {
@@ -862,6 +961,216 @@ export const processQueuedPropertyIngest = onDocumentCreated({
 	} finally {
 		await releasePropertyIngestLease(db, leaseRunId, finalStatus, summary);
 	}
+});
+
+// New pending client request: notify selected agent.
+export const notifyAgentOnClientRequestCreated = onDocumentCreated("clientRequests/{requestId}", async (event) => {
+	const snapshot = event.data;
+	if (!snapshot) return;
+
+	const request = snapshot.data() as any;
+	if (request?.status !== "Pending") return;
+	if (typeof request?.realtorId !== "string" || typeof request?.clientId !== "string") return;
+
+	const db = getFirestore();
+	const clientSnap = await db.collection("users").doc(request.clientId).get();
+	const clientName = getDisplayName(clientSnap.data(), "A client");
+
+	await sendExpoPushToUser(request.realtorId, {
+		title: "New client request",
+		body: `${clientName} requested to work with you.`,
+		data: {
+			type: "client_request_created",
+			requestId: snapshot.id,
+			clientId: request.clientId,
+			realtorId: request.realtorId,
+			status: request.status,
+		},
+	});
+});
+
+// Approval/decline transitions: notify client.
+export const notifyClientOnClientRequestUpdated = onDocumentUpdated("clientRequests/{requestId}", async (event) => {
+	const requestId = typeof event.params?.requestId === "string" ? event.params.requestId : "unknown";
+	const before = event.data?.before?.data() as any;
+	const after = event.data?.after?.data() as any;
+	if (!before || !after) return;
+
+	const beforeStatus = before.status;
+	const afterStatus = after.status;
+	if (beforeStatus === afterStatus) return;
+	if (typeof after?.clientId !== "string") return;
+
+	if (afterStatus === "Approved") {
+		const db = getFirestore();
+		const realtorSnap = await db.collection("users").doc(after.realtorId).get();
+		const realtorName = getDisplayName(realtorSnap.data(), "Your agent");
+		await sendExpoPushToUser(after.clientId, {
+			title: "Request approved",
+			body: `${realtorName} approved your request.`,
+			data: {
+				type: "client_request_approved",
+				requestId,
+				clientId: after.clientId,
+				realtorId: after.realtorId,
+				status: afterStatus,
+			},
+		});
+		return;
+	}
+
+	if (afterStatus === "Declined") {
+		const reason = typeof after.reason === "string" && after.reason.trim().length > 0
+			? ` Reason: ${after.reason.trim()}`
+			: "";
+		await sendExpoPushToUser(after.clientId, {
+			title: "Request declined",
+			body: `An agent declined your request.${reason}`,
+			data: {
+				type: "client_request_declined",
+				requestId,
+				clientId: after.clientId,
+				realtorId: after.realtorId,
+				status: afterStatus,
+				reason: after.reason || null,
+			},
+		});
+	}
+});
+
+// Client released (request removed): notify client they are unassigned.
+export const notifyClientOnClientRequestDeleted = onDocumentDeleted("clientRequests/{requestId}", async (event) => {
+	const snapshot = event.data;
+	if (!snapshot) return;
+	const request = snapshot.data() as any;
+	if (typeof request?.clientId !== "string") return;
+
+	await sendExpoPushToUser(request.clientId, {
+		title: "Agent unassigned",
+		body: "You are no longer assigned to an agent.",
+		data: {
+			type: "client_request_deleted",
+			requestId: snapshot.id,
+			clientId: request.clientId,
+			realtorId: request.realtorId || null,
+		},
+	});
+});
+
+// New offer created by agent: notify client.
+export const notifyClientOnOfferCreated = onDocumentCreated("clientOffers/{offerId}", async (event) => {
+	const snapshot = event.data;
+	if (!snapshot) return;
+
+	const offer = snapshot.data() as any;
+	if (typeof offer?.clientId !== "string") return;
+	if (offer?.status !== "Offer Made") return;
+
+	await sendExpoPushToUser(offer.clientId, {
+		title: "New offer created",
+		body: "Your agent created a new offer for you.",
+		data: {
+			type: "offer_created",
+			offerId: snapshot.id,
+			clientId: offer.clientId,
+			agentId: offer.agentId || null,
+			propertyId: offer.propertyId || null,
+			status: offer.status,
+		},
+	});
+});
+
+// Offer status/milestone changes: notify both agent and client.
+export const notifyOnOfferUpdated = onDocumentUpdated("clientOffers/{offerId}", async (event) => {
+	const offerId = typeof event.params?.offerId === "string" ? event.params.offerId : "unknown";
+	const before = event.data?.before?.data() as any;
+	const after = event.data?.after?.data() as any;
+	if (!before || !after) return;
+
+	const recipients = [after.clientId, after.agentId].filter((id) => typeof id === "string" && id.trim().length > 0);
+	if (recipients.length === 0) return;
+
+	const changedMilestones: string[] = [];
+	const milestoneFields = [
+		"dueDiligenceStart",
+		"dueDiligenceEnd",
+		"inspectionDate",
+		"closingDate",
+		"earnestMoneyDueDate",
+		"earnestMoneyAmountDue",
+	];
+
+	for (const fieldName of milestoneFields) {
+		const beforeValue = normalizeComparableValue(before[fieldName]);
+		const afterValue = normalizeComparableValue(after[fieldName]);
+		if (beforeValue !== afterValue && hasMeaningfulValue(after[fieldName])) {
+			changedMilestones.push(fieldName);
+		}
+	}
+
+	const beforeStatus = normalizeComparableValue(before.status);
+	const afterStatus = normalizeComparableValue(after.status);
+	const statusChanged = beforeStatus !== afterStatus && hasMeaningfulValue(after.status);
+
+	if (!statusChanged && changedMilestones.length === 0) return;
+
+	if (statusChanged) {
+		await sendExpoPushToUsers(recipients, {
+			title: "Offer status updated",
+			body: `Offer status changed to ${after.status}.`,
+			data: {
+				type: "offer_status_changed",
+				offerId,
+				clientId: after.clientId || null,
+				agentId: after.agentId || null,
+				propertyId: after.propertyId || null,
+				status: after.status,
+			},
+		});
+	}
+
+	if (changedMilestones.length > 0) {
+		await sendExpoPushToUsers(recipients, {
+			title: "Offer timeline updated",
+			body: `Offer milestone dates were updated (${changedMilestones.join(", ")}).`,
+			data: {
+				type: "offer_milestones_changed",
+				offerId,
+				clientId: after.clientId || null,
+				agentId: after.agentId || null,
+				propertyId: after.propertyId || null,
+				changedFields: changedMilestones,
+			},
+		});
+	}
+});
+
+// Agent assigned a favorite to a client: notify client.
+export const notifyOnAgentAssignedFavorite = onDocumentCreated("clientFavorites/{favoriteId}", async (event) => {
+	const snapshot = event.data;
+	if (!snapshot) return;
+
+	const favorite = snapshot.data() as any;
+	const clientId = typeof favorite?.userId === "string" ? favorite.userId : "";
+	const assignedByAgentId = typeof favorite?.assignedByAgentId === "string" ? favorite.assignedByAgentId : "";
+	if (!clientId || !assignedByAgentId) return;
+	if (clientId === assignedByAgentId) return;
+
+	const db = getFirestore();
+	const agentSnap = await db.collection("users").doc(assignedByAgentId).get();
+	const agentName = getDisplayName(agentSnap.data(), "Your agent");
+
+	await sendExpoPushToUser(clientId, {
+		title: "New favorite from your agent",
+		body: `${agentName} assigned a property to your favorites.`,
+		data: {
+			type: "favorite_assigned_by_agent",
+			favoriteId: snapshot.id,
+			clientId,
+			agentId: assignedByAgentId,
+			propertyId: favorite.propertyId || null,
+		},
+	});
 });
 
 
