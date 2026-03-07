@@ -10,6 +10,8 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.hitsolutions.leadingedgerealtyapp",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "buildNumber": "4"
     },
     "android": {

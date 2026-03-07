@@ -7,6 +7,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   version: config.version ?? '0.0.4',
   android: {
     ...config.android,
+    googleServicesFile:
+      config.android?.googleServicesFile ??
+      process.env.GOOGLE_SERVICES_FILE ??
+      './google-services.json',
     config: {
       ...config.android?.config,
       googleMaps: {

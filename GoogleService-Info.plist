@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>743617242604-5ovq45q2fn3nd15bj2ki4km6mmmmt34n.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.743617242604-5ovq45q2fn3nd15bj2ki4km6mmmmt34n</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>743617242604-48jh492mm3vjrf4f20gmftkm1dkjhaa4.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyCSXmD4fDpD18hxj1PfgVuXLeUK-sZnCWQ</string>
+	<key>GCM_SENDER_ID</key>
+	<string>743617242604</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.hitsolutions.leadingedgerealtyapp</string>
+	<key>PROJECT_ID</key>
+	<string>leading-edge-realty-app</string>
+	<key>STORAGE_BUCKET</key>
+	<string>leading-edge-realty-app.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:743617242604:ios:ab960713e31e1ec3cfccc9</string>
+	<key>DATABASE_URL</key>
+	<string>https://leading-edge-realty-app-default-rtdb.firebaseio.com</string>
+</dict>
+</plist>
