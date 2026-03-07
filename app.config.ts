@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: config.name ?? 'Leading Edge Realty App',
   slug: config.slug ?? 'housing-finder',
-  version: config.version ?? '0.0.3',
+  version: config.version ?? '0.0.4',
   android: {
     ...config.android,
     config: {

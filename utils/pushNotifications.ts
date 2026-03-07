@@ -1,14 +1,31 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-export async function registerForPushNotificationsAsync(): Promise<string | null> {
+export type PushRegistrationResult = {
+	token: string | null;
+	reason:
+		| 'success'
+		| 'web'
+		| 'expo_go'
+		| 'permission_denied'
+		| 'missing_project_id'
+		| 'token_error';
+	appOwnership?: string;
+	details?: string;
+};
+
+export async function registerForPushNotificationsDetailedAsync(): Promise<PushRegistrationResult> {
 	if (Platform.OS === 'web') {
-		return null;
+		return { token: null, reason: 'web' };
 	}
 
 	if (Constants.appOwnership === 'expo') {
 		console.warn('[Push] Skipping remote push token registration in Expo Go. Use a development build for push notifications.');
-		return null;
+		return {
+			token: null,
+			reason: 'expo_go',
+			appOwnership: String(Constants.appOwnership),
+		};
 	}
 
 	const Notifications = await import('expo-notifications');
@@ -22,7 +39,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 	}
 
 	if (finalStatus !== 'granted') {
-		return null;
+		return { token: null, reason: 'permission_denied' };
 	}
 
 	if (Platform.OS === 'android') {
@@ -40,14 +57,26 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 
 	if (!projectId) {
 		console.warn('[Push] Missing EAS projectId; cannot get Expo push token.');
-		return null;
+		return { token: null, reason: 'missing_project_id' };
 	}
 
 	try {
 		const tokenResponse = await Notifications.getExpoPushTokenAsync({ projectId });
-		return tokenResponse.data || null;
+		return {
+			token: tokenResponse.data || null,
+			reason: tokenResponse.data ? 'success' : 'token_error',
+		};
 	} catch (error) {
 		console.warn('[Push] Failed to get Expo push token:', error);
-		return null;
+		return {
+			token: null,
+			reason: 'token_error',
+			details: error instanceof Error ? error.message : String(error),
+		};
 	}
+}
+
+export async function registerForPushNotificationsAsync(): Promise<string | null> {
+	const result = await registerForPushNotificationsDetailedAsync();
+	return result.token;
 }

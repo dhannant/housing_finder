@@ -1,7 +1,7 @@
 import { auth, db } from '@/components/firebaseConfig';
 import { fetchUserData, saveUserPushToken } from '@/utils/functions';
 import { UserData } from '@/utils/interfaces';
-import { registerForPushNotificationsAsync } from '@/utils/pushNotifications';
+import { registerForPushNotificationsDetailedAsync } from '@/utils/pushNotifications';
 import { User, onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
@@ -40,10 +40,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('[AuthContext] User data loaded:', data?.role);
 
           try {
-            const pushToken = await registerForPushNotificationsAsync();
-            if (pushToken) {
-              await saveUserPushToken(firebaseUser.uid, pushToken);
-            }
+          const pushResult = await registerForPushNotificationsDetailedAsync();
+
+          if (pushResult.token) {
+            await saveUserPushToken(firebaseUser.uid, pushResult.token);
+          }
+
+          await setDoc(
+            doc(db, 'users', firebaseUser.uid),
+            {
+            pushTokenStatus: pushResult.reason,
+            pushTokenStatusUpdatedAt: new Date(),
+            pushTokenStatusDetails: pushResult.details ?? null,
+            pushTokenAppOwnership: pushResult.appOwnership ?? null,
+            },
+            { merge: true },
+          );
+
+          console.log('[AuthContext] Push registration result:', pushResult.reason);
           } catch (pushError) {
             console.error('[AuthContext] Push token registration failed:', pushError);
           }

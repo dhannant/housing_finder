@@ -125,6 +125,7 @@ export default function RegisterForm() {
 	return (
 		<View style={styles.container}>
 			<Text style={styles.title}>Register</Text>
+			<Text style={styles.fieldLabel}>First Name</Text>
 			<TextInput
 				style={styles.input}
 				placeholder="First Name"
@@ -134,6 +135,7 @@ export default function RegisterForm() {
 				autoCapitalize="words"
 				keyboardType="default"
 			/>
+			<Text style={styles.fieldLabel}>Last Name</Text>
 			<TextInput
 				style={styles.input}
 				placeholder="Last Name"
@@ -143,6 +145,7 @@ export default function RegisterForm() {
 				autoCapitalize="words"
 				keyboardType="default"
 			/>
+			<Text style={styles.fieldLabel}>Phone Number</Text>
 			<TextInput
 				style={styles.phoneNumber}
 				placeholder="Phone Number"
@@ -155,6 +158,7 @@ export default function RegisterForm() {
 				maxLength={14}
 			/>
 			{/* Role selection removed; now set automatically based on email */}
+			<Text style={styles.fieldLabel}>Email</Text>
 			<TextInput
 				style={styles.input}
 				placeholder="Email"
@@ -165,6 +169,7 @@ export default function RegisterForm() {
 				keyboardType="email-address"
 			/>
 			<Text style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>Role will be set automatically based on your email domain.</Text>
+			<Text style={styles.fieldLabel}>Password</Text>
 			<TextInput
 				style={styles.input}
 				placeholder="Password"
@@ -186,6 +191,7 @@ export default function RegisterForm() {
 const styles = StyleSheet.create({
 	container: { padding: 20, backgroundColor: "#fff", borderRadius: 8, margin: 20, elevation: 2 },
 	title: { fontSize: 24, fontWeight: "bold", marginBottom: 16, textAlign: "center" },
+	fieldLabel: { fontSize: 13, color: "#374151", fontWeight: "600", marginBottom: 6 },
 	input: {
 		borderWidth: 1,
 		borderColor: "#ccc",

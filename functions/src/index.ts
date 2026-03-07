@@ -60,6 +60,14 @@ type NotificationPayload = {
 	data?: Record<string, unknown>;
 };
 
+type PushSendResult = {
+	ok: boolean;
+	reason: "sent" | "missing_token" | "invalid_token" | "http_error" | "expo_error" | "exception";
+	userId: string;
+	tokenPreview?: string;
+	details?: string;
+};
+
 // ===== Generic Utilities =====
 // Split an array into fixed-size chunks for batched API requests.
 function chunkArray<T>(array: T[], size: number) {
@@ -389,14 +397,31 @@ async function getUserPushToken(userId: string): Promise<string | null> {
 	const db = getFirestore();
 	const userSnap = await db.collection("users").doc(userId).get();
 	if (!userSnap.exists) return null;
-	const token = userSnap.data()?.pushToken;
+	const token = userSnap.data()?.pushToken ?? userSnap.data()?.expoPushToken;
 	if (typeof token !== "string" || token.trim().length === 0) return null;
 	return token.trim();
 }
 
-async function sendExpoPushToUser(userId: string, payload: NotificationPayload): Promise<boolean> {
+function isLikelyExpoPushToken(token: string): boolean {
+	return token.startsWith("ExponentPushToken[") || token.startsWith("ExpoPushToken[");
+}
+
+async function sendExpoPushToUser(userId: string, payload: NotificationPayload): Promise<PushSendResult> {
 	const token = await getUserPushToken(userId);
-	if (!token) return false;
+	if (!token) {
+		console.warn(`[Push] Missing push token for user=${userId}`);
+		return { ok: false, reason: "missing_token", userId };
+	}
+
+	if (!isLikelyExpoPushToken(token)) {
+		console.warn(`[Push] Invalid/unsupported token format for user=${userId}, tokenPrefix=${token.slice(0, 18)}`);
+		return {
+			ok: false,
+			reason: "invalid_token",
+			userId,
+			tokenPreview: `${token.slice(0, 10)}...`,
+		};
+	}
 
 	const response = await fetch(expoPushApiUrl, {
 		method: "POST",
@@ -415,11 +440,44 @@ async function sendExpoPushToUser(userId: string, payload: NotificationPayload):
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		console.warn(`Push send failed for user=${userId}, status=${response.status}, body=${errorText.slice(0, 400)}`);
-		return false;
+		console.warn(`[Push] HTTP failure user=${userId}, status=${response.status}, body=${errorText.slice(0, 400)}`);
+		return {
+			ok: false,
+			reason: "http_error",
+			userId,
+			tokenPreview: `${token.slice(0, 10)}...`,
+			details: `status=${response.status}`,
+		};
 	}
 
-	return true;
+	const json = await response.json().catch(() => null);
+	const ticket = json?.data;
+	const isExpoError = ticket?.status === "error";
+	if (isExpoError) {
+		const expoMessage = ticket?.message || "Unknown Expo push ticket error";
+		console.warn(`[Push] Expo ticket error user=${userId}, message=${expoMessage}`);
+		return {
+			ok: false,
+			reason: "expo_error",
+			userId,
+			tokenPreview: `${token.slice(0, 10)}...`,
+			details: String(expoMessage),
+		};
+	}
+
+	console.log(`[Push] Sent user=${userId}, title=${payload.title}`);
+
+	return {
+		ok: true,
+		reason: "sent",
+		userId,
+		tokenPreview: `${token.slice(0, 10)}...`,
+	};
+
+
+
+
+
 }
 
 async function sendExpoPushToUsers(userIds: string[], payload: NotificationPayload) {
@@ -431,8 +489,11 @@ async function sendExpoPushToUsers(userIds: string[], payload: NotificationPaylo
 	let sent = 0;
 	for (const userId of uniqueUserIds) {
 		try {
-			const ok = await sendExpoPushToUser(userId, payload);
-			if (ok) sent += 1;
+			const result = await sendExpoPushToUser(userId, payload);
+			if (result.ok) sent += 1;
+			if (!result.ok) {
+				console.warn(`[Push] Recipient send failed user=${userId}, reason=${result.reason}, details=${result.details || "n/a"}`);
+			}
 		} catch (error) {
 			console.warn(`Push send exception for user=${userId}`, error);
 		}
@@ -976,7 +1037,7 @@ export const notifyAgentOnClientRequestCreated = onDocumentCreated("clientReques
 	const clientSnap = await db.collection("users").doc(request.clientId).get();
 	const clientName = getDisplayName(clientSnap.data(), "A client");
 
-	await sendExpoPushToUser(request.realtorId, {
+	const sendResult = await sendExpoPushToUser(request.realtorId, {
 		title: "New client request",
 		body: `${clientName} requested to work with you.`,
 		data: {
@@ -987,6 +1048,42 @@ export const notifyAgentOnClientRequestCreated = onDocumentCreated("clientReques
 			status: request.status,
 		},
 	});
+
+	if (!sendResult.ok) {
+		console.warn(
+			`[Push] notifyAgentOnClientRequestCreated failed requestId=${snapshot.id}, realtorId=${request.realtorId}, reason=${sendResult.reason}, details=${sendResult.details || "n/a"}`,
+		);
+	}
+});
+
+// Manual push test endpoint for debugging token/delivery independently from Firestore triggers.
+export const sendPushTestToUser = onRequest(async (req, res) => {
+	try {
+		const userId = String(req.query.userId || req.body?.userId || "").trim();
+		if (!userId) {
+			res.status(400).json({ ok: false, message: "Missing userId" });
+			return;
+		}
+
+		const title = String(req.query.title || req.body?.title || "Push Test").trim() || "Push Test";
+		const body = String(req.query.body || req.body?.body || "Test notification from Firebase Functions").trim() || "Test notification from Firebase Functions";
+
+		const result = await sendExpoPushToUser(userId, {
+			title,
+			body,
+			data: { type: "push_test", userId },
+		});
+
+		res.status(result.ok ? 200 : 400).json({
+			ok: result.ok,
+			result,
+		});
+		return;
+	} catch (error: any) {
+		console.error("sendPushTestToUser failed:", error);
+		res.status(500).json({ ok: false, message: error?.message || "Unknown error" });
+		return;
+	}
 });
 
 // Approval/decline transitions: notify client.

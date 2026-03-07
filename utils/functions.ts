@@ -427,6 +427,7 @@ export async function saveUserPushToken(userId: string, pushToken: string): Prom
 
 	await setDoc(doc(db, 'users', userId), {
 		pushToken,
+		expoPushToken: pushToken,
 		pushTokenPlatform: Platform.OS,
 		pushTokenUpdatedAt: new Date(),
 	}, { merge: true });
