@@ -1,14 +1,22 @@
 import { useRouter } from 'expo-router';
 import { FileText, Home, MapPin, Users } from 'lucide-react-native';
+import { useEffect } from 'react';
 import { Image, Linking, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { landingStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';
+import { fetchUserData } from '@/utils/functions';
 
 export default function LandingScreen() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace('/role-redirect');
+    }
+  }, [loading, user, router]);
 
   // Handles user selection for each main action button
   const handleSelection = (type: 'buy' | 'sell' | 'preapproval' | 'geolocate') => {
@@ -48,6 +56,25 @@ export default function LandingScreen() {
     }
   };
 
+  const handleDashboard = async () => {
+    if (!user) return;
+
+    const userData = await fetchUserData(user.uid)
+    if (!userData) return;
+
+    if (userData.role === 'Agent') { router.push('/agent/(tabs)/agent-dashboard') }
+    else if (userData.role === 'Client') { router.push('/client/(tabs)/client-dashboard') }
+    else if (userData.role === 'Admin') { router.push('/admin/dashboard') }
+  };
+
+  if (!loading && user) {
+    return (
+      <SafeAreaView style={landingStyles.container}>
+        <View style={{ flex: 1 }} />
+      </SafeAreaView>
+    );
+  }
+
   return (
     // Main safe area for the landing screen
     <SafeAreaView style={landingStyles.container}>
@@ -64,10 +91,23 @@ export default function LandingScreen() {
               <Text style={landingStyles.logoSubtitle}>Real Estate</Text>
             </View>
           </View>
+          {user && (
+            <View>
+              <TouchableOpacity style={landingStyles.dashboardButton} onPress={handleDashboard}>
+                <Text style={landingStyles.dashboardButtonText}>Dashboard</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Login/Logout button */}
-          <TouchableOpacity style={landingStyles.loginButton} onPress={handleAuthButton}>
-            <Text style={landingStyles.loginButtonText}>{user ? 'Logout' : 'Login'}</Text>
-          </TouchableOpacity>
+          {!user && (
+            <View>
+              <TouchableOpacity style={landingStyles.loginButton} onPress={handleAuthButton}>
+                <Text style={landingStyles.loginButtonText}>Login</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          
         </View>
 
         {/* Welcome section with logo and subtitle */}

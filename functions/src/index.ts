@@ -1,3 +1,22 @@
+// Start writing functions
+// https://firebase.google.com/docs/functions/typescript
+
+// For cost control, you can set the maximum number of containers that can be
+// running at the same time. This helps mitigate the impact of unexpected
+// traffic spikes by instead downgrading performance. This limit is a
+// per-function limit. You can override the limit for each function using the
+// `maxInstances` option in the function's options, e.g.
+// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
+// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
+// functions should each use functions.runWith({ maxInstances: 10 }) instead.
+// In the v1 API, each function can only serve one request per container, so
+// this will be the maximum concurrent request count.
+// ===== Registration Rate Limiting =====
+// Firestore collection: registrationAttempts
+// Document ID: lowercased email
+// Fields: attemptCount (number), lockoutUntil (timestamp)
+
+import { onCall, onRequest } from "firebase-functions/v2/https";
 /**
  * Import function triggers from their respective submodules:
  *
@@ -13,26 +32,134 @@ import { getFirestore } from "firebase-admin/firestore";
 import { setGlobalOptions } from "firebase-functions";
 import { defineSecret } from "firebase-functions/params";
 import { onDocumentCreated, onDocumentDeleted, onDocumentUpdated } from "firebase-functions/v2/firestore";
-import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-
-// Start writing functions
-// https://firebase.google.com/docs/functions/typescript
-
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time. This helps mitigate the impact of unexpected
-// traffic spikes by instead downgrading performance. This limit is a
-// per-function limit. You can override the limit for each function using the
-// `maxInstances` option in the function's options, e.g.
-// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
-// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
-// functions should each use functions.runWith({ maxInstances: 10 }) instead.
-// In the v1 API, each function can only serve one request per container, so
-// this will be the maximum concurrent request count.
 setGlobalOptions({ maxInstances: 10 });
 
 // Initialize Firebase Admin SDK at the top level
 initializeApp();
+const REG_ATTEMPT_COLLECTION = "registrationAttempts";
+const MAX_REG_ATTEMPTS = 3;
+const REG_LOCKOUT_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+// Check if registration is allowed for a given email
+export const verifyRegistrationAllowed = onCall(async (request) => {
+	const emailRaw = request.data?.email;
+	if (typeof emailRaw !== "string" || !emailRaw.trim()) {
+		return { allowed: false, reason: "Missing email" };
+	}
+	const email = emailRaw.trim().toLowerCase();
+	const db = getFirestore();
+	const docRef = db.collection(REG_ATTEMPT_COLLECTION).doc(email);
+	const docSnap = await docRef.get();
+	const now = Date.now();
+	if (docSnap.exists) {
+		const data = docSnap.data() || {};
+		if (typeof data.lockoutUntil === "number" && data.lockoutUntil > now) {
+			return {
+				allowed: false,
+				reason: "locked_out",
+				lockoutUntil: data.lockoutUntil,
+				attemptCount: data.attemptCount || 0,
+			};
+		}
+	}
+	return { allowed: true };
+});
+
+// Record a registration attempt and set lockout if needed
+export const recordRegistrationAttempt = onCall(async (request) => {
+	const emailRaw = request.data?.email;
+	const success = !!request.data?.success;
+	if (typeof emailRaw !== "string" || !emailRaw.trim()) {
+		return { ok: false, reason: "Missing email" };
+	}
+	const email = emailRaw.trim().toLowerCase();
+	const db = getFirestore();
+	const docRef = db.collection(REG_ATTEMPT_COLLECTION).doc(email);
+	const now = Date.now();
+	if (success) {
+		// On successful registration, reset attempt count and lockout
+		await docRef.set({ attemptCount: 0, lockoutUntil: 0 }, { merge: true });
+		return { ok: true, reset: true };
+	}
+	// On failed registration, increment attempt count
+	const docSnap = await docRef.get();
+	let attemptCount = 1;
+	if (docSnap.exists) {
+		const data = docSnap.data() || {};
+		attemptCount = (typeof data.attemptCount === "number" ? data.attemptCount : 0) + 1;
+	}
+	let lockoutUntil = 0;
+	if (attemptCount >= MAX_REG_ATTEMPTS) {
+		lockoutUntil = now + REG_LOCKOUT_DURATION_MS;
+	}
+	await docRef.set({ attemptCount, lockoutUntil }, { merge: true });
+	return { ok: true, attemptCount, lockoutUntil };
+});
+// ===== Login Rate Limiting =====
+// Firestore collection: loginAttempts
+// Document ID: lowercased email
+// Fields: failedCount (number), lockoutUntil (timestamp)
+
+const LOGIN_ATTEMPT_COLLECTION = "loginAttempts";
+const MAX_FAILED_ATTEMPTS = 3;
+const LOCKOUT_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+// Check if login is allowed for a given email
+export const verifyLoginAllowed = onCall(async (request) => {
+	const emailRaw = request.data?.email;
+	if (typeof emailRaw !== "string" || !emailRaw.trim()) {
+		return { allowed: false, reason: "Missing email" };
+	}
+	const email = emailRaw.trim().toLowerCase();
+	const db = getFirestore();
+	const docRef = db.collection(LOGIN_ATTEMPT_COLLECTION).doc(email);
+	const docSnap = await docRef.get();
+	const now = Date.now();
+	if (docSnap.exists) {
+		const data = docSnap.data() || {};
+		if (typeof data.lockoutUntil === "number" && data.lockoutUntil > now) {
+			return {
+				allowed: false,
+				reason: "locked_out",
+				lockoutUntil: data.lockoutUntil,
+				failedCount: data.failedCount || 0,
+			};
+		}
+	}
+	return { allowed: true };
+});
+
+// Record a failed login attempt and set lockout if needed
+export const recordLoginAttempt = onCall(async (request) => {
+	const emailRaw = request.data?.email;
+	const success = !!request.data?.success;
+	if (typeof emailRaw !== "string" || !emailRaw.trim()) {
+		return { ok: false, reason: "Missing email" };
+	}
+	const email = emailRaw.trim().toLowerCase();
+	const db = getFirestore();
+	const docRef = db.collection(LOGIN_ATTEMPT_COLLECTION).doc(email);
+	const now = Date.now();
+	if (success) {
+		// On successful login, reset failed count and lockout
+		await docRef.set({ failedCount: 0, lockoutUntil: 0 }, { merge: true });
+		return { ok: true, reset: true };
+	}
+	// On failed login, increment failed count
+	const docSnap = await docRef.get();
+	let failedCount = 1;
+	if (docSnap.exists) {
+		const data = docSnap.data() || {};
+		failedCount = (typeof data.failedCount === "number" ? data.failedCount : 0) + 1;
+	}
+	let lockoutUntil = 0;
+	if (failedCount >= MAX_FAILED_ATTEMPTS) {
+		lockoutUntil = now + LOCKOUT_DURATION_MS;
+	}
+	await docRef.set({ failedCount, lockoutUntil }, { merge: true });
+	return { ok: true, failedCount, lockoutUntil };
+});
 
 const rapidApiKeySecret = defineSecret("RAPIDAPI_KEY");
 const rapidApiHost = "realty-us.p.rapidapi.com";
@@ -1270,6 +1397,44 @@ export const notifyOnAgentAssignedFavorite = onDocumentCreated("clientFavorites/
 	});
 });
 
+// Client help request from map: notify assigned agent.
+export const notifyAgentOnHelpRequestCreated = onDocumentCreated("helpRequests/{helpRequestId}", async (event) => {
+	const snapshot = event.data;
+	if (!snapshot) return;
+
+	const request = snapshot.data() as any;
+	if (typeof request?.clientId !== "string" || typeof request?.realtorId !== "string") return;
+
+	const db = getFirestore();
+	const clientSnap = await db.collection("users").doc(request.clientId).get();
+	const clientName = getDisplayName(clientSnap.data(), "A client");
+
+	const location = request?.searchRegion;
+	const hasCoordinates = typeof location?.latitude === "number" && typeof location?.longitude === "number";
+	const locationText = hasCoordinates
+		? ` Near (${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}).`
+		: "";
+
+	const result = await sendExpoPushToUser(request.realtorId, {
+		title: "Client requested help",
+		body: `${clientName} requested help from the map.${locationText}`,
+		data: {
+			type: "client_help_request",
+			helpRequestId: snapshot.id,
+			clientId: request.clientId,
+			realtorId: request.realtorId,
+			status: request.status || "Pending",
+			source: request.source || "map_request_help",
+		},
+	});
+
+	if (!result.ok) {
+		console.warn(
+			`[Push] notifyAgentOnHelpRequestCreated failed helpRequestId=${snapshot.id}, realtorId=${request.realtorId}, reason=${result.reason}, details=${result.details || "n/a"}`,
+		);
+	}
+});
+
 
 // ===== User Activity Maintenance =====
 // Deactivate users who have not signed in during the inactivity window.
@@ -1289,7 +1454,33 @@ async function runDeactivateInactiveUsers() {
 		if (user.metadata.lastSignInTime) {
 			const lastSignIn = new Date(user.metadata.lastSignInTime).getTime();
 			if (lastSignIn < ninetyDaysAgo) {
+				// Set is_active to false
 				await db.collection("users").doc(user.uid).update({ is_active: false });
+
+				// Remove push token fields
+				await db.collection("users").doc(user.uid).update({
+					pushTokenStatus: null,
+					pushTokenStatusUpdatedAt: null,
+					pushTokenStatusDetails: null,
+					pushTokenAppOwnership: null,
+					profileImageUrl: null,
+					bioImageUrl: null
+				});
+
+				// Delete all clientFavorites for this user
+				const favoritesSnap = await db.collection("clientFavorites").where("userId", "==", user.uid).get();
+				for (const favDoc of favoritesSnap.docs) {
+					await favDoc.ref.delete();
+				}
+
+				// Delete all clientOffers for this user (as client)
+				const offersSnap = await db.collection("clientOffers").where("clientId", "==", user.uid).get();
+				for (const offerDoc of offersSnap.docs) {
+					await offerDoc.ref.delete();
+				}
+
+				// Note: clientRequests are NOT deleted (for agent workflow continuity)
+
 				deactivatedUsers += 1;
 				deactivatedUserIds.push(user.uid);
 			} else {

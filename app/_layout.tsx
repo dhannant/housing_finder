@@ -46,6 +46,10 @@ export default function RootLayout() {
 						options={{ headerShown: false, headerBackVisible: false }}
 					/>
 					<Stack.Screen
+						name="admin"
+						options={{ headerShown: false, headerBackVisible: false }}
+					/>
+					<Stack.Screen
 						name="(shared_screens)"
 						options={{ headerShown: false, headerBackVisible: false }}
 					/>

@@ -3,14 +3,65 @@ import { landingStyles, profileModule_styles } from '@/constants/styles';
 import { teamMembers } from '@/constants/team-data';
 import { useAuth } from '@/contexts/AuthContext';
 import { Picker } from '@react-native-picker/picker';
-import { EmailAuthProvider, reauthenticateWithCredential, sendPasswordResetEmail, updateEmail, updatePassword } from 'firebase/auth';
-import { doc, updateDoc } from 'firebase/firestore';
+import { useNavigation } from 'expo-router';
+import { deleteUser, EmailAuthProvider, reauthenticateWithCredential, sendPasswordResetEmail, updateEmail, updatePassword } from 'firebase/auth';
+import { collection, deleteDoc, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+// Helper to delete all docs in a collection for a user
+async function deleteUserDocsByField(colName: string, field: string, value: string) {
+	const q = query(collection(db, colName), where(field, '==', value));
+	const snap = await getDocs(q);
+	for (const docSnap of snap.docs) {
+		await deleteDoc(docSnap.ref);
+	}
+}
 
 export default function ProfileScreen() {
 	const { user, userData } = useAuth();
+	const navigation = useNavigation();
+		const [deleting, setDeleting] = useState(false);
+		// Delete profile and all associated data
+		const handleDeleteProfile = async () => {
+			if (!user) return;
+			Alert.alert(
+				'Delete Profile',
+				'Are you sure you want to permanently delete your profile and all associated data? This cannot be undone.',
+				[
+					{ text: 'Cancel', style: 'cancel' },
+					{
+						text: 'Delete',
+						style: 'destructive',
+						onPress: async () => {
+							setDeleting(true);
+							try {
+								// Delete user doc
+								await deleteDoc(doc(db, 'users', user.uid));
+								// Delete favorites
+								await deleteUserDocsByField('clientFavorites', 'userId', user.uid);
+								// Delete offers (as client)
+								await deleteUserDocsByField('clientOffers', 'clientId', user.uid);
+								// Optionally: delete offers as agent, requests, etc. (add more as needed)
+								  // Delete clientRequests (as client)
+								  await deleteUserDocsByField('clientRequests', 'clientId', user.uid);
+								  // Delete clientRequests (as agent)
+								  await deleteUserDocsByField('clientRequests', 'realtorId', user.uid);
+								  // Delete auth user
+								  await deleteUser(user);
+								Alert.alert('Profile Deleted', 'Your profile and all associated data have been deleted.');
+								navigation.reset({ index: 0, routes: [{ name: 'login' }] });
+							} catch (error: any) {
+								console.error('Delete profile error:', error);
+								Alert.alert('Delete Failed', error?.message || 'Unable to delete your profile.');
+							} finally {
+								setDeleting(false);
+							}
+						},
+					},
+				]
+			);
+		};
 	const [firstName, setFirstName] = useState('');
 	const [lastName, setLastName] = useState('');
 	const [email, setEmail] = useState('');
@@ -161,10 +212,17 @@ export default function ProfileScreen() {
 
 	return (
 		<SafeAreaView style={landingStyles.container}>
-					{/* Header with logo and login button */}
-					<View style={landingStyles.header}>
-						<Text style={landingStyles.logoTitle}>{userData?.firstName} {userData?.lastName}&apos;s Profile</Text>
-					</View>
+			{/* Header with logo and delete button */}
+			<View style={landingStyles.header}>
+				<Text style={landingStyles.logoTitle}>{userData?.firstName} {userData?.lastName}&apos;s Profile</Text>
+				<TouchableOpacity
+					onPress={handleDeleteProfile}
+					style={{ backgroundColor: '#FF4444', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, marginLeft: 12 }}
+					disabled={deleting}
+				>
+					<Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>{deleting ? 'Deleting...' : 'Delete Profile'}</Text>
+				</TouchableOpacity>
+			</View>
 			<ScrollView contentContainerStyle={profileModule_styles.container}>
 				<Text style={profileModule_styles.sectionTitle}>Profile Details</Text>
 				<Text style={profileModule_styles.roleText}>{userData.role}</Text>

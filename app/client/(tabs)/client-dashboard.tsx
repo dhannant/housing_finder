@@ -2,9 +2,8 @@ import { auth, db } from "@/components/firebaseConfig";
 import CalendarModule from "@/components/modules/calendarModule";
 import { clientDashboard_styles, landingStyles } from '@/constants/styles';
 import { useAssignedRealtor, usePendingClientRequests, useRealtors, useUserData } from "@/hooks/useFunctions";
-import { fetchActiveOfferForClient, fetchClientFavorites, fetchUserOffers } from "@/utils/functions";
 import { useRouter } from "expo-router";
-import { addDoc, collection } from "firebase/firestore";
+import { addDoc, collection, onSnapshot, query, where } from "firebase/firestore";
 import { Home, MapPin, UserCircle } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
@@ -29,24 +28,57 @@ export default function ClientDashboard() {
 	const [activeOfferId, setActiveOfferId] = useState<string | null>(null);
 
 	useEffect(() => {
-		async function fetchClientData() {
-			if (!user?.uid) return;
-			try {
-				const favorites = await fetchClientFavorites(user.uid);
-				setFavoriteIds(favorites.map(fav => fav.id));
-				const activeOffer = await fetchActiveOfferForClient(user.uid);
-				setActiveOfferId(activeOffer ? activeOffer.offerId : null);
-				setClientHasActiveOffer(Boolean(activeOffer?.offerId));
-				const allOffers = await fetchUserOffers(user.uid);
-				console.log("favoriteIds:", favorites.map(fav => fav.id));
-				console.log("activeOfferId:", activeOffer ? activeOffer.offerId : null);
-				console.log("offerIds:", allOffers.map(offer => offer.offerId));
-			} catch (error) {
-				console.error("Error fetching client data:", error);
-				setClientHasActiveOffer(false);
-			}
+		if (!user?.uid) {
+			setFavoriteIds([]);
+			setActiveOfferId(null);
+			setClientHasActiveOffer(false);
+			return;
 		}
-		fetchClientData();
+
+		const favoritesRef = collection(db, "clientFavorites");
+		const offersRef = collection(db, "clientOffers");
+
+		const favoriteQuery = query(favoritesRef, where("userId", "==", user.uid));
+		const offerQuery = query(offersRef, where("clientId", "==", user.uid));
+
+		const unsubscribeFavorites = onSnapshot(
+			favoriteQuery,
+			(snapshot) => {
+				setFavoriteIds(snapshot.docs.map((favoriteDoc) => favoriteDoc.id));
+			},
+			(error) => {
+				console.error("Error listening for favorites:", error);
+			},
+		);
+
+		const unsubscribeOffers = onSnapshot(
+			offerQuery,
+			(snapshot) => {
+				const offers: { offerId: string; status?: string; updatedAt?: any; createdAt?: any }[] = snapshot.docs.map((offerDoc) => ({
+					offerId: offerDoc.id,
+					...(offerDoc.data() as Record<string, any>),
+				}));
+
+				const activeOffers = offers.filter((offer) => offer.status !== "Offer Withdrawn" && offer.status !== "Offer Declined");
+				const latestActiveOffer = activeOffers.sort((a, b) => {
+					const dateA = a.updatedAt?.toDate?.() || a.createdAt?.toDate?.() || new Date(0);
+					const dateB = b.updatedAt?.toDate?.() || b.createdAt?.toDate?.() || new Date(0);
+					return dateB.getTime() - dateA.getTime();
+				})[0] ?? null;
+
+				setActiveOfferId(latestActiveOffer?.offerId ?? null);
+				setClientHasActiveOffer(Boolean(latestActiveOffer));
+			},
+			(error) => {
+				console.error("Error listening for offers:", error);
+				setClientHasActiveOffer(false);
+			},
+		);
+
+		return () => {
+			unsubscribeFavorites();
+			unsubscribeOffers();
+		};
 	}, [user?.uid]);
 
 	const handleSelectRealtor = async (realtorId: string) => {

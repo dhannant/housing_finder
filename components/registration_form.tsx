@@ -1,7 +1,7 @@
-import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { useState } from "react";
 import { Button, StyleSheet, Text, TextInput, View } from "react-native";
 import { auth, db } from "./firebaseConfig";
@@ -15,34 +15,9 @@ export default function RegisterForm() {
 	const [firstName, setFirstName] = useState<string>("");
 	const [lastName, setLastName] = useState<string>("");
 	const [phoneNumber, setPhoneNumber] = useState<string>("");
-	const [role, setRole] = useState<"Client" | "Agent">("Client"); // Will be set automatically
+	const [role, setRole] = useState<"Client" | "Agent" | "Admin">("Client"); // Will be set automatically
 	const [is_active, setIsActive] = useState<boolean>(true);
 
-	async function getSignupLocation(): Promise<{
-		latitude: number;
-		longitude: number;
-		accuracy: number | null;
-	} | null> {
-		try {
-			const { status } = await Location.requestForegroundPermissionsAsync();
-			if (status !== "granted") {
-				return null;
-			}
-
-			const position = await Location.getCurrentPositionAsync({
-				accuracy: Location.Accuracy.Balanced,
-			});
-
-			return {
-				latitude: position.coords.latitude,
-				longitude: position.coords.longitude,
-				accuracy: position.coords.accuracy ?? null,
-			};
-		} catch (locationError) {
-			console.warn("[Register] Unable to capture signup location:", locationError);
-			return null;
-		}
-	}
 
 	function formatPhoneNumber(value: string) {
 		// Remove all non-digit characters
@@ -63,12 +38,15 @@ export default function RegisterForm() {
 	}
 
 	// Helper to determine role based on email domain
-	function getRoleFromEmail(email: string): "Client" | "Agent" {
+	function getRoleFromEmail(email: string): "Client" | "Agent" | "Admin" {
+		const normalized = email.trim().toLowerCase();
+
+		if (normalized.endsWith('@hitsolutions.com')) {
+			return "Admin";
+		}
+
 		// Accepts any domain like leadingedge*.com (e.g., leadingedgega.com, leadingedgeatl.com)
-		const match = email
-			.trim()
-			.toLowerCase()
-			.match(/@leadingedge[a-z0-9-]*\.com$/);
+		const match = normalized.match(/@leadingedge[a-z0-9-]*\.com$/);
 		return match ? "Agent" : "Client";
 	}
 
@@ -87,38 +65,60 @@ export default function RegisterForm() {
 	const handleRegister = async () => {
 		setError("");
 		setSuccess("");
+		const cleanEmail = email.trim().toLowerCase();
 		try {
-			const signupLocation = await getSignupLocation();
+			// Check if registration is allowed (rate limiting)
+			const functions = getFunctions();
+			const verifyRegistrationAllowed = httpsCallable(functions, 'verifyRegistrationAllowed');
+			const allowedResp: any = await verifyRegistrationAllowed({ email: cleanEmail });
+			if (!allowedResp.data?.allowed) {
+				const until = allowedResp.data?.lockoutUntil;
+				let msg = 'Too many registration attempts. Please try again later.';
+				if (until) {
+					const date = new Date(until);
+					msg += `\nYou can try again after: ${date.toLocaleString()}`;
+				}
+				setError(msg);
+				return;
+			}
 
 			// Step 1: Register user with Auth
-			const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-			const user = userCredential.user;
+			let regSuccess = false;
+			try {
+				const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+				const user = userCredential.user;
 
-			// Step 2: Determine role from email
-			const detectedRole = getRoleFromEmail(user.email || email);
-			setRole(detectedRole);
+				// Step 2: Determine role from email
+				const detectedRole = getRoleFromEmail(user.email || cleanEmail);
+				setRole(detectedRole);
 
-			// Step 3: Save extra info to Firestore
-			await setDoc(doc(db, "users", user.uid), {
-				firstName,
-				lastName,
-				phoneNumber,
-				email: user.email,
-				role: detectedRole,
-				is_active: true,
-				signupLocation,
-				signupLocationCapturedAt: signupLocation ? new Date() : null,
-				createdAt: new Date(),
-			});
+				// Step 3: Save extra info to Firestore
+				await setDoc(doc(db, "users", user.uid), {
+					firstName,
+					lastName,
+					phoneNumber,
+					email: user.email,
+					role: detectedRole,
+					is_active: true,
+					createdAt: new Date(),
+				});
 
-			setSuccess("Registration successful!");
-			// Redirect to login after a short delay
-			setTimeout(() => {
-				router.replace("/login");
-			}, 1200);
+				setSuccess("Registration successful!");
+				regSuccess = true;
+				// Redirect to login after a short delay
+				setTimeout(() => {
+					router.replace("/login");
+				}, 1200);
+			} catch (err: any) {
+				setError(err.message);
+				console.log("Firebase registration error:", err);
+			}
+
+			// Record registration attempt (success or failure)
+			const recordRegistrationAttempt = httpsCallable(functions, 'recordRegistrationAttempt');
+			await recordRegistrationAttempt({ email: cleanEmail, success: regSuccess });
 		} catch (err: any) {
-			setError(err.message);
-			console.log("Firebase registration error:", err);
+			setError('An error occurred. Please try again.');
 		}
 	};
 

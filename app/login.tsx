@@ -2,6 +2,7 @@ import { login_styles } from '@/constants/styles';
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useState } from 'react';
 import { Alert, Button, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,31 +16,34 @@ export default function LoginScreen() {
 	const router = useRouter();
 
 	// Quick access login for testing
+	// TODO: delete this before next deployment
 	const testUsers = [
 		{ label: 'Test Client (1)`', email: 'client1@gmail.com', password: '123456' },
 		{ label: 'Test Client (2)`', email: 'client2@gmail.com', password: '123456' },
 		{ label: 'Test Client (3)`', email: 'client3@gmail.com', password: '123456' },
 		{ label: 'Test Agent (1)', email: 'agent1@leadingedgega.com', password: '123456' },
 		{ label: 'Test Agent (2)', email: 'agent2@leadingedgega.com', password: '123456' },
-		{ label: 'Test Admin', email: 'admin@hitsolutions.com', password: '123456' },
+		{ label: 'Test Admin', email: 'admin@hitsolutionsllc.com', password: '123456' },
 	];
 
 	const handleTestLogin = async (email: string, password: string) => {
 		setMessage('');
 		setLoading(true);
 		try {
-			const userCredential = await signInWithEmailAndPassword(auth, email, password);
+			const cleanEmail = email.trim().toLowerCase();
+			const cleanPassword = password.trim();
+			const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
 			const user = userCredential.user;
 			const userDoc = await getDoc(doc(db, 'users', user.uid));
 			if (userDoc.exists()) {
 				setMessage('Login successful!');
-				router.push('/role-redirect');
+				router.replace('/role-redirect');
 			} else {
 				setMessage('User data not found');
 				setLoading(false);
 			}
 		} catch (err: any) {
-			setMessage('Test login failed: ' + err.message);
+			setMessage('Test login failed. Please check your credentials and try again.');
 			setLoading(false);
 		} finally {
 			if (!loading) setLoading(false);
@@ -49,35 +53,62 @@ export default function LoginScreen() {
 	const handleLogin = async () => {
 		setMessage('');
 		setLoading(true);
+		const cleanEmail = email.trim().toLowerCase();
+		const cleanPassword = password.trim();
 		try {
-			const userCredential = await signInWithEmailAndPassword(auth, email, password);
-			const user = userCredential.user;
-			
-			// Fetch user role from Firestore
-			const userDoc = await getDoc(doc(db, 'users', user.uid));
-			if (userDoc.exists()) {        
-				setMessage('Login successful!');
-				router.push('/role-redirect');
-			} else {
-				setMessage('User data not found');
+			// Check if login is allowed (rate limiting)
+			const functions = getFunctions();
+			const verifyLoginAllowed = httpsCallable(functions, 'verifyLoginAllowed');
+			const allowedResp: any = await verifyLoginAllowed({ email: cleanEmail });
+			if (!allowedResp.data?.allowed) {
+				const until = allowedResp.data?.lockoutUntil;
+				let msg = 'Too many failed attempts. Please try again later.';
+				if (until) {
+					const date = new Date(until);
+					msg += `\nYou can try again after: ${date.toLocaleString()}`;
+				}
+				setMessage(msg);
 				setLoading(false);
+				return;
 			}
+
+			// Proceed with login
+			let loginSuccess = false;
+			try {
+				const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+				const user = userCredential.user;
+				// Fetch user role from Firestore
+				const userDoc = await getDoc(doc(db, 'users', user.uid));
+				if (userDoc.exists()) {
+					setMessage('Login successful!');
+					loginSuccess = true;
+					router.replace('/role-redirect');
+				} else {
+					setMessage('User data not found');
+				}
+			} catch (err: any) {
+				if (err.code === 'auth/user-not-found') {
+					Alert.alert(
+						'User not found',
+						'No account found for this email. Would you like to register?',
+						[
+							{ text: 'Cancel', style: 'cancel', onPress: () => setLoading(false) },
+							{ text: 'Register', onPress: () => { setLoading(false); router.replace('/register'); }, },
+						]
+					);
+				} else {
+					setMessage('Login failed. Please check your credentials and try again.');
+				}
+			}
+
+			// Record login attempt (success or failure)
+			const recordLoginAttempt = httpsCallable(functions, 'recordLoginAttempt');
+			await recordLoginAttempt({ email: cleanEmail, success: loginSuccess });
+
+			setLoading(false);
 		} catch (err: any) {
-			if (err.code === 'auth/user-not-found') {
-				Alert.alert(
-					'User not found',
-					'No account found for this email. Would you like to register?',
-					[
-						{ text: 'Cancel', style: 'cancel', onPress: () => setLoading(false) },
-						{ text: 'Register', onPress: () => { setLoading(false); router.push('/register'); }, },
-					]
-				);
-			} else {
-				setMessage(err.message);
-				setLoading(false);
-			}
-		} finally {
-			if (!loading) setLoading(false);
+			setMessage('An error occurred. Please try again.');
+			setLoading(false);
 		}
 	};
 

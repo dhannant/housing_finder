@@ -12,27 +12,26 @@
 - [ ] Add Privacy Policy and Terms of Service.
 - [ ] Add min/max validation for map filters (especially bedrooms and bathrooms).
 - [ ] Test min/max filter edge cases (`min > max`, equal values, empty values) and show correction/warning UX.
-- [ ] Update code paths for user role = Admin.
-- [ ] Refactor `app/agent/(tabs)/agent-dashboard.tsx` with React Native Paper components.
-- [ ] Add account cleanup workflow: around 15 days after closing (or move-in date, whichever is later), delete user profile and related data.
+- [X] Update code paths for user role = Admin.
+- [X] Add account cleanup workflow: around 15 days after closing (or move-in date, whichever is later), delete user profile and related data.
 
 ## Push Notification Milestones
 
-- [x] Client requests an agent (`clientRequests` create with `status: Pending`) → notify selected agent.
+- [X] Client requests an agent (`clientRequests` create with `status: Pending`) → notify selected agent.
   - Source: `handleSelectRealtor` in `app/client/(tabs)/client-dashboard.tsx`
-- [x] Agent approves client request (`clientRequests` update/create with `status: Approved`) → notify client.
+- [X] Agent approves client request (`clientRequests` update/create with `status: Approved`) → notify client.
   - Source: `handleAssignClient` in `app/agent/(tabs)/agent-dashboard.tsx`
-- [x] Agent declines client request (`clientRequests` update with `status: Declined` + `reason`) → notify client with decline reason.
+- [X] Agent declines client request (`clientRequests` update with `status: Declined` + `reason`) → notify client with decline reason.
   - Source: `handleDeclineRequest` in `app/agent/(tabs)/agent-dashboard.tsx`
-- [x] Agent releases client (delete `clientRequests` assignment) → notify client they are unassigned.
+- [X] Agent releases client (delete `clientRequests` assignment) → notify client they are unassigned.
   - Source: `handleReleaseClient` in `app/agent/(tabs)/agent-dashboard.tsx`
-- [x] Agent creates offer (`clientOffers` create with `status: Offer Made`) → notify client.
+- [X] Agent creates offer (`clientOffers` create with `status: Offer Made`) → notify client.
   - Source: `createClientOffer` call in `components/modules/ClientFavoritesListModule.tsx`
-- [x] Offer status changed (`clientOffers.status`) → notify assigned agent + client.
+- [X] Offer status changed (`clientOffers.status`) → notify assigned agent + client.
   - Source: `handleSave` in `app/(shared_screens)/client_offer_details.tsx`
-- [x] Offer milestone dates changed (`dueDiligence*`, `inspectionDate`, `closingDate`, `earnestMoney*`) → notify both sides.
+- [X] Offer milestone dates changed (`dueDiligence*`, `inspectionDate`, `closingDate`, `earnestMoney*`) → notify both sides.
   - Source: `handleSave` in `app/(shared_screens)/client_offer_details.tsx`
-- [x] Agent assigns a property as favorite to client (`clientFavorites` create for another user) → notify client.
+- [X] Agent assigns a property as favorite to client (`clientFavorites` create for another user) → notify client.
   - Source: `toggleFavorite(selectedClientId, selectedHouse)` in `app/(tabs)/map.tsx`
 - [ ] Optional: client Request Help action (once stored in Firestore) → notify assigned agent.
   - Source: `handleRequestHelp` in `app/(tabs)/map.tsx`
@@ -40,28 +39,25 @@
   - Source: `runDeactivateInactiveUsers` / `deactivateUsersAfterCloseDate` in `functions/src/index.ts`
 
 
-
-## Web Platform
-- [ ] Fix web map implementation - Create platform-specific files (map.native.tsx and map.web.tsx) to properly support web platform without react-native-maps dependency
-  - Current issue: Web bundler fails when trying to import react-native-maps
-  - Solution: Use .native.tsx and .web.tsx file extensions for platform-specific code
-  - Priority: Low (mobile is primary use case)
-
-- [ ] Limit property search to a 5 mile radius around the user's current location (remove default to Commerce, GA)
+- [X] Limit property search to a 5 mile radius around the user's current location (remove default to Commerce, GA)
 - [ ] Enforce search area limits when user zooms or uses 'Search This Area' (prevent excessive/irrelevant results)
 
 
 ## Ingestion Hardening
 
-- [x] Add retry/backoff and timeout handling to RapidAPI ingestion calls
-- [x] Persist ingestion telemetry with batch/page failure detail in `apiPullRuns`
-- [x] Add on-demand ingestion test endpoint with expected vs received summary stats
+- [X] Add retry/backoff and timeout handling to RapidAPI ingestion calls
+- [X] Persist ingestion telemetry with batch/page failure detail in `apiPullRuns`
+- [X] Add on-demand ingestion test endpoint with expected vs received summary stats
 - [ ] Create a post-run function to mark unseen properties inactive (`apiActive: false` when not seen in the current ingest run)
 
 
 ## Misc Todo List
 
-- [x] Add Request Help button and function
+- [X] Add Request Help button and function
 - [ ] Store help request in Firestore
 - [ ] Display confirmation after help request
 - [ ] Switch email sending to Firebase function or business email
+
+- [ ] Enforce: Users should only be able to have 1 active offer at a time (throttle in backend, ideally via Cloud Function)
+- [ ] Enforce: Limit user favorites to a max of 20 total and/or max 5 per minute (combine total and rate cap; block and log if exceeded)
+- [ ] Consider: Add client-side check for rapid favorite/unfavorite toggling. If a user favorites, unfavorites, then re-favorites the same property within a short window (e.g., 10 minutes), show a message to wait 24 hours before favoriting again. Refine logic to avoid penalizing honest mistakes.

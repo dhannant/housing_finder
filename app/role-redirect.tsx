@@ -6,17 +6,31 @@ import { ActivityIndicator, Image, Text, View } from 'react-native';
 export default function RoleRedirect() {
     const { user, userData, loading } = useAuth();
     const router = useRouter();
+
     useEffect(() => {
-        if(loading) {
-            //Do Nothing
+        if (loading) {
+            return;
+        }
+
+        if (!user) {
+            router.replace('/login');
+            return;
+        }
+
+        // User is authenticated but profile data may still be resolving.
+        if (!userData) {
+            return;
+        }
+
+        const normalizedRole = String(userData.role ?? '').trim().toLowerCase();
+        if (normalizedRole === 'admin') {
+            router.replace('/admin/dashboard');
+        } else if (normalizedRole === 'client') {
+            router.replace('/client/(tabs)');
+        } else if (normalizedRole === 'agent') {
+            router.replace('/agent/(tabs)');
         } else {
-            if (!user) {
-                router.replace('/login');  // Send user to home screen
-            } else if (userData?.role === 'Client') {
-                router.replace('/client/(tabs)'); // Send user to the Client Dashboard
-            } else if (userData?.role === 'Agent') {
-                router.replace('/agent/(tabs)'); // Send user to the Agent Dashboard
-            }
+            router.replace('/');
         }
     }, [user, userData, loading, router])
     

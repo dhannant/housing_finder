@@ -7,7 +7,7 @@ import type { Property } from '@/utils/interfaces';
 import { Picker } from '@react-native-picker/picker';
 import * as Location from "expo-location";
 import { router, useLocalSearchParams } from 'expo-router';
-import { collection, getDocs } from 'firebase/firestore';
+import { addDoc, collection, getDocs } from 'firebase/firestore';
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { default as MapView, Marker, default as RNMapView, type Region } from 'react-native-maps';
@@ -16,126 +16,6 @@ import PropertyFilters, { type PropertyFilterOptions } from "../property_filters
 
 // Use Property type from service instead of local House interface
 type House = Property;
-
-// Mock data for testing
-const MOCK_HOUSES: House[] = [
-	{
-		id: '1',
-		price: 350000,
-		address: '123 Main St, Commerce, GA',
-		beds: 3,
-		baths: 2,
-		latitude: 34.2029,
-		longitude: -83.4627,
-		status: 'for_sale',
-		type: 'single_family',
-		primaryPhoto: 'https://picsum.photos/400/300?random=1',
-		photos: [
-			{ href: 'https://picsum.photos/400/300?random=1' },
-			{ href: 'https://picsum.photos/400/300?random=2' },
-			{ href: 'https://picsum.photos/400/300?random=3' },
-		],
-		lot_sqft: null,
-		sqft: 1400
-	},
-	{
-		id: '2',
-		price: 425000,
-		address: '456 Oak Ave, Maysville, GA',
-		beds: 4,
-		baths: 2.5,
-		latitude: 34.2529,
-		longitude: -83.5127,
-		status: 'for_sale',
-		type: 'single_family',
-		primaryPhoto: 'https://picsum.photos/400/300?random=4',
-		photos: [
-			{ href: 'https://picsum.photos/400/300?random=4' },
-			{ href: 'https://picsum.photos/400/300?random=5' },
-			{ href: 'https://picsum.photos/400/300?random=6' },
-			{ href: 'https://picsum.photos/400/300?random=7' },
-		],
-		lot_sqft: null,
-		sqft: 2500
-	},
-	{
-		id: '3',
-		price: 1200,
-		address: '789 Elm St, Commerce, GA',
-		beds: 2,
-		baths: 1,
-		latitude: 34.1829,
-		longitude: -83.4427,
-		status: 'for_rent',
-		type: 'apartment',
-		primaryPhoto: 'https://picsum.photos/400/300?random=8',
-		photos: [
-			{ href: 'https://picsum.photos/400/300?random=8' },
-			{ href: 'https://picsum.photos/400/300?random=9' },
-		],
-		lot_sqft: null,
-		sqft: 2350
-	},
-	{
-		id: '4',
-		price: 299000,
-		address: '321 Pine Rd, Commerce, GA',
-		beds: 3,
-		baths: 2,
-		latitude: 34.2129,
-		longitude: -83.4527,
-		status: 'for_sale',
-		type: 'townhouse',
-		primaryPhoto: 'https://picsum.photos/400/300?random=10',
-		photos: [
-			{ href: 'https://picsum.photos/400/300?random=10' },
-			{ href: 'https://picsum.photos/400/300?random=11' },
-			{ href: 'https://picsum.photos/400/300?random=12' },
-		],
-		lot_sqft: 5000,
-		sqft: 1800
-	},
-	{
-		id: '5',
-		price: 1500,
-		address: '654 Maple Dr, Maysville, GA',
-		beds: 3,
-		baths: 2,
-		latitude: 34.2329,
-		longitude: -83.4927,
-		status: 'for_rent',
-		type: 'single_family',
-		primaryPhoto: 'https://picsum.photos/400/300?random=13',
-		photos: [
-			{ href: 'https://picsum.photos/400/300?random=13' },
-			{ href: 'https://picsum.photos/400/300?random=14' },
-			{ href: 'https://picsum.photos/400/300?random=15' },
-		],
-		lot_sqft: null,
-		sqft: null
-	},
-	{
-		id: '6',
-		price: 525000,
-		address: '987 Birch Ln, Commerce, GA',
-		beds: 4,
-		baths: 3,
-		latitude: 34.1929,
-		longitude: -83.4727,
-		status: 'pending',
-		type: 'single_family',
-		primaryPhoto: 'https://picsum.photos/400/300?random=16',
-		photos: [
-			{ href: 'https://picsum.photos/400/300?random=16' },
-			{ href: 'https://picsum.photos/400/300?random=17' },
-			{ href: 'https://picsum.photos/400/300?random=18' },
-			{ href: 'https://picsum.photos/400/300?random=19' },
-			{ href: 'https://picsum.photos/400/300?random=20' },
-		],
-		lot_sqft: null,
-		sqft: null
-	},
-];
 
 // Utility: Pin color
 function getPinColor(status: string) {
@@ -224,12 +104,6 @@ function isWithinBoundingBox(
 
 export default function HomeScreen() {
 
-	/**
-	 * Set to true to use fake data instead of making API 
-	 * calls (for testing UI without hitting API limits)
-	 */
-	const useMockData = false;
-
 	// Get current user from auth context
 	const { user, userData } = useAuth();
 	const [showAssignModal, setShowAssignModal] = useState(false);
@@ -260,16 +134,6 @@ export default function HomeScreen() {
 			const longitudeDelta = searchRegion?.longitudeDelta ?? 0.01;
 			const regionLog = `center=(${lat.toFixed(5)}, ${lon.toFixed(5)}), latDelta=${latitudeDelta.toFixed(5)}, lonDelta=${longitudeDelta.toFixed(5)}`;
 			let properties: House[] = [];
-			if (useMockData) {
-				properties = MOCK_HOUSES.filter(h => h.status === 'for_sale' || h.status === 'pending');
-				setTimeout(() => {
-					setHouses(properties);
-					setFilteredHouses(properties);
-					setLoading(false);
-					console.log(`Loaded ${properties.length} mock houses`);
-				}, 500);
-				return;
-			}
 
 			const snapshot = await getDocs(collection(db, "properties"));
 			properties = snapshot.docs
@@ -302,7 +166,7 @@ export default function HomeScreen() {
 		} finally {
 			setLoading(false);
 		}
-	}, [useMockData]);
+	}, []);
 
 	useEffect(() => {
 		(async () => {
@@ -362,16 +226,45 @@ export default function HomeScreen() {
 			);
 			return;
 		}
-		// TODO: Implement realtor selection and email subject/body
-		// Example:
-		// const selectedRealtorId = ...;
-		// const subject = ...;
-		// const body = ...;
-		// await Functions.handleEmail(userId, selectedRealtorId, subject, body);
-		Alert.alert(
-			'Help Requested',
-			'We have the coordinates of your search location and will research any available homes in the area.  A realtor will contact you soon.'
-		);
+
+		try {
+			const assignedRealtor = await Functions.fetchAssignedRealtor(userId);
+			const assignedRealtorId = typeof assignedRealtor === 'string'
+				? assignedRealtor
+				: (assignedRealtor as any)?.id || '';
+
+			if (!assignedRealtorId) {
+				Alert.alert(
+					'No Assigned Agent',
+					'Please select an agent from your dashboard before requesting help.',
+				);
+				return;
+			}
+
+			await addDoc(collection(db, 'helpRequests'), {
+				clientId: userId,
+				realtorId: assignedRealtorId,
+				status: 'Pending',
+				source: 'map_request_help',
+				searchRegion: currentRegion
+					? {
+						latitude: currentRegion.latitude,
+						longitude: currentRegion.longitude,
+						latitudeDelta: currentRegion.latitudeDelta,
+						longitudeDelta: currentRegion.longitudeDelta,
+					}
+					: null,
+				createdAt: new Date(),
+			});
+
+			Alert.alert(
+				'Help Requested',
+				'Your assigned agent has been notified and will follow up shortly.',
+			);
+		} catch (error) {
+			console.error('[RequestHelp] Failed creating help request:', error);
+			Alert.alert('Error', 'Failed to submit help request. Please try again.');
+		}
 	}
 
 	// Default to false if not present

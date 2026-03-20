@@ -1,17 +1,17 @@
 import { db } from '@/components/firebaseConfig';
 import {
-    addDoc,
-    arrayUnion,
-    collection,
-    deleteDoc,
-    doc,
-    getDoc,
-    getDocs,
-    getFirestore,
-    query,
-    setDoc,
-    updateDoc,
-    where,
+	addDoc,
+	arrayUnion,
+	collection,
+	deleteDoc,
+	doc,
+	getDoc,
+	getDocs,
+	getFirestore,
+	query,
+	setDoc,
+	updateDoc,
+	where,
 } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
 import { Alert, Linking, Platform } from 'react-native';
@@ -293,6 +293,34 @@ export const fetchPendingClientRequests = async (userId: string, role: "client" 
 		return requests;
 	} catch (error) {
 		console.error(`[fetchPendingClientRequests] ✗ Error fetching pending requests:`, error);
+		throw error;
+	}
+};
+
+/** Fetch all client request records for an agent across all statuses.
+ * @param realtorId
+ */
+export const fetchAgentClientRequests = async (realtorId: string): Promise<interfaces.ClientRequest[]> => {
+	try {
+		if (!realtorId) return [];
+		const requestsRef = collection(db, "clientRequests");
+		const q = query(requestsRef, where("realtorId", "==", realtorId));
+		const querySnapshot = await getDocs(q);
+
+		const requests: interfaces.ClientRequest[] = [];
+		querySnapshot.forEach((doc) => {
+			requests.push({ id: doc.id, ...doc.data() } as interfaces.ClientRequest);
+		});
+
+		requests.sort((a, b) => {
+			const dateA = a.createdAt?.toDate?.() || new Date(0);
+			const dateB = b.createdAt?.toDate?.() || new Date(0);
+			return dateB.getTime() - dateA.getTime();
+		});
+
+		return requests;
+	} catch (error) {
+		console.error(`[fetchAgentClientRequests] ✗ Error fetching agent requests for ${realtorId}:`, error);
 		throw error;
 	}
 };

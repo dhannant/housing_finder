@@ -67,6 +67,39 @@ export const agentDashboardStyles = StyleSheet.create({
   },
   actionButton: { flexDirection: "row", alignItems: "center", paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "#F0F7F0" },
   actionButtonText: { fontSize: 14, fontWeight: "600", color: "#2C5F2D", marginLeft: 6 },
+  pieChartContainer: {
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#EFEFEF",
+    alignItems: "center",
+  },
+  chartTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: 10,
+  },
+  chartLegend: {
+    width: "100%",
+    maxWidth: 360,
+    marginTop: 10,
+    gap: 8,
+  },
+  legendRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  legendSwatch: {
+    width: 12,
+    height: 12,
+    borderRadius: 3,
+    marginRight: 8,
+  },
+  legendText: {
+    fontSize: 13,
+    color: "#4E4E4E",
+  },
   viewFavoritesButton: { flexDirection: "row", alignItems: "center", paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "#FF9800" },
   viewFavoritesButtonText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
   navigateButton: {
@@ -139,6 +172,22 @@ export const landingStyles = StyleSheet.create({
   logoSubtitle: {
     fontSize: 12,
     color: '#666666',
+  },
+
+  //Dashboard Button
+  dashboardButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#2c3e5f',
+    backgroundColor: '#2b3b83'
+  },
+
+  dashboardButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 14,
   },
 
   // Login button in top right

@@ -31,7 +31,7 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:743617242604:ios:ab960713e31e1ec3cfccc9</string>
+	<string>1:743617242604:ios:ad60b35b2934c258cfccc9</string>
 	<key>DATABASE_URL</key>
 	<string>https://leading-edge-realty-app-default-rtdb.firebaseio.com</string>
 </dict>
