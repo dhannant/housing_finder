@@ -6,7 +6,7 @@ service cloud.firestore {
     // Helper Functions
     function isAuthenticated() { return request.auth != null; }
     function isOwner(userId) { return request.auth.uid == userId; }
-    function getUserRole() { return request.auth.token.role; }
+    function getUserRole() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role; }
     function isAdmin() { return isAuthenticated() && getUserRole() == 'Admin'; }
     function clientHasActiveOffer(clientId, propertyId) {
       return exists(

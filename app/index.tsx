@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { landingStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';
+import { fetchUserData } from '@/utils/functions';
 
 export default function LandingScreen() {
   const router = useRouter();
@@ -55,12 +56,15 @@ export default function LandingScreen() {
     }
   };
 
-  const { role } = useAuth();
   const handleDashboard = async () => {
-    if (!user || !role) return;
-    if (role === 'Agent') { router.push('/agent/(tabs)/agent-dashboard') }
-    else if (role === 'Client') { router.push('/client/(tabs)/client-dashboard') }
-    else if (role === 'Admin') { router.push('/admin/dashboard') }
+    if (!user) return;
+
+    const userData = await fetchUserData(user.uid)
+    if (!userData) return;
+
+    if (userData.role === 'Agent') { router.push('/agent/(tabs)/agent-dashboard') }
+    else if (userData.role === 'Client') { router.push('/client/(tabs)/client-dashboard') }
+    else if (userData.role === 'Admin') { router.push('/admin/dashboard') }
   };
 
   if (!loading && user) {

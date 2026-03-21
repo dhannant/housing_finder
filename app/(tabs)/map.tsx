@@ -104,8 +104,8 @@ function isWithinBoundingBox(
 
 export default function HomeScreen() {
 
-	// Get current user and role from auth context
-	const { user, userData, role } = useAuth();
+	// Get current user from auth context
+	const { user, userData } = useAuth();
 	const [showAssignModal, setShowAssignModal] = useState(false);
 	const [eligibleClients, setEligibleClients] = useState<any[]>([]);
 	const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -307,7 +307,7 @@ const hasZoomedRef = useRef(false);
 						return;
 					}
 					if (!selectedHouse) return;
-					if (role === 'Agent') {
+					if (userData.role === 'Agent') {
 						try {
 							const agentId = user?.uid;
 							if (!agentId) {
@@ -341,7 +341,7 @@ const hasZoomedRef = useRef(false);
 						return;
 					}
 
-					if (role !== 'Agent') {
+					if (userData.role !== 'Agent') {
 						try {
 							const newStatus = await Functions.toggleFavorite(user.uid, selectedHouse);
 							setIsFavorite(newStatus);

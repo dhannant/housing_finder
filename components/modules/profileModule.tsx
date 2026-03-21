@@ -19,7 +19,7 @@ async function deleteUserDocsByField(colName: string, field: string, value: stri
 }
 
 export default function ProfileScreen() {
-const { user, userData, role } = useAuth();
+	const { user, userData } = useAuth();
 	const navigation = useNavigation();
 		const [deleting, setDeleting] = useState(false);
 		// Delete profile and all associated data
@@ -107,7 +107,7 @@ const { user, userData, role } = useAuth();
 			{ label: 'Move Timeline', key: 'moveTimeline' },
 		];
 
-		const selected = role === 'Agent' ? agentFields : clientFields;
+		const selected = userData?.role === 'Agent' ? agentFields : clientFields;
 		return selected.filter((field) => Boolean(extraFields[field.key]));
 	}, [userData]);
 
@@ -130,7 +130,7 @@ const { user, userData, role } = useAuth();
 			}
 
 			const selectedTeamMember =
-				role === 'Agent'
+				userData?.role === 'Agent'
 					? teamMembers.find((member) => member.id === selectedTeamMemberId) ?? null
 					: null;
 

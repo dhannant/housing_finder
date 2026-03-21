@@ -7,10 +7,8 @@ import { useState } from 'react';
 import { Alert, Button, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, db } from '../components/firebaseConfig';
-import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginScreen() {
-	const { role } = useAuth();
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
 	const [message, setMessage] = useState('');
@@ -34,9 +32,16 @@ export default function LoginScreen() {
 		try {
 			const cleanEmail = email.trim().toLowerCase();
 			const cleanPassword = password.trim();
-			await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
-			setMessage('Login successful!');
-			router.replace('/role-redirect');
+			const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+			const user = userCredential.user;
+			const userDoc = await getDoc(doc(db, 'users', user.uid));
+			if (userDoc.exists()) {
+				setMessage('Login successful!');
+				router.replace('/role-redirect');
+			} else {
+				setMessage('User data not found');
+				setLoading(false);
+			}
 		} catch (err: any) {
 			setMessage('Test login failed. Please check your credentials and try again.');
 			setLoading(false);
@@ -68,9 +73,38 @@ export default function LoginScreen() {
 			}
 
 			// Proceed with login
-			await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
-			setMessage('Login successful!');
-			router.replace('/role-redirect');
+			let loginSuccess = false;
+			try {
+				const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+				const user = userCredential.user;
+				// Fetch user role from Firestore
+				const userDoc = await getDoc(doc(db, 'users', user.uid));
+				if (userDoc.exists()) {
+					setMessage('Login successful!');
+					loginSuccess = true;
+					router.replace('/role-redirect');
+				} else {
+					setMessage('User data not found');
+				}
+			} catch (err: any) {
+				if (err.code === 'auth/user-not-found') {
+					Alert.alert(
+						'User not found',
+						'No account found for this email. Would you like to register?',
+						[
+							{ text: 'Cancel', style: 'cancel', onPress: () => setLoading(false) },
+							{ text: 'Register', onPress: () => { setLoading(false); router.replace('/register'); }, },
+						]
+					);
+				} else {
+					setMessage('Login failed. Please check your credentials and try again.');
+				}
+			}
+
+			// Record login attempt (success or failure)
+			const recordLoginAttempt = httpsCallable(functions, 'recordLoginAttempt');
+			await recordLoginAttempt({ email: cleanEmail, success: loginSuccess });
+
 			setLoading(false);
 		} catch (err: any) {
 			setMessage('An error occurred. Please try again.');
