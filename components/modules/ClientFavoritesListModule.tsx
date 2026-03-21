@@ -21,8 +21,9 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
 	const params = useLocalSearchParams();  // this gets all parameters that were passed from the router to the page, including clientId
 	const { user, userData } = useAuth();  //get current logged-in user
 	const [ clientData, setClientData ] = useState<any>(null);
-	const isAgent = userData?.role === 'Agent';
-	const isClient = userData?.role === 'Client';
+	const { role } = useAuth();
+	const isAgent = role === 'Agent';
+	const isClient = role === 'Client';
 
 	// Only log errors and important debug info
 

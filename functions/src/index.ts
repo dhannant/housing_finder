@@ -1,31 +1,5 @@
-// Start writing functions
-// https://firebase.google.com/docs/functions/typescript
-
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time. This helps mitigate the impact of unexpected
-// traffic spikes by instead downgrading performance. This limit is a
-// per-function limit. You can override the limit for each function using the
-// `maxInstances` option in the function's options, e.g.
-// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
-// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
-// functions should each use functions.runWith({ maxInstances: 10 }) instead.
-// In the v1 API, each function can only serve one request per container, so
-// this will be the maximum concurrent request count.
-// ===== Registration Rate Limiting =====
-// Firestore collection: registrationAttempts
-// Document ID: lowercased email
-// Fields: attemptCount (number), lockoutUntil (timestamp)
-
+// === IMPORTS: All imports must be at the top to avoid ReferenceError/circular issues ===
 import { onCall, onRequest } from "firebase-functions/v2/https";
-/**
- * Import function triggers from their respective submodules:
- *
- * import {onCall} from "firebase-functions/v2/https";
- * import {onDocumentWritten} from "firebase-functions/v2/firestore";
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
-
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
@@ -35,13 +9,53 @@ import { onDocumentCreated, onDocumentDeleted, onDocumentUpdated } from "firebas
 import { onSchedule } from "firebase-functions/v2/scheduler";
 setGlobalOptions({ maxInstances: 10 });
 
-// Initialize Firebase Admin SDK at the top level
-initializeApp();
-const REG_ATTEMPT_COLLECTION = "registrationAttempts";
+
+export const REG_ATTEMPT_COLLECTION = "registrationAttempts";
 const MAX_REG_ATTEMPTS = 3;
 const REG_LOCKOUT_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-// Check if registration is allowed for a given email
+// Initialize Firebase Admin SDK at the top level
+initializeApp();
+
+// === Set Custom Claims for User Roles ===
+// Helper to set custom claim for user role
+async function setUserRoleCustomClaim(userId: string, role: string) {
+	if (!userId || !role) return;
+	const auth = getAuth();
+	try {
+		await auth.setCustomUserClaims(userId, { role });
+		console.log(`[CustomClaims] Set role='${role}' for userId=${userId}`);
+	} catch (err) {
+		console.error(`[CustomClaims] Failed to set role for userId=${userId}:`, err);
+	}
+}
+
+// Trigger on user doc creation
+export const setRoleClaimOnUserCreate = onDocumentCreated("users/{userId}", async (event) => {
+	const userId = event.params.userId;
+	const data = event.data?.data();
+	const role = data?.role;
+	if (userId && role) {
+		await setUserRoleCustomClaim(userId, role);
+	}
+});
+
+// Trigger on user doc update
+export const setRoleClaimOnUserUpdate = onDocumentUpdated("users/{userId}", async (event) => {
+	const userId = event.params.userId;
+	const after = event.data?.after?.data();
+	const before = event.data?.before?.data();
+	const newRole = after?.role;
+	const oldRole = before?.role;
+	if (userId && newRole && newRole !== oldRole) {
+		await setUserRoleCustomClaim(userId, newRole);
+	}
+});
+
+// ===== Registration Rate Limiting =====
+// Firestore collection: registrationAttempts
+// Document ID: lowercased email
+// Fields: attemptCount (number), lockoutUntil (timestamp)
 export const verifyRegistrationAllowed = onCall(async (request) => {
 	const emailRaw = request.data?.email;
 	if (typeof emailRaw !== "string" || !emailRaw.trim()) {
@@ -1540,3 +1554,4 @@ export const deactivateUsersAfterCloseDate = onSchedule("every 24 hours", async 
 		}
 	}
 });
+exports.REG_ATTEMPT_COLLECTION = REG_ATTEMPT_COLLECTION;

@@ -115,7 +115,7 @@ const emptyJourneyStats: AdminJourneyStats = {
 };
 
 export default function AdminDashboardScreen() {
-  const { userData } = useAuth();
+  const { userData, role } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [agents, setAgents] = useState<AdminAgentRow[]>([]);
@@ -125,10 +125,10 @@ export default function AdminDashboardScreen() {
   const [journeyStats, setJourneyStats] = useState<AdminJourneyStats>(emptyJourneyStats);
 
   useEffect(() => {
-    if (userData && userData.role !== 'Admin') {
+    if (role && role !== 'Admin') {
       router.replace('/role-redirect');
     }
-  }, [userData, router]);
+  }, [role, router]);
 
   useEffect(() => {
     async function loadApiStats(): Promise<AdminApiStats> {
