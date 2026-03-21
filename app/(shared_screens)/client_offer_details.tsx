@@ -16,7 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 // Props: offerId, clientId, agentId, propertyId, initialOfferData
 export default function ClientOfferDetailsScreen() {
 	const [ activeDatePicker, setActiveDatePicker ] = useState<string | null>(null);
-	const { user, userData } = useAuth();
+	const { user, userData, role } = useAuth();
 	// const { offerId, clientId, agentId, propertyId, initialOfferData } = useLocalSearchParams();
 	const params = useLocalSearchParams();
 
@@ -67,7 +67,7 @@ export default function ClientOfferDetailsScreen() {
 				if (offer) setOfferData(offer);
 			} 
 
-			setIsAgent(userData?.role === "Agent");
+				setIsAgent(role === "Agent");
 			setIsAssignedAgent(user?.uid === agentIdStr);
 		}
 		checkRole();

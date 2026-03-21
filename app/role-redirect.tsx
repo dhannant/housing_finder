@@ -4,25 +4,21 @@ import { useEffect } from 'react';
 import { ActivityIndicator, Image, Text, View } from 'react-native';
 
 export default function RoleRedirect() {
-    const { user, userData, loading } = useAuth();
+    const { user, userData, loading, role } = useAuth();
     const router = useRouter();
 
     useEffect(() => {
         if (loading) {
             return;
         }
-
         if (!user) {
             router.replace('/login');
             return;
         }
-
-        // User is authenticated but profile data may still be resolving.
-        if (!userData) {
+        if (!role) {
             return;
         }
-
-        const normalizedRole = String(userData.role ?? '').trim().toLowerCase();
+        const normalizedRole = String(role ?? '').trim().toLowerCase();
         if (normalizedRole === 'admin') {
             router.replace('/admin/dashboard');
         } else if (normalizedRole === 'client') {
@@ -32,7 +28,7 @@ export default function RoleRedirect() {
         } else {
             router.replace('/');
         }
-    }, [user, userData, loading, router])
+    }, [user, role, loading, router])
     
     return (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>

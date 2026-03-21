@@ -12,7 +12,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
-  const { user, userData, loading } = useAuth();
+  const { user, userData, loading, role } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -21,14 +21,14 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
         // Not logged in - redirect to login
         console.log('[ProtectedRoute] No user, redirecting to login');
         router.replace('/login');
-      } else if (requiredRole && userData?.role !== requiredRole) {
+      } else if (requiredRole && role !== requiredRole) {
         // Logged in but wrong role - redirect to home
         console.log('[ProtectedRoute] Wrong role, redirecting to home');
         alert(`This page is for ${requiredRole}s only`);
         router.replace('/');
       }
     }
-  }, [user, userData, loading, requiredRole]);
+  }, [user, role, loading, requiredRole]);
 
   if (loading) {
     return (
@@ -43,7 +43,7 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
     return null; // Will redirect in useEffect
   }
 
-  if (requiredRole && userData?.role !== requiredRole) {
+  if (requiredRole && role !== requiredRole) {
     return null; // Will redirect in useEffect
   }
 
