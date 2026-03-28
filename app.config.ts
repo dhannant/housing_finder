@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: config.name ?? 'Leading Edge Realty App',
   slug: config.slug ?? 'housing-finder',
-  version: config.version ?? '0.0.4',
+  version: config.version ?? '0.0.5',
   android: {
     ...config.android,
     googleServicesFile:
@@ -17,5 +17,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         apiKey: process.env.GOOGLE_MAPS_ANDROID_API_KEY,
       },
     },
+  },
+  ios: {
+    ...config.ios,
+    googleServicesFile:
+      config.ios?.googleServicesFile ??
+      process.env.GOOGLE_SERVICE_INFO_PLIST ??
+      './GoogleService-Info.plist',
   },
 });
