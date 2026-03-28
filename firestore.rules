@@ -30,7 +30,15 @@ service cloud.firestore {
 
     // Users collection rules
     match /users/{userId} {
-      allow create, update: if isAuthenticated() && isOwner(userId);
+      // Allow create if authenticated and owner, and firstName is a string of reasonable length
+      allow create: if isAuthenticated() && isOwner(userId)
+        && (request.resource.data.firstName is string)
+        && (request.resource.data.firstName.size() > 0 && request.resource.data.firstName.size() < 50);
+      // Allow update if authenticated, owner, NOT changing 'role', and firstName is a string of reasonable length
+      allow update: if isAuthenticated() && isOwner(userId)
+        && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role)
+        && (request.resource.data.firstName is string)
+        && (request.resource.data.firstName.size() > 0 && request.resource.data.firstName.size() < 50);
       allow delete: if false;
       allow get: if isAuthenticated() && (
         isAdmin() ||

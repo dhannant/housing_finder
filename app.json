@@ -2,7 +2,7 @@
   "expo": {
     "name": "Leading Edge Realty App",
     "slug": "housing-finder",
-    "version": "0.0.4",
+    "version": "0.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "leadingedgerealtyapp",
@@ -12,10 +12,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.hitsolutions.leadingedgerealtyapp",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "buildNumber": "4"
+      "buildNumber": "1"
     },
     "android": {
-      "versionCode": 4,
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/icon.png",
