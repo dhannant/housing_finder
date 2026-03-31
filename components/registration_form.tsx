@@ -146,17 +146,19 @@ export default function RegisterForm() {
 				keyboardType="default"
 			/>
 			<Text style={styles.fieldLabel}>Phone Number</Text>
-			<TextInput
-				style={styles.phoneNumber}
-				placeholder="Phone Number"
-				placeholderTextColor="#6B7280"
-				// here we need to convert number to string for TextInput
-				value={phoneNumber?.toString() || ""}
-				// but unlike email and password, we convert string back to number
-				onChangeText={(text: string) => setPhoneNumber(formatPhoneNumber(text))}
-				keyboardType="phone-pad"
-				maxLength={14}
-			/>
+						<TextInput
+								style={styles.phoneNumber}
+								placeholder="Phone Number"
+								placeholderTextColor="#6B7280"
+								value={phoneNumber?.toString() || ""}
+								onChangeText={(text: string) => {
+									// Only allow digits and valid phone symbols
+									const cleaned = text.replace(/[^0-9+()\-\s]/g, "");
+									setPhoneNumber(formatPhoneNumber(cleaned));
+								}}
+								keyboardType="phone-pad"
+								maxLength={14}
+						/>
 			{/* Role selection removed; now set automatically based on email */}
 			<Text style={styles.fieldLabel}>Email</Text>
 			<TextInput

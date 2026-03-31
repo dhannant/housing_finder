@@ -1,11 +1,13 @@
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
+import { useAuth } from '@/contexts/AuthContext';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { router, Tabs } from 'expo-router';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const { user, role } = useAuth();
   return (
     <Tabs
       screenOptions={{
@@ -20,17 +22,24 @@ export default function TabLayout() {
         }}
         listeners={{
           tabPress: (e) => {
-            // Prevent default action
             e.preventDefault();
-            // Navigate to the desired screen
             router.push('/');
-            // Tabs.navigate('index');
           }
         }}
       />
+      {/* Conditionally render Dashboard tab for logged-in users (client or agent) */}
+      {user && (role === 'Client' || role === 'Agent') && (
+        <Tabs.Screen
+          name="dashboard"
+          options={{
+            title: 'Dashboard',
+            tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          }}
+        />
+      )}
       <Tabs.Screen
-        name="map"  // Changed from "index"
-        options={{ title: 'Map',  // Changed from "Home"
+        name="map"
+        options={{ title: 'Map',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="map.fill" color={color} />,
         }}
       />

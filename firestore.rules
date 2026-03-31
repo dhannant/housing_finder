@@ -30,15 +30,35 @@ service cloud.firestore {
 
     // Users collection rules
     match /users/{userId} {
-      // Allow create if authenticated and owner, and firstName is a string of reasonable length
+      // Allow create if authenticated and owner, and fields are valid
       allow create: if isAuthenticated() && isOwner(userId)
         && (request.resource.data.firstName is string)
-        && (request.resource.data.firstName.size() > 0 && request.resource.data.firstName.size() < 50);
-      // Allow update if authenticated, owner, NOT changing 'role', and firstName is a string of reasonable length
+        && (request.resource.data.firstName.size() > 0 && request.resource.data.firstName.size() < 50)
+        && !(request.resource.data.firstName.matches('.*<script.*'))
+        && (request.resource.data.lastName is string)
+        && (request.resource.data.lastName.size() > 0 && request.resource.data.lastName.size() < 50)
+        && !(request.resource.data.lastName.matches('.*<script.*'))
+        && (request.resource.data.email is string)
+        && (request.resource.data.email.size() > 0 && request.resource.data.email.size() < 100)
+        && !(request.resource.data.email.matches('.*<script.*'))
+        && (request.resource.data.phoneNumber is string)
+        && (request.resource.data.phoneNumber.size() > 0 && request.resource.data.phoneNumber.size() < 25)
+        && request.resource.data.phoneNumber.matches('^[0-9+()\-\s]{7,20}$');
+      // Allow update if authenticated, owner, NOT changing 'role', and fields are valid
       allow update: if isAuthenticated() && isOwner(userId)
         && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role)
         && (request.resource.data.firstName is string)
-        && (request.resource.data.firstName.size() > 0 && request.resource.data.firstName.size() < 50);
+        && (request.resource.data.firstName.size() > 0 && request.resource.data.firstName.size() < 50)
+        && !(request.resource.data.firstName.matches('.*<script.*'))
+        && (request.resource.data.lastName is string)
+        && (request.resource.data.lastName.size() > 0 && request.resource.data.lastName.size() < 50)
+        && !(request.resource.data.lastName.matches('.*<script.*'))
+        && (request.resource.data.email is string)
+        && (request.resource.data.email.size() > 0 && request.resource.data.email.size() < 100)
+        && !(request.resource.data.email.matches('.*<script.*'))
+        && (request.resource.data.phoneNumber is string)
+        && (request.resource.data.phoneNumber.size() > 0 && request.resource.data.phoneNumber.size() < 25)
+        && request.resource.data.phoneNumber.matches('^[0-9+()\-\s]{7,20}$');
       allow delete: if isAuthenticated() && (isOwner(userId) || isAdmin());
       allow get: if isAuthenticated() && (
         isAdmin() ||

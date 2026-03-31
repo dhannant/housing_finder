@@ -3,7 +3,7 @@ import { landingStyles, profileModule_styles } from '@/constants/styles';
 import { teamMembers } from '@/constants/team-data';
 import { useAuth } from '@/contexts/AuthContext';
 import { Picker } from '@react-native-picker/picker';
-import { useNavigation } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import { deleteUser, EmailAuthProvider, reauthenticateWithCredential, sendPasswordResetEmail, updateEmail, updatePassword } from 'firebase/auth';
 import { collection, deleteDoc, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
@@ -34,9 +34,13 @@ const { user, userData, role } = useAuth();
 					{
 						text: 'Delete',
 						style: 'destructive',
-						onPress: async (inputPassword) => {
+						onPress: async (inputPassword: string | undefined) => {
 							if (!inputPassword) {
 								Alert.alert('Password Required', 'You must enter your password to delete your profile.');
+								return;
+							}
+							if (!user.email) {
+								Alert.alert('Email Missing', 'Your user account does not have an email address.');
 								return;
 							}
 							setDeleting(true);
@@ -58,7 +62,7 @@ const { user, userData, role } = useAuth();
 								// Delete auth user
 								await deleteUser(user);
 								Alert.alert('Profile Deleted', 'Your profile and all associated data have been deleted.');
-								navigation.reset({ index: 0, routes: [{ name: 'login' }] });
+								router.replace('/login');
 							} catch (error: any) {
 								console.error('Delete profile error:', error);
 								Alert.alert('Delete Failed', error?.message || 'Unable to delete your profile.');
@@ -287,12 +291,16 @@ const { user, userData, role } = useAuth();
 
 				<View style={profileModule_styles.fieldGroup}>
 					<Text style={profileModule_styles.label}>Phone Number</Text>
-					<TextInput
-						style={profileModule_styles.input}
-						value={phoneNumber}
-						onChangeText={setPhoneNumber}
-						keyboardType="phone-pad"
-					/>
+										<TextInput
+												style={profileModule_styles.input}
+												value={phoneNumber}
+												onChangeText={text => {
+													// Only allow digits and valid phone symbols
+													const cleaned = text.replace(/[^0-9+()\-\s]/g, "");
+													setPhoneNumber(cleaned);
+												}}
+												keyboardType="phone-pad"
+										/>
 				</View>
 
 				<TouchableOpacity
