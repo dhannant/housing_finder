@@ -2,7 +2,7 @@ import { db } from '@/components/firebaseConfig';
 import PropertyDetailsModal from '@/components/modules/PropertyDetailsModal';
 import { landingStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';
-import { createClientOffer, fetchClientFavorites, fetchFavoriteByID, fetchUserData } from '@/utils/functions';
+import { createClientOffer, deleteFavoriteById, fetchClientFavorites, fetchFavoriteByID, fetchUserData } from '@/utils/functions';
 import { FavoriteProperty, OfferData } from '@/utils/interfaces';
 import { router, useLocalSearchParams } from 'expo-router';
 import { collection, getDocs, query, where } from 'firebase/firestore';
@@ -172,6 +172,18 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
 		loadAll();
 	}, [params.clientId, user?.uid, isAgent, isClient, favoriteIds]);
 
+
+	// Unfavorite handler must be in scope
+   const handleUnfavorite = async (favoriteDocId: string) => {
+      try {
+         await deleteFavoriteById(favoriteDocId);
+         setFavorites((prev) => prev.filter((fav) => fav.id !== favoriteDocId));
+      } catch (error) {
+         alert('Failed to remove favorite.');
+      }
+   };
+
+	
 	if (loading) {
 		if (loading) {
 			return (
@@ -342,7 +354,7 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
 												alignItems: 'center',
 											}}
 											onPress={() => {
-												console.log('Navigating to details:', offer.offerId, offer.clientId, offer.agentId, offer.propertyId);
+												   // [REMOVED LOG]
 												router.push({
 													pathname: "/(shared_screens)/client_offer_details",
 													params: {
@@ -371,15 +383,6 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
 						{(() => {
 							const assignedToClient = assignedClients.includes(item.userId);
 							const showButton = isAgent && assignedToClient && !clientHasActiveOffer[item.userId] && !propertyHasActiveOffer[item.propertyId];
-							console.log('[Create Offer Button]', {
-								isAgent,
-								assignedToClient,
-								clientHasOffer: clientHasActiveOffer[item.userId],
-								propertyHasOffer: propertyHasActiveOffer[item.propertyId],
-								showButton,
-								itemUserId: item.userId,
-								itemPropertyId: item.propertyId
-							});
 							if (!showButton) return null;
 							return (
 								<TouchableOpacity
@@ -442,7 +445,24 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
 								</TouchableOpacity>
 							);
 						})()}
+						{/* Unfavorite button */}
+						<TouchableOpacity
+							onPress={() => handleUnfavorite(item.id)}
+							style={{
+								marginLeft: 8,
+								backgroundColor: '#f8d7da',
+								borderRadius: 16,
+								paddingVertical: 4,
+								paddingHorizontal: 10,
+								alignSelf: 'flex-start',
+								borderWidth: 1,
+								borderColor: '#f5c2c7',
+							}}
+						>
+							<Text style={{ color: '#a71d2a', fontWeight: 'bold', fontSize: 13 }}>Unfavorite</Text>
+						</TouchableOpacity>
 					</TouchableOpacity>
+					
 				)}
 				contentContainerStyle={{ paddingVertical: 8 }}  // Add padding at top and bottom of the entire list
 			/>
@@ -451,5 +471,4 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
 				
 			</View>
 		</SafeAreaView>
-	);
-}
+	)}

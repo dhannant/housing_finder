@@ -39,7 +39,7 @@ service cloud.firestore {
         && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role)
         && (request.resource.data.firstName is string)
         && (request.resource.data.firstName.size() > 0 && request.resource.data.firstName.size() < 50);
-      allow delete: if false;
+      allow delete: if isAuthenticated() && (isOwner(userId) || isAdmin());
       allow get: if isAuthenticated() && (
         isAdmin() ||
         isOwner(userId) ||
@@ -71,8 +71,9 @@ service cloud.firestore {
         && resource.data.realtorId == request.auth.uid
         && request.resource.data.realtorId == resource.data.realtorId
         && request.resource.data.clientId == resource.data.clientId;
-      allow delete: if isAuthenticated() 
-        && resource.data.realtorId == request.auth.uid;
+      allow delete: if isAuthenticated() && (
+        resource.data.realtorId == request.auth.uid || resource.data.clientId == request.auth.uid
+      );
     }
 
     // clientFavorites collection rules
@@ -106,7 +107,7 @@ service cloud.firestore {
         getUserRole() == "Agent"
       );
       allow delete: if isAuthenticated() && (
-        getUserRole() == "Agent"
+        getUserRole() == "Agent" || resource.data.clientId == request.auth.uid
       );
     }
 

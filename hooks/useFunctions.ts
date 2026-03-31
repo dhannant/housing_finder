@@ -1,8 +1,8 @@
 import { db } from "@/components/firebaseConfig";
 import {
-	fetchRealtors,
-	fetchUnassignedClients,
-	fetchUserData,
+    fetchRealtors,
+    fetchUnassignedClients,
+    fetchUserData,
 } from "@/utils/functions";
 import { ClientRequest, UserData } from "@/utils/interfaces";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
@@ -40,19 +40,19 @@ export const useUserData = (userId: string | null | undefined): UseDataReturn<Us
 	useEffect(() => {
 		const loadUser = async () => {
 			if (!userId) {
-				console.log(`[useUserData] No userId provided`);
+				   // [REMOVED LOG]
 				setData(null);
 				setError(null);
 				setLoading(false);
 				return;
 			}
-			console.log(`[useUserData] Refetching user: ${userId}`);
+			   // [REMOVED LOG]
 			try {
 				setLoading(true);
 				const result = await fetchUserData(userId);
 				setData(result);
 				setError(null);
-				console.log(`[useUserData] ✓ Refetch complete`);
+				   // [REMOVED LOG]
 			} catch (err: unknown) {
 				setError(toError(err));
 				console.error(`[useUserData] ✗ Refetch error for ${userId}:`, err);
@@ -80,13 +80,13 @@ export const useRealtors = (): UseDataReturn<any[]> => {
 	// Load data on mount AND when reloadKey changes
 	useEffect(() => {
 		const loadRealtors = async () => {
-			console.log(`[useRealtors] Refetching realtors...`);
+			   // [REMOVED LOG]
 			try {
 				setLoading(true);
 				const result = await fetchRealtors();
 				setData(result);
 				setError(null);
-				console.log(`[useRealtors] ✓ Loaded ${result.length} realtors`);
+				   // [REMOVED LOG]
 			} catch (err: unknown) {
 				setError(toError(err));
 				console.error(`[useRealtors] ✗ Error loading realtors:`, err);
@@ -114,13 +114,13 @@ export const useUnassignedClients = (): UseDataReturn<any[]> => {
 	// Load data on mount AND when reloadKey changes
 	useEffect(() => {
 		const loadUnassignedClients = async () => {
-			console.log(`[useUnassignedClients] Refetching unassigned clients...`);
+			   // [REMOVED LOG]
 			try {
 				setLoading(true);
 				const result = await fetchUnassignedClients();
 				setData(result);
 				setError(null);
-				console.log(`[useUnassignedClients] ✓ Loaded ${result.length} unassigned clients`);
+				   // [REMOVED LOG]
 			} catch (err: unknown) {
 				setError(toError(err));
 				console.error(`[useUnassignedClients] ✗ Error loading unassigned clients:`, err);
@@ -149,14 +149,14 @@ export const useAssignedRealtor = (clientId: string | null | undefined): UseData
 	// Load data on mount AND when clientId changes
 	useEffect(() => {
 		if (!clientId) {
-			console.log(`[useAssignedRealtor] No clientId provided`);
+			   // [REMOVED LOG]
 			setData(null);
 			setError(null);
 			setLoading(false);
 			return;
 		}
 
-		console.log(`[useAssignedRealtor] Listening for assigned realtor: ${clientId}`);
+		// [REMOVED LOG]
 		setLoading(true);
 
 		const requestsRef = collection(db, "clientRequests");
@@ -197,14 +197,14 @@ export const useAssignedClients = (realtorId: string | null | undefined): UseDat
 	// Load data on mount AND when realtorId changes
 	useEffect(() => {
 		if (!realtorId) {
-			console.log(`[useAssignedClients] No realtorId provided`);
+			   // [REMOVED LOG]
 			setData([]);
 			setError(null);
 			setLoading(false);
 			return;
 		}
 
-		console.log(`[useAssignedClients] Listening for assigned clients: ${realtorId}`);
+		// [REMOVED LOG]
 		setLoading(true);
 		let disposed = false;
 
@@ -283,7 +283,7 @@ export const usePendingClientRequests = (userId: string | null | undefined, role
 			return;
 		}
 
-		console.log(`[usePendingClientRequests] Listening for pending requests for user: ${userId}`);
+		// [REMOVED LOG]
 		setLoading(true);
 
 		const field = role === "client" ? "clientId" : "realtorId";

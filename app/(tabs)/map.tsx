@@ -154,11 +154,11 @@ export default function HomeScreen() {
 			if (properties.length > 0) {
 				setHouses(properties);
 				setFilteredHouses(properties);
-				console.log(`✅ Loaded ${properties.length} houses from Firestore (${regionLog})`);
+				   // [REMOVED LOG]
 			} else {
 				setHouses([]);
 				setFilteredHouses([]);
-				console.log(`⚠️ No properties found (${regionLog})`);
+				   // [REMOVED LOG]
 			}
 		} catch (error) {
 			console.error("💥 Error fetching houses from Firestore:", error);
@@ -168,6 +168,7 @@ export default function HomeScreen() {
 		}
 	}, []);
 
+	// On mount: Request location permissions, get current location, and fetch houses for that location
 	useEffect(() => {
 		(async () => {
 			let { status } = await Location.requestForegroundPermissionsAsync();
@@ -209,6 +210,7 @@ export default function HomeScreen() {
 		setFilteredHouses(applyFilters(houses, filters));
 	}
 
+	// When houses or filters change: Apply filters to the house list and update filteredHouses
 	useEffect(() => {
 		setFilteredHouses(applyFilters(houses, activeFilters));
 	}, [houses, activeFilters]);
@@ -280,6 +282,7 @@ export default function HomeScreen() {
 const mapRef = useRef<RNMapView | null>(null);
 const hasZoomedRef = useRef(false);
 
+	// When location or zoomToUser changes: Animate the map to the user's location and set the current region
 	useEffect(() => {
 		if (location?.coords && mapRef.current) {
 			if (hasZoomedRef.current && !zoomToUser) return;
@@ -404,6 +407,7 @@ const hasZoomedRef = useRef(false);
 						</View>
 					)}
 				</TouchableOpacity>
+				
 			</View>
 
 			{renderPropertyModal()}
@@ -518,7 +522,39 @@ const hasZoomedRef = useRef(false);
 				/>
 			))}
 		</MapView>
-
+		{/* Zoom Controls - floating above the search button on the right */}
+		<View style={{ position: 'absolute', bottom: 90, right: 20, zIndex: 10, flexDirection: 'column', alignItems: 'center' }}>
+			<TouchableOpacity
+				style={{ backgroundColor: '#fff', borderRadius: 25, width: 48, height: 48, alignItems: 'center', justifyContent: 'center', marginBottom: 10, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, borderWidth: 1, borderColor: '#ccc' }}
+				onPress={() => {
+					if (!currentRegion) return;
+					const newRegion = {
+						...currentRegion,
+						latitudeDelta: Math.max(currentRegion.latitudeDelta * 0.5, 0.0005),
+						longitudeDelta: Math.max(currentRegion.longitudeDelta * 0.5, 0.0005),
+					};
+					setCurrentRegion(newRegion);
+					mapRef.current?.animateToRegion(newRegion, 300);
+				}}
+			>
+				<Text style={{ fontSize: 28, fontWeight: 'bold', color: '#333' }}>+</Text>
+			</TouchableOpacity>
+			<TouchableOpacity
+				style={{ backgroundColor: '#fff', borderRadius: 25, width: 48, height: 48, alignItems: 'center', justifyContent: 'center', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, borderWidth: 1, borderColor: '#ccc' }}
+				onPress={() => {
+					if (!currentRegion) return;
+					const newRegion = {
+						...currentRegion,
+						latitudeDelta: Math.min(currentRegion.latitudeDelta * 2, 10),
+						longitudeDelta: Math.min(currentRegion.longitudeDelta * 2, 10),
+					};
+					setCurrentRegion(newRegion);
+					mapRef.current?.animateToRegion(newRegion, 300);
+				}}
+			>
+				<Text style={{ fontSize: 28, fontWeight: 'bold', color: '#333' }}>−</Text>
+			</TouchableOpacity>
+		</View>
 		<TouchableOpacity
 			style={mapStyles.searchButton}
 		onPress={() => {

@@ -55,7 +55,7 @@ export default function ClientOfferDetailsScreen() {
 									
 	useEffect(() => {
 		async function checkRole() {
-			console.log('Loaded Params:', {offerIdStr,clientIdStr,agentIdStr,propertyIdStr});
+			   // [REMOVED LOG]
 			if (!user?.uid) return;  //stop here if the user id isn't available
 			if (agentIdStr) setAgentData(await fetchUserData(agentIdStr));
 			if (clientIdStr) setClientData(await fetchUserData(clientIdStr));
@@ -102,7 +102,7 @@ export default function ClientOfferDetailsScreen() {
 			await updateDoc(offerUpdateRef, updateFields);
 			alert("Offer updated!");
 		} catch (error) {
-			console.log(`Error updating offer data for offerId: ${offerData.offerId}`)
+			   // [REMOVED LOG]
 		}
 	};
 

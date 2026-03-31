@@ -2,7 +2,7 @@ import { auth, db } from '@/components/firebaseConfig';
 import { fetchUserData, saveUserPushToken } from '@/utils/functions';
 import { UserData } from '@/utils/interfaces';
 import { registerForPushNotificationsDetailedAsync } from '@/utils/pushNotifications';
-import { User, onAuthStateChanged, signOut, getIdTokenResult } from 'firebase/auth';
+import { User, getIdTokenResult, onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 
@@ -24,7 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      console.log('[AuthContext] Auth state changed:', firebaseUser?.email || 'No user');
+      // [REMOVED LOG]
       setUser(firebaseUser);
       let customRole: string | null = null;
       if (firebaseUser) {
@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           const data = await fetchUserData(firebaseUser.uid);
           setUserData(data);
-          console.log('[AuthContext] User data loaded:', data?.role, 'Custom claim:', customRole);
+          // [REMOVED LOG]
 
           try {
             const pushResult = await registerForPushNotificationsDetailedAsync();
@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               },
               { merge: true },
             );
-            console.log('[AuthContext] Push registration result:', pushResult.reason);
+            // [REMOVED LOG]
           } catch (pushError) {
             console.error('[AuthContext] Push token registration failed:', pushError);
           }
@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       await signOut(auth);
-      console.log('[AuthContext] User logged out');
+      // [REMOVED LOG]
     } catch (error) {
       console.error('[AuthContext] Logout error:', error);
       throw error;

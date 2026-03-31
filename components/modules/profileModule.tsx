@@ -25,17 +25,25 @@ const { user, userData, role } = useAuth();
 		// Delete profile and all associated data
 		const handleDeleteProfile = async () => {
 			if (!user) return;
-			Alert.alert(
-				'Delete Profile',
-				'Are you sure you want to permanently delete your profile and all associated data? This cannot be undone.',
+			let password = '';
+			Alert.prompt(
+				'Confirm Password',
+				'For security, please re-enter your password to delete your profile. This cannot be undone.',
 				[
 					{ text: 'Cancel', style: 'cancel' },
 					{
 						text: 'Delete',
 						style: 'destructive',
-						onPress: async () => {
+						onPress: async (inputPassword) => {
+							if (!inputPassword) {
+								Alert.alert('Password Required', 'You must enter your password to delete your profile.');
+								return;
+							}
 							setDeleting(true);
 							try {
+								// Re-authenticate
+								const credential = EmailAuthProvider.credential(user.email, inputPassword);
+								await reauthenticateWithCredential(user, credential);
 								// Delete user doc
 								await deleteDoc(doc(db, 'users', user.uid));
 								// Delete favorites
@@ -43,12 +51,12 @@ const { user, userData, role } = useAuth();
 								// Delete offers (as client)
 								await deleteUserDocsByField('clientOffers', 'clientId', user.uid);
 								// Optionally: delete offers as agent, requests, etc. (add more as needed)
-								  // Delete clientRequests (as client)
-								  await deleteUserDocsByField('clientRequests', 'clientId', user.uid);
-								  // Delete clientRequests (as agent)
-								  await deleteUserDocsByField('clientRequests', 'realtorId', user.uid);
-								  // Delete auth user
-								  await deleteUser(user);
+								// Delete clientRequests (as client)
+								await deleteUserDocsByField('clientRequests', 'clientId', user.uid);
+								// Delete clientRequests (as agent)
+								await deleteUserDocsByField('clientRequests', 'realtorId', user.uid);
+								// Delete auth user
+								await deleteUser(user);
 								Alert.alert('Profile Deleted', 'Your profile and all associated data have been deleted.');
 								navigation.reset({ index: 0, routes: [{ name: 'login' }] });
 							} catch (error: any) {
@@ -58,8 +66,10 @@ const { user, userData, role } = useAuth();
 								setDeleting(false);
 							}
 						},
+						isPreferred: true,
 					},
-				]
+				],
+				'secure-text'
 			);
 		};
 	const [firstName, setFirstName] = useState('');

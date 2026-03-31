@@ -19,11 +19,11 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
     if (!loading) {
       if (!user) {
         // Not logged in - redirect to login
-        console.log('[ProtectedRoute] No user, redirecting to login');
+        // [REMOVED LOG]
         router.replace('/login');
       } else if (requiredRole && role !== requiredRole) {
         // Logged in but wrong role - redirect to home
-        console.log('[ProtectedRoute] Wrong role, redirecting to home');
+        // [REMOVED LOG]
         alert(`This page is for ${requiredRole}s only`);
         router.replace('/');
       }

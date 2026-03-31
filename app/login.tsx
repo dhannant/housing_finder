@@ -1,13 +1,12 @@
 import { login_styles } from '@/constants/styles';
+import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useState } from 'react';
-import { Alert, Button, Text, TextInput, View } from 'react-native';
+import { Button, KeyboardAvoidingView, Platform, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { auth, db } from '../components/firebaseConfig';
-import { useAuth } from '@/contexts/AuthContext';
+import { auth } from '../components/firebaseConfig';
 
 export default function LoginScreen() {
 	const { role } = useAuth();
@@ -79,47 +78,57 @@ export default function LoginScreen() {
 	};
 
 	return (
-		<SafeAreaView style={{ flex: 1, justifyContent: 'center', backgroundColor: '#f2f2f2' }}>
-			<View style={login_styles.container}>
-				<Text style={login_styles.title}>Login</Text>
-				<TextInput
-					style={login_styles.input}
-					placeholder="Email"
-					placeholderTextColor="#6B7280"
-					value={email}
-					onChangeText={setEmail}
-					autoCapitalize="none"
-					keyboardType="email-address"
-				/>
-				<TextInput
-					style={login_styles.input}
-					placeholder="Password"
-					placeholderTextColor="#6B7280"
-					value={password}
-					onChangeText={setPassword}
-					secureTextEntry
-				/>
-				<Button title={loading ? 'Please wait...' : 'Login'} onPress={handleLogin} disabled={loading} />
-				{message ? <Text style={login_styles.message}>{message}</Text> : null}
-				<Text style={{ marginTop: 16, textAlign: 'center' }}>
-					Don&apos;t have an account?{' '}
-					<Text style={{ color: '#007AFF' }} onPress={() => router.push('/register')}>Register</Text></Text>
+		<SafeAreaView style={{ flex: 1, backgroundColor: '#f2f2f2' }}>
+			<KeyboardAvoidingView style={{ flex: 1, paddingBottom: 32 }} 
+										 behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+										 keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
+				<View style={[login_styles.container, { flex: 1, justifyContent: 'center'}]}>
+					<Text style={login_styles.title}>Login</Text>
+					<TextInput
+						style={login_styles.input}
+						placeholder="Email"
+						placeholderTextColor="#6B7280"
+						value={email}
+						onChangeText={setEmail}
+						autoCapitalize="none"
+						keyboardType="email-address"
+					/>
+					<TextInput
+						style={login_styles.input}
+						placeholder="Password"
+						placeholderTextColor="#6B7280"
+						value={password}
+						onChangeText={setPassword}
+						secureTextEntry
+					/>
+					<Button title={loading ? 'Please wait...' : 'Login'} onPress={handleLogin} disabled={loading} />
+					{message ? <Text style={login_styles.message}>{message}</Text> : null}
+					<Text style={{ marginTop: 16, textAlign: 'center' }}>
+						Don&apos;t have an account?{' '}
+						<Text style={{ color: '#007AFF' }} onPress={() => router.push('/register')}>Register</Text></Text>
+					
+					<Text style={{marginTop: 16, textAlign: 'center'}}>
+						<Text style={{color: '#007AFF'}} onPress={() => router.push('/terms-of-service')}>Terms of Service</Text>
+						<Text style={{}}> / </Text>
+						<Text style={{color: '#007AFF'}} onPress={() => router.push('/privacy-policy')}>Privacy Policy</Text>
+					</Text>
 
-				{/* Quick access login buttons for testing */}
-				<View style={{ marginTop: 24, marginBottom: 8 }}>
-					<Text style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 8 }}>Quick Test Logins:</Text>
-					{testUsers.map((user, idx) => (
-						<View key={user.email} style={{ marginBottom: 8 }}>
-							<Button
-								title={user.label}
-								onPress={() => handleTestLogin(user.email, user.password)}
-								color="#2C5F2D"
-								disabled={loading}
-							/>
-						</View>
-					))}
+					{/* Quick access login buttons for testing */}
+					{/* <View style={{ marginTop: 24, marginBottom: 8 }}>
+						<Text style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 8 }}>Quick Test Logins:</Text>
+						{testUsers.map((user, idx) => (
+							<View key={user.email} style={{ marginBottom: 8 }}>
+								<Button
+									title={user.label}
+									onPress={() => handleTestLogin(user.email, user.password)}
+									color="#2C5F2D"
+									disabled={loading}
+								/>
+							</View>
+						))}
+					</View> */}
 				</View>
-			</View>
+			</KeyboardAvoidingView>
 		</SafeAreaView>
 	);
 }

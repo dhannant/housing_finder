@@ -111,7 +111,7 @@ export default function RegisterForm() {
 				}, 1200);
 			} catch (err: any) {
 				setError(err.message);
-				console.log("Firebase registration error:", err);
+				   // [REMOVED LOG]
 			}
 
 			// Record registration attempt (success or failure)

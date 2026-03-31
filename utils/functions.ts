@@ -81,10 +81,23 @@ export const fetchUserData = async (userId: string): Promise<interfaces.UserData
 		if (!userId) return null;
 		const userRef = doc(db, 'users', userId);
 		const userSnap = await getDoc(userRef);
-		if (!userSnap.exists()) return null;
+		if (!userSnap.exists()) {
+			console.error(`[fetchUserData] ✗ User document not found for userId: ${userId}`);
+			return null;
+		}
 		return { id: userSnap.id, ...userSnap.data() } as interfaces.UserData;
 	} catch (error) {
-		console.error(`[fetchUserData] ✗ Error fetching user ${userId}:`, error);
+		// Only log explicit user info, not the full user object
+		let userInfo = '';
+		try {
+			// Dynamically import auth to avoid circular deps
+			const { auth } = await import('@/components/firebaseConfig');
+			const currentUser = auth.currentUser;
+			if (currentUser) {
+				userInfo = ` (auth.uid=${currentUser.uid}, email=${currentUser.email}, displayName=${currentUser.displayName})`;
+			}
+		} catch {}
+		console.error(`[fetchUserData] ✗ Error fetching user ${userId}${userInfo}:`, error);
 		return null;
 	}
 };
@@ -144,7 +157,6 @@ export const fetchClients = async (): Promise<interfaces.ClientData[]> => {
 		querySnapshot.forEach((doc) => {
 			clients.push({ id: doc.id, ...doc.data() } as interfaces.ClientData);
 		});
-		// console.log(`[fetchClients] ✓ Found ${clients.length} total clients`);
 		return clients;
 	} catch (error) {
 		console.error(`[fetchClients] ✗ Error fetching clients:`, error);
@@ -165,7 +177,6 @@ export const fetchRealtors = async (): Promise<interfaces.RealtorData[]> => {
 		querySnapshot.forEach((doc) => {
 			realtors.push({ id: doc.id, ...doc.data() } as interfaces.RealtorData);
 		});
-		// console.log(`[fetchRealtors] ✓ Found ${realtors.length} realtors`);
 		return realtors;
 	} catch (error) {
 		console.error(`[fetchRealtors] ✗ Error fetching realtors:`, error);
@@ -188,10 +199,8 @@ export const fetchUnassignedClients = async (): Promise<interfaces.AvailableClie
 			const hasAssignedAgent = requestsSnapshot.docs.some((reqDoc) => reqDoc.data().realtorId && reqDoc.data().realtorId !== "");
 			if (!hasAssignedAgent) {
 				unassignedClients.push(client);
-				// console.log(`[fetchUnassignedClients] ✓ ${client.firstName} ${client.lastName} is unassigned`);
 			}
 		}
-		// console.log(`[fetchUnassignedClients] ✓ Found ${unassignedClients.length} unassigned clients`);
 		return unassignedClients;
 	} catch (error) {
 		console.error(`[fetchUnassignedClients] ✗ Error fetching unassigned clients:`, error);
@@ -212,10 +221,8 @@ export const fetchAssignedRealtor = async (clientId: string): Promise<interfaces
 		if (!querySnapshot.empty) {
 			const request = querySnapshot.docs[0].data();
 			const realtorId = request.realtorId || null;
-			// console.log(`[fetchAssignedRealtor] ✓ Client ${clientId} has realtor: ${realtorId}`);
 			return realtorId;
 		}
-		// console.log(`[fetchAssignedRealtor] ✗ Client ${clientId} has no assigned realtor`);
 		return null;
 	} catch (error) {
 		console.error(`[fetchAssignedRealtor] ✗ Error fetching assigned realtor for ${clientId}:`, error);
@@ -243,7 +250,7 @@ export const fetchAssignedClients = async (realtorId: string): Promise<interface
 				if (clientData && isActive) {
 					requests.push({ ...requestData, id: doc.id });
 				} else {
-					console.log(`[fetchAssignedClients] ✗ Skipped - is_active is false`);
+					   // [REMOVED LOG]
 				}
 			} catch (error) {
 				console.error(`Error checking client ${requestData.clientId} active status:`, error);
@@ -255,7 +262,6 @@ export const fetchAssignedClients = async (realtorId: string): Promise<interface
 			const dateB = b.createdAt?.toDate?.() || new Date(0);
 			return dateB.getTime() - dateA.getTime();
 		});
-		// console.log(`[fetchAssignedClients] Returning ${requests.length} active clients`);
 		return requests;
 	} catch (error) {
 		console.error(`[fetchAssignedClients] ✗ Error fetching assigned clients for realtor ${realtorId}:`, error);
@@ -289,7 +295,6 @@ export const fetchPendingClientRequests = async (userId: string, role: "client" 
 			const dateB = b.createdAt?.toDate?.() || new Date(0);
 			return dateB.getTime() - dateA.getTime();
 		});
-		// console.log(`[fetchPendingClientRequests] ✓ Found ${requests.length} pending requests`);
 		return requests;
 	} catch (error) {
 		console.error(`[fetchPendingClientRequests] ✗ Error fetching pending requests:`, error);
@@ -357,7 +362,6 @@ export const checkIfFavorite = async (userId: string, propertyId: string): Promi
 		
 		// return true if found, false if not found
 		const isFavorited = !querySnapshot.empty;
-		// console.log(`[checkIfFavorite] ✓ Property ${propertyId} favorited: ${isFavorited}`);
 		return isFavorited;
 	} catch (error) {
 		console.error(`[checkIfFavorite] ✗ Error checking favorite status for property ${propertyId}:`, error);
@@ -477,7 +481,7 @@ export async function saveUserPushToken(userId: string, pushToken: string): Prom
 		Linking.openURL(mailtoUrl);
 	} catch (error) {
 		Alert.alert('Failed building email', 'App failed to generate the email.')
-		console.log('Sending email error:', error)
+		// [REMOVED LOG]
 	}
  }
 
@@ -656,4 +660,18 @@ export const createClientOffer = async (
 		console.error(`[createClientOffer] ✗ Error creating offer:`, error);
 		throw error;
 	}
+};
+
+/**
+ * Delete a favorite property by favorite document ID
+ * @param favoriteDocId The Firestore document ID of the favorite (clientFavorites collection)
+ */
+export const deleteFavoriteById = async (favoriteDocId: string): Promise<void> => {
+  if (!favoriteDocId) return;
+  try {
+    await deleteDoc(doc(db, 'clientFavorites', favoriteDocId));
+  } catch (error) {
+    console.error(`[deleteFavoriteById] ✗ Error deleting favorite ${favoriteDocId}:`, error);
+    throw error;
+  }
 };
