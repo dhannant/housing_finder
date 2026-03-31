@@ -43,7 +43,7 @@ service cloud.firestore {
         && !(request.resource.data.email.matches('.*<script.*'))
         && (request.resource.data.phoneNumber is string)
         && (request.resource.data.phoneNumber.size() > 0 && request.resource.data.phoneNumber.size() < 25)
-        && request.resource.data.phoneNumber.matches('^[0-9+()\-\s]{7,20}$');
+        && request.resource.data.phoneNumber.matches('^[0-9+() -]{7,20}$');
       // Allow update if authenticated, owner, NOT changing 'role', and fields are valid
       allow update: if isAuthenticated() && isOwner(userId)
         && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role)
@@ -58,7 +58,7 @@ service cloud.firestore {
         && !(request.resource.data.email.matches('.*<script.*'))
         && (request.resource.data.phoneNumber is string)
         && (request.resource.data.phoneNumber.size() > 0 && request.resource.data.phoneNumber.size() < 25)
-        && request.resource.data.phoneNumber.matches('^[0-9+()\-\s]{7,20}$');
+        && request.resource.data.phoneNumber.matches('^[0-9+() -]{7,20}$');
       allow delete: if isAuthenticated() && (isOwner(userId) || isAdmin());
       allow get: if isAuthenticated() && (
         isAdmin() ||
