@@ -59,3 +59,16 @@
 - [ ] Enforce: Users should only be able to have 1 active offer at a time (throttle in backend, ideally via Cloud Function)
 - [ ] Enforce: Limit user favorites to a max of 20 total and/or max 5 per minute (combine total and rate cap; block and log if exceeded)
 - [ ] Consider: Add client-side check for rapid favorite/unfavorite toggling. If a user favorites, unfavorites, then re-favorites the same property within a short window (e.g., 10 minutes), show a message to wait 24 hours before favoriting again. Refine logic to avoid penalizing honest mistakes.
+
+
+Sell Your Home Feature
+ Design Firestore sellRequests data model
+ Draft Firestore security rules for sellRequests
+ Implement Sell Your Home entry point and path selection UI
+ Build multi-step form for property details and photo upload
+ Implement draft/save/resume logic for Realty 2 Cash
+ Enforce required fields and photo minimums on submit
+ Create agent dashboard pool for seller requests
+ Add seller/buyer distinction in agent dashboard UI
+ Write unit/integration tests for new Firestore rules
+ Test and validate end-to-end seller submission flow
