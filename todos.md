@@ -9,9 +9,9 @@
 - [X] Confirm `db` and `auth` are imported from `firebaseConfig.ts` everywhere used.
 - [X] Set permissive Firestore rules for development (`allow read, write: if true;`) and tighten for production.
 - [ ] Refactor `styles.ts` to combine duplicate style patterns (for example `actionButton`, `helpButton`).
-- [ ] Add Privacy Policy and Terms of Service.
-- [ ] Add min/max validation for map filters (especially bedrooms and bathrooms).
-- [ ] Test min/max filter edge cases (`min > max`, equal values, empty values) and show correction/warning UX.
+- [X] Add Privacy Policy and Terms of Service.
+- [X] Add min/max validation for map filters (especially bedrooms and bathrooms).
+- [X] Test min/max filter edge cases (`min > max`, equal values, empty values) and show correction/warning UX.
 - [X] Update code paths for user role = Admin.
 - [X] Add account cleanup workflow: around 15 days after closing (or move-in date, whichever is later), delete user profile and related data.
 
@@ -37,10 +37,8 @@
   - Source: `handleRequestHelp` in `app/(tabs)/map.tsx`
 - [ ] Optional: account deactivation warning (24h before scheduled inactive deactivation) → notify impacted user.
   - Source: `runDeactivateInactiveUsers` / `deactivateUsersAfterCloseDate` in `functions/src/index.ts`
-
-
 - [X] Limit property search to a 5 mile radius around the user's current location (remove default to Commerce, GA)
-- [ ] Enforce search area limits when user zooms or uses 'Search This Area' (prevent excessive/irrelevant results)
+- [X] Enforce search area limits when user zooms or uses 'Search This Area' (prevent excessive/irrelevant results)
 
 
 ## Ingestion Hardening
@@ -56,7 +54,7 @@
 - [X] Add Request Help button and function
 - [ ] Store help request in Firestore
 - [ ] Display confirmation after help request
-- [ ] Switch email sending to Firebase function or business email
+- [X] Switch email sending to Firebase function or business email
 
 - [ ] Enforce: Users should only be able to have 1 active offer at a time (throttle in backend, ideally via Cloud Function)
 - [ ] Enforce: Limit user favorites to a max of 20 total and/or max 5 per minute (combine total and rate cap; block and log if exceeded)
