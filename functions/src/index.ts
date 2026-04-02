@@ -96,6 +96,7 @@ export const recordRegistrationAttempt = onCall(async (request) => {
 	await docRef.set({ attemptCount, lockoutUntil }, { merge: true });
 	return { ok: true, attemptCount, lockoutUntil };
 });
+
 // ===== Login Rate Limiting =====
 // Firestore collection: loginAttempts
 // Document ID: lowercased email
@@ -177,8 +178,8 @@ const rapidApiZipCodes = [
 	"30102","30103","30114","30115","30120","30121","30123","30137","30139","30141","30142","30143","30188","30189",
 	"30501","30503","30504","30506","30510","30512","30513","30514","30516","30517","30518","30519","30520","30522",
 	"30523","30527","30528","30533","30534","30535","30540","30541","30542","30543","30547","30548","30554","30558",
-	"30560","30567","30577","30580","30701","30705","30707","30710","30720","30721","30724","30725","30726","30728",
-	"30732","30734","30736","30738","30739","30740","30741","30742","30750","30752","30755","30757","30760"
+	"30560","30567","30577","30580","30701","30703","30705","30707","30710","30720","30721","30724","30725","30726",
+	"30728","30732","30734","30736","30738","30739","30740","30741","30742","30750","30752","30755","30757"
 ];
 
 type NotificationPayload = {
@@ -194,6 +195,8 @@ type PushSendResult = {
 	tokenPreview?: string;
 	details?: string;
 };
+
+type PropertyDetailsResponse = Record<string, unknown>;
 
 // ===== Generic Utilities =====
 // Split an array into fixed-size chunks for batched API requests.
@@ -319,6 +322,97 @@ function computeBackoffMs(attemptNumber: number): number {
 	const jitter = Math.floor(Math.random() * 400);
 	return exponential + jitter;
 }
+
+/**
+ * Fetches property details from RapidAPI and stores them in Firestore.
+ *
+ * @param {string} propertyId - The unique property ID from RapidAPI.
+ * @param {string} listingId - The listing ID associated with the property.
+ * @returns {Promise<PropertyDetails>} The property details object as returned by RapidAPI.
+ * @throws {Error} If the fetch fails or the API returns an error response.
+ */
+async function fetchPropertyDetails(propertyId: string): Promise<PropertyDetailsResponse> {
+	const url = `https://realty-us.p.rapidapi.com/properties/detail?propertyId=${propertyId}`;
+	const rapidApiKey = rapidApiKeySecret.value();
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), rapidApiTimeoutMs);
+	let lastError: Error | null = null;
+	try {
+		const response = await fetch(url, {
+			headers: {
+				"X-RapidAPI-Key": rapidApiKey,
+				"X-RapidAPI-Host": rapidApiHost,
+			},
+			signal: controller.signal,
+		});
+		clearTimeout(timeout);
+		if (!response.ok) {
+			const errorText = await response.text();
+			throw new Error(`No property details received: ${response.status} ${errorText}`);
+		 }
+		const propertyDetails = (await response.json()) as PropertyDetailsResponse;
+
+		const db = getFirestore();
+		await db.collection("propertyDetails").doc(propertyId).set(propertyDetails, { merge: true });
+	
+		return propertyDetails;
+	} catch (error: any) {
+		clearTimeout(timeout);
+		lastError = error instanceof Error ? error : new Error(String(error));
+		throw lastError;
+	}
+}
+
+export const getPropertyDetails = onCall({
+	secrets: [rapidApiKeySecret],
+}, async (request) => {
+	const propertyId = String(request.data?.propertyIdStr || request.data?.propertyId || "").trim();
+
+	if (!propertyId) {
+		throw new Error("Missing required propertyId");
+	}
+
+	const details = await fetchPropertyDetails(propertyId);
+	return details;
+});
+
+export const getPropertyDetailsHttp = onRequest({
+	secrets: [rapidApiKeySecret],
+}, async (req, res) => {
+	// CORS preflight
+	res.set("Access-Control-Allow-Origin", "*");
+	res.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+	if (req.method === "OPTIONS") {
+		res.status(204).send("");
+		return;
+	}
+
+	// Verify Firebase ID token from Authorization header
+	const authHeader = req.headers.authorization ?? "";
+	const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+	if (!idToken) {
+		res.status(401).json({ error: "Missing Authorization header" });
+		return;
+	}
+
+	try {
+		await getAuth().verifyIdToken(idToken);
+	} catch {
+		res.status(401).json({ error: "Invalid or expired token" });
+		return;
+	}
+
+	const body = req.body ?? {};
+	const propertyId = String(body.propertyIdStr || body.propertyId || "").trim();
+	
+	if (!propertyId) {
+		res.status(400).json({ error: "Missing required propertyId" });
+		return;
+	}
+
+	const details = await fetchPropertyDetails(propertyId);
+	res.status(200).json(details);
+});
 
 // ===== RapidAPI Access =====
 // Fetch RapidAPI with retries on transient statuses/network errors.
@@ -600,11 +694,6 @@ async function sendExpoPushToUser(userId: string, payload: NotificationPayload):
 		userId,
 		tokenPreview: `${token.slice(0, 10)}...`,
 	};
-
-
-
-
-
 }
 
 async function sendExpoPushToUsers(userIds: string[], payload: NotificationPayload) {

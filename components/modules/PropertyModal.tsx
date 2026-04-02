@@ -1,14 +1,17 @@
 import { mapStyles } from '@/constants/styles';
 import type { Property } from '@/utils/interfaces';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Image, Modal, Text, TouchableOpacity, View } from 'react-native';
 
 type PropertyDetails = Property & {
 	id?: string;
 	propertyId?: string;
+	listingId?: string;
+	listing_id?: string;
 };
 
-interface PropertyDetailsModalProps {
+interface PropertyModalProps {
 	visible: boolean;
 	property: PropertyDetails | null;
 	onClose: () => void;
@@ -52,7 +55,8 @@ function toPhotoArray(photos: any, primaryPhoto: string | null): { href: string 
 	return primaryPhoto ? [{ href: primaryPhoto }] : [];
 }
 
-export default function PropertyDetailsModal({ visible, property, onClose, headerRight }: PropertyDetailsModalProps) {
+export default function PropertyModal({ visible, property, onClose, headerRight }: PropertyModalProps) {
+	const router = useRouter();
 	const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
 	const [failedEnhancedPhotoUrls, setFailedEnhancedPhotoUrls] = useState<Record<string, true>>({});
 
@@ -146,7 +150,30 @@ export default function PropertyDetailsModal({ visible, property, onClose, heade
 						Sqft: {property.sqft !== null ? property.sqft.toLocaleString() : 'N/A'} • Lot: {property.lot_sqft !== null ? property.lot_sqft.toLocaleString() : 'N/A'}
 					</Text>
 					<Text style={mapStyles.status}>Status: {property.status?.replace('_', ' ') || 'N/A'}</Text>
+					<TouchableOpacity
+						onPress={() => {
+							const propertyId = property.propertyId ?? property.id;
+							const listingId = property.listingId ?? property.listing_id;
+							onClose();
+							if (!propertyId) return;
+							const query = listingId
+								? `propertyId=${encodeURIComponent(propertyId)}&listingId=${encodeURIComponent(listingId)}`
+								: `propertyId=${encodeURIComponent(propertyId)}`;
+							router.push((`/(shared_screens)/property_details?${query}`) as any);
+						}}
+						style={{
+							marginTop: 14,
+							backgroundColor: '#2C5F2D',
+							paddingVertical: 12,
+							paddingHorizontal: 14,
+							borderRadius: 8,
+							alignItems: 'center',
+						}}
+					>
+						<Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Open Full Property Details</Text>
+					</TouchableOpacity>
 				</View>
+
 			</View>
 		</Modal>
 	);

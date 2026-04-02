@@ -156,6 +156,12 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // propertyDetails collection rules
+    match /propertyDetails/{propertyId} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
     // API pull telemetry (admin-only)
     match /apiPullRuns/{runId} {
       allow read: if isAdmin();

@@ -102,7 +102,7 @@ export default function ClientOfferDetailsScreen() {
 			await updateDoc(offerUpdateRef, updateFields);
 			alert("Offer updated!");
 		} catch (error) {
-			   // [REMOVED LOG]
+			console.error("[ClientOfferDetailsScreen] Error in checkRole:", error);
 		}
 	};
 

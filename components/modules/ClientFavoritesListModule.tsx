@@ -1,5 +1,5 @@
 import { db } from '@/components/firebaseConfig';
-import PropertyDetailsModal from '@/components/modules/PropertyDetailsModal';
+import PropertyModal from '@/components/modules/PropertyModal';
 import { landingStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClientOffer, deleteFavoriteById, fetchClientFavorites, fetchFavoriteByID, fetchUserData } from '@/utils/functions';
@@ -206,7 +206,7 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
 	// Render the list of favorite properties
 	return (
 		<SafeAreaView style={landingStyles.container}>
-			<PropertyDetailsModal
+			<PropertyModal
 				visible={selectedProperty !== null}
 				property={selectedProperty}
 				onClose={() => setSelectedProperty(null)}

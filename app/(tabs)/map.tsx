@@ -1,5 +1,5 @@
 import { db } from '@/components/firebaseConfig';
-import PropertyDetailsModal from '@/components/modules/PropertyDetailsModal';
+import PropertyModal from '@/components/modules/PropertyModal';
 import { mapStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';
 import * as Functions from '@/utils/functions';
@@ -55,6 +55,17 @@ function mapFirestoreProperty(docId: string, data: any): House | null {
 
 	const mapped: any = {
 		id: docId,
+		propertyId: data?.property_id ?? docId,
+		listingId:
+			data?.listing_id ??
+			data?.listingId ??
+			data?.listing?.id ??
+			null,
+		listing_id:
+			data?.listing_id ??
+			data?.listingId ??
+			data?.listing?.id ??
+			null,
 		price: data?.list_price ?? data?.price?.list_price ?? data?.price?.value ?? null,
 		address: fullAddress,
 		beds: data?.description?.beds ?? data?.beds ?? null,
@@ -361,7 +372,7 @@ const hasZoomedRef = useRef(false);
 		);
 
 		return (
-			<PropertyDetailsModal
+			<PropertyModal
 				visible={selectedHouse !== null}
 				property={selectedHouse}
 				onClose={() => {
