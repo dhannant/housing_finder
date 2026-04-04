@@ -60,7 +60,6 @@ export default function ClientOfferDetailsScreen() {
 			if (agentIdStr) setAgentData(await fetchUserData(agentIdStr));
 			if (clientIdStr) setClientData(await fetchUserData(clientIdStr));
 
-			//TODO: currently this looks up properties in clientFavorites, but properties isn't specific to a client... we should eventually set up a property collection and query that instead.
 			if (propertyIdStr) setPropertyData(await fetchPropertyData(propertyIdStr, clientIdStr));
 			if (offerIdStr) { 
 				const offer = await fetchOfferDatabyID(offerIdStr);

@@ -1,8 +1,10 @@
 import { mapStyles } from '@/constants/styles';
+import { useAuth } from '@/contexts/AuthContext';
+import * as Functions from '@/utils/functions';
 import type { Property } from '@/utils/interfaces';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Image, Modal, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Modal, Text, TouchableOpacity, View } from 'react-native';
 
 type PropertyDetails = Property & {
 	id?: string;
@@ -55,10 +57,17 @@ function toPhotoArray(photos: any, primaryPhoto: string | null): { href: string 
 	return primaryPhoto ? [{ href: primaryPhoto }] : [];
 }
 
-export default function PropertyModal({ visible, property, onClose, headerRight }: PropertyModalProps) {
+export default function PropertyModal({
+	visible,
+	property,
+	onClose,
+	headerRight,
+}: PropertyModalProps) {
 	const router = useRouter();
+	const { user } = useAuth();
 	const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
 	const [failedEnhancedPhotoUrls, setFailedEnhancedPhotoUrls] = useState<Record<string, true>>({});
+	const [localFavorite, setLocalFavorite] = useState(false);
 
 	useEffect(() => {
 		if (!visible) {
@@ -66,6 +75,44 @@ export default function PropertyModal({ visible, property, onClose, headerRight 
 			setFailedEnhancedPhotoUrls({});
 		}
 	}, [visible, property?.id, property?.propertyId]);
+
+	useEffect(() => {
+		const hydrateFavorite = async () => {
+			if (!visible || !property) return;
+			const propertyId = String(property.propertyId ?? property.id ?? '').trim();
+			if (!user?.uid || !propertyId) {
+				setLocalFavorite(false);
+				return;
+			}
+			try {
+				const status = await Functions.checkIfFavorite(user.uid, propertyId);
+				setLocalFavorite(status);
+			} catch {
+				setLocalFavorite(false);
+			}
+		};
+		hydrateFavorite();
+	}, [visible, property, user?.uid]);
+
+	const handleFavoritePress = async () => {
+		if (!property) return;
+		if (!user?.uid) {
+			Alert.alert('Please log in', 'You must be logged in to save favorites.');
+			return;
+		}
+
+		const canonicalPropertyId = String(property.propertyId ?? property.id ?? '').trim();
+		if (!canonicalPropertyId) return;
+
+		try {
+			const propertyForFavorite = { ...property, id: canonicalPropertyId } as Property;
+			const newStatus = await Functions.toggleFavorite(user.uid, propertyForFavorite);
+			setLocalFavorite(newStatus);
+		} catch (error) {
+			Alert.alert('Error', 'Failed to update favorite status.');
+			console.error('Error toggling favorite:', error);
+		}
+	};
 
 	const photos = useMemo(() => {
 		if (!property) return [] as { href: string }[];
@@ -90,7 +137,12 @@ export default function PropertyModal({ visible, property, onClose, headerRight 
 						<Text style={mapStyles.closeButtonText}>✕</Text>
 					</TouchableOpacity>
 					<Text style={mapStyles.modalTitle}>{property.address}</Text>
-					{headerRight}
+					<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+						<TouchableOpacity onPress={handleFavoritePress} style={mapStyles.starButton}>
+							<Text style={mapStyles.starButtonText}>{localFavorite ? '⭐' : '☆'}</Text>
+						</TouchableOpacity>
+						{headerRight}
+					</View>
 				</View>
 
 				{photos.length > 0 ? (

@@ -149,6 +149,21 @@ export interface PropertyDetails {
 	photos?: { href: string; type?: string | null }[];
 	primaryPhoto?: string | null;
 	primary_photo?: { href?: string | null } | null;
+	hoa:string;
+	community?: {
+		name?: string; 
+		description?: string; 
+	}
+	flood?: {
+		flood_factor_score: number;
+		flood_insurance_text: string;
+		flood_trend_paragraph: string;
+	}
+	noise?: {
+		type: string;
+		text: string | null;
+		score: string | null;
+	}
 	mortgage?: {
 		property_tax_rate?: number | null;
 		rates_url?: string | null;

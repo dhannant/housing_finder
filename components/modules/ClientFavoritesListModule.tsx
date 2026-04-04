@@ -2,7 +2,7 @@ import { db } from '@/components/firebaseConfig';
 import PropertyModal from '@/components/modules/PropertyModal';
 import { landingStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';
-import { createClientOffer, deleteFavoriteById, fetchClientFavorites, fetchFavoriteByID, fetchUserData } from '@/utils/functions';
+import { checkIfFavorite, createClientOffer, deleteFavoriteById, fetchClientFavorites, fetchFavoriteByID, fetchUserData } from '@/utils/functions';
 import { FavoriteProperty, OfferData } from '@/utils/interfaces';
 import { router, useLocalSearchParams } from 'expo-router';
 import { collection, getDocs, query, where } from 'firebase/firestore';
@@ -183,6 +183,26 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
       }
    };
 
+	const handleModalClose = async () => {
+		const current = selectedProperty;
+		setSelectedProperty(null);
+
+		if (!current || !user?.uid) return;
+
+		try {
+			const propertyId = String(current.propertyId || '').trim();
+			if (!propertyId) return;
+			const stillFavorited = await checkIfFavorite(user.uid, propertyId);
+			if (!stillFavorited) {
+				setFavorites((prev) =>
+					prev.filter((fav) => fav.id !== current.id && fav.propertyId !== current.propertyId),
+				);
+			}
+		} catch (error) {
+			console.error('[FavoritesScreen] error refreshing favorites after modal close:', error);
+		}
+	};
+
 	
 	if (loading) {
 		if (loading) {
@@ -209,7 +229,7 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
 			<PropertyModal
 				visible={selectedProperty !== null}
 				property={selectedProperty}
-				onClose={() => setSelectedProperty(null)}
+				onClose={handleModalClose}
 			/>
 			{/* Header with logo and login button */}
 			<View style={landingStyles.header}>

@@ -1,10 +1,10 @@
 // Import the functions you need from the SDKs you need
-import { getApps, initializeApp } from 'firebase/app';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getAuth, getReactNativePersistence, initializeAuth } from 'firebase/auth';
+import { getApps, initializeApp } from 'firebase/app';
+import * as FirebaseAuth from 'firebase/auth';
+import { getAuth, initializeAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
 // Your web app's Firebase configuration
@@ -15,10 +15,8 @@ const firebaseConfig = {
   authDomain: 'leading-edge-realty-app.firebaseapp.com',
   projectId: 'leading-edge-realty-app',
   storageBucket: 'leading-edge-realty-app.appspot.com',
-//   storagebucket: 'leading-edge-realty-app.firebasestorage.app',
   messagingSenderId: '743617242604',
   appId: '1:743617242604:web:46756324a80c3781cfccc9',
-//   measurementId: "G-WNYQL0V2MK"
 };
 
 // Entry-level: Only initialize the app if it hasn't been initialized yet
@@ -32,6 +30,10 @@ if (getApps().length === 0) {
 export const db = getFirestore(app);
 let authInstance;
 try {
+  const getReactNativePersistence = (FirebaseAuth as any).getReactNativePersistence;
+  if (!getReactNativePersistence) {
+    throw new Error('React Native persistence API unavailable');
+  }
   authInstance = initializeAuth(app, {
     persistence: getReactNativePersistence(AsyncStorage),
   });

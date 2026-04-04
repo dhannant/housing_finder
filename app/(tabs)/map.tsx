@@ -126,7 +126,6 @@ export default function HomeScreen() {
 	const [houses, setHouses] = useState<House[]>([]);
 	const [filteredHouses, setFilteredHouses] = useState<House[]>([]);
 	const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
-	const [isFavorite, setIsFavorite] = useState(false);
 	const [filterVisible, setFilterVisible] = useState(false);
 	const [activeFilters, setActiveFilters] = useState<PropertyFilterOptions>({});
 	const params = useLocalSearchParams();
@@ -313,64 +312,6 @@ const hasZoomedRef = useRef(false);
 	const renderPropertyModal = () => {
 		if (!selectedHouse) return null;
 
-		const favoriteButton = (
-			<TouchableOpacity
-				onPress={async () => {
-					if (!user?.uid || !userData) {
-						Alert.alert('Please log in', 'You must be logged in to save favorites.');
-						return;
-					}
-					if (!selectedHouse) return;
-					if (role === 'Agent') {
-						try {
-							const agentId = user?.uid;
-							if (!agentId) {
-								Alert.alert('Error', 'Agent ID not found.');
-								return;
-							}
-							const assignedClients = await Functions.fetchAssignedClients(agentId);
-							const eligible: any[] = [];
-							for (const client of assignedClients) {
-								const alreadyFavorite = await Functions.checkIfFavorite(client.clientId, selectedHouse.id);
-								if (!alreadyFavorite) {
-									const clientUser = await Functions.fetchUserData(client.clientId);
-									eligible.push({
-										clientId: client.clientId,
-										firstName: clientUser?.firstName || '',
-										lastName: clientUser?.lastName || '',
-									});
-								}
-							}
-							if (eligible.length === 0) {
-								Alert.alert('No eligible clients', 'All your assigned clients already have this property as a favorite.');
-								return;
-							}
-							setEligibleClients(eligible);
-							setSelectedClientId(null);
-							setShowAssignModal(true);
-						} catch (error) {
-							Alert.alert('Error', 'Failed to load assigned clients.');
-							console.error('Error loading assinged clients:', error);
-						}
-						return;
-					}
-
-					if (role !== 'Agent') {
-						try {
-							const newStatus = await Functions.toggleFavorite(user.uid, selectedHouse);
-							setIsFavorite(newStatus);
-						} catch (error) {
-							Alert.alert('Error', 'Failed to update favorite status.');
-							console.error('Error toggling favorite:', error);
-						}
-					}
-				}}
-				style={mapStyles.starButton}
-			>
-				<Text style={mapStyles.starButtonText}>{isFavorite ? '⭐' : '☆'}</Text>
-			</TouchableOpacity>
-		);
-
 		return (
 			<PropertyModal
 				visible={selectedHouse !== null}
@@ -379,7 +320,6 @@ const hasZoomedRef = useRef(false);
 					setSelectedHouse(null);
 					setShowAssignModal(false);
 				}}
-				headerRight={favoriteButton}
 			/>
 		);
 	};
@@ -520,15 +460,8 @@ const hasZoomedRef = useRef(false);
 								longitude: house.longitude!,
 							}}
 							pinColor={getPinColor(house.status || 'for_sale')}
-					onPress={async () => {
+					onPress={() => {
 						setSelectedHouse(house);
-						// Check if this property is favorited when opening modal
-						if (user?.uid) {
-							const favorited = await Functions.checkIfFavorite(user.uid, house.id);
-							setIsFavorite(favorited);
-						} else {
-							setIsFavorite(false);
-						}
 					}}
 				/>
 			))}

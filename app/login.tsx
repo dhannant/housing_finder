@@ -19,12 +19,12 @@ export default function LoginScreen() {
 	// Quick access login for testing
 	// TODO: delete this before next deployment
 	const testUsers = [
-		{ label: 'Test Client (1)`', email: 'client1@gmail.com', password: '123456' },
-		{ label: 'Test Client (2)`', email: 'client2@gmail.com', password: '123456' },
-		{ label: 'Test Client (3)`', email: 'client3@gmail.com', password: '123456' },
-		{ label: 'Test Agent (1)', email: 'agent1@leadingedgega.com', password: '123456' },
-		{ label: 'Test Agent (2)', email: 'agent2@leadingedgega.com', password: '123456' },
-		{ label: 'Test Admin', email: 'admin@hitsolutionsllc.com', password: '123456' },
+		{ label: 'Test Client (1)', 	email: 'client1@gmail.com', 				password: '123456' },
+		{ label: 'Test Client (2)', 	email: 'client2@gmail.com', 				password: '123456' },
+		{ label: 'Test Client (3)', 	email: 'client3@gmail.com', 				password: '123456' },
+		{ label: 'Test Agent (1)', 	email: 'agent1@leadingedgega.com', 		password: '123456' },
+		{ label: 'Test Agent (2)', 	email: 'agent2@leadingedgega.com', 		password: '123456' },
+		{ label: 'Test Admin', 			email: 'admin@hitsolutionsllc.com', 	password: '123456' },
 	];
 
 	const handleTestLogin = async (email: string, password: string) => {

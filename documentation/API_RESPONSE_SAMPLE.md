@@ -69,10 +69,6 @@ Use this section to quickly classify fields before finalizing normalization.
 - [Drop] `property.lead_attributes`
 - [Maybe] `details[]`
 
-### `drop` (not needed in app or analytics right now)
-
-- [ ] Add fields here after review
-
 ### Notes / Decisions
 
 - Date:
