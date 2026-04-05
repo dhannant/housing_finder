@@ -120,11 +120,21 @@ const PropertyDetailsScreen = () => {
   }
 
 
-  const schools = [...(propertyDetails.nearby_schools?.schools ?? [])].sort((a, b) => {
-    const aDist = a.distance_in_miles ?? Infinity;
-    const bDist = b.distance_in_miles ?? Infinity;
-    return aDist - bDist;
-  });
+  const primaryNearbySchools = propertyDetails.nearby_schools?.schools ?? [];
+  const additionalNearbySchools = ((propertyDetails as any)?.schools?.schools ?? []) as typeof primaryNearbySchools;
+  const schools = [...primaryNearbySchools, ...additionalNearbySchools]
+    .filter((school, index, arr) => {
+      const schoolKey = `${school?.id ?? ''}|${school?.name ?? ''}|${school?.district?.name ?? ''}`;
+      return index === arr.findIndex((candidate) => {
+        const candidateKey = `${candidate?.id ?? ''}|${candidate?.name ?? ''}|${candidate?.district?.name ?? ''}`;
+        return candidateKey === schoolKey;
+      });
+    })
+    .sort((a, b) => {
+      const aDist = a.distance_in_miles ?? Infinity;
+      const bDist = b.distance_in_miles ?? Infinity;
+      return aDist - bDist;
+    });
   const estimate = propertyDetails.mortgage?.estimate;
   const monthlyPaymentDetails = estimate?.monthly_payment_details ?? [];
   const averageRates = estimate?.average_rates ?? [];
@@ -151,9 +161,121 @@ const PropertyDetailsScreen = () => {
   const linePointsString = linePoints.map((p) => `${p.x},${p.y}`).join(' ');
   
   const community = propertyDetails.community;
+  const communityName =
+    community?.name ??
+    propertyDetails.description?.name ??
+    (propertyDetails as any)?.location?.neighborhoods?.[0] ??
+    'Not available';
+  const communityDescription =
+    community?.description ??
+    propertyDetails.description?.text ??
+    'No community description provided.';
   const flood = propertyDetails.flood ?? propertyDetails.local?.flood;
   const noise = propertyDetails.noise ?? (propertyDetails.local as any)?.noise;
   const hoa = (propertyDetails as any).hoa;
+  const hoaFee = typeof hoa?.fee === 'number' ? hoa.fee : null;
+  const schoolDistricts = Array.from(
+    new Set(
+      schools
+        .map((school) => school.district?.name)
+        .filter((name): name is string => !!name && name.trim().length > 0),
+    ),
+  );
+  const normalizeSchoolName = (value: string) =>
+    value.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const servicedSchoolNameHints = (propertyDetails.details ?? [])
+    .flatMap((detail) => detail.text ?? [])
+    .map((line) => {
+      const match = line.match(/(?:Elementary|Middle|High)\s+School:\s*(.+)$/i);
+      return match?.[1]?.trim() ?? null;
+    })
+    .filter((value): value is string => !!value && value.length > 0);
+  const servicedSchools = schools.filter((school) => {
+    const schoolName = normalizeSchoolName(school.name ?? '');
+    if (!schoolName) return false;
+    const likelyServiced = servicedSchoolNameHints.some((hint) => {
+      const normalizedHint = normalizeSchoolName(hint);
+      return schoolName.includes(normalizedHint) || normalizedHint.includes(schoolName);
+    });
+    return likelyServiced && school.funding_type?.toLowerCase() !== 'private';
+  });
+  const servicedSchoolKeys = new Set(
+    servicedSchools.map((school) => String(school.id ?? normalizeSchoolName(school.name ?? ''))),
+  );
+  const otherNearbySchools = schools.filter(
+    (school) => !servicedSchoolKeys.has(String(school.id ?? normalizeSchoolName(school.name ?? ''))),
+  );
+  const renderSchoolCard = (school: any, key: string | number) => (
+    <View key={key} style={{
+      backgroundColor: '#fff',
+      borderRadius: 12,
+      padding: 14,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
+      elevation: 2,
+      borderWidth: 1,
+      borderColor: '#eee',
+    }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <Text style={{ fontWeight: 'bold', fontSize: 15, flex: 1, marginRight: 8 }}>{school.name}</Text>
+        {school.rating != null && (
+          <View style={{
+            backgroundColor: '#e0e0e0',
+            borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3,
+          }}>
+            <Text style={{ color: '#444', fontWeight: '700', fontSize: 13 }}>★ {school.rating}</Text>
+          </View>
+        )}
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+        {school.funding_type && (
+          <View style={{
+            backgroundColor: school.funding_type.toLowerCase() === 'private' ? '#1e3a5f' : '#f5f5f5',
+            borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
+          }}>
+            <Text style={{ fontSize: 12, textTransform: 'capitalize', color: school.funding_type.toLowerCase() === 'private' ? '#fff' : '#555' }}>{school.funding_type}</Text>
+          </View>
+        )}
+        {school.grades?.length > 0 && (
+          <View style={{ backgroundColor: '#f0f4ff', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+            <Text style={{ fontSize: 12, color: '#3a5bc7' }}>Grades: {school.grades.join(', ')}</Text>
+          </View>
+        )}
+        {school.distance_in_miles != null && (
+          <View style={{ backgroundColor: '#f5f5f5', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+            <Text style={{ fontSize: 12, color: '#555' }}>{school.distance_in_miles} mi away</Text>
+          </View>
+        )}
+        {school.student_count != null && (
+          <View style={{ backgroundColor: '#f5f5f5', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+            <Text style={{ fontSize: 12, color: '#555' }}>{school.student_count} students</Text>
+          </View>
+        )}
+      </View>
+      {school.district?.name && (
+        <Text style={{ fontSize: 12, color: '#888' }}>District: {school.district.name}</Text>
+      )}
+    </View>
+  );
+  const filteredDetailItems = (propertyDetails.details ?? []).filter((detail) => {
+    const category = (detail.category ?? '').toLowerCase();
+    const textBlob = (detail.text ?? []).join(' ').toLowerCase();
+    const isHoa =
+      category.includes('hoa') ||
+      category.includes('homeowners association') ||
+      category.includes('homeowner association') ||
+      textBlob.includes('homeowners association') ||
+      textBlob.includes('homeowner association') ||
+      textBlob.includes('hoa');
+    const isSchool =
+      category.includes('school') ||
+      textBlob.includes('school district') ||
+      textBlob.includes('nearby school') ||
+      textBlob.includes('school');
+    return !isHoa && !isSchool;
+  });
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
@@ -236,7 +358,7 @@ const PropertyDetailsScreen = () => {
             </View>
             {/* Details List */}
             <View style={{ marginBottom: 24 }}>
-              {(propertyDetails.details ?? []).length > 0 && (propertyDetails.details ?? []).map((d, idx) => (
+              {filteredDetailItems.length > 0 && filteredDetailItems.map((d, idx) => (
                 <View key={idx} style={{ marginBottom: 8 }}>
                   <Text style={{ fontWeight: 'bold' }}>{d.category}</Text>
                   {d.text && d.text.map((t, i) => (
@@ -252,9 +374,19 @@ const PropertyDetailsScreen = () => {
         <TouchableOpacity onPress={() => setShowCommunity((v) => !v)} style={{ padding: 16, backgroundColor: '#f5f5f5', borderBottomWidth: 1, borderColor: '#eee' }}>
           <Text style={{ fontSize: 18, fontWeight: 'bold' }}>Community Information {showCommunity ? '▲' : '▼'}</Text>
         </TouchableOpacity>
-        {showCommunity && (community?.name || community?.description) && (
+        {showCommunity && (
           <View style={{ padding: 16 }}>
-            
+            <Text style={{ fontSize: 16, fontWeight: 'bold' }}>Community Name</Text>
+            <Text>{communityName}</Text>
+            <Text style={{ fontSize: 16, fontWeight: 'bold' }}>Community Description</Text>
+            <Text>{communityDescription}</Text>
+
+            <Text style={{ fontSize: 16, fontWeight: 'bold', marginTop: 10 }}>Homeowners Association (HOA)</Text>
+            <Text>
+              {hoaFee !== null
+                ? `$${hoaFee.toLocaleString()} / month`
+                : 'Not provided'}
+            </Text>
           </View>
         )}
 
@@ -264,62 +396,40 @@ const PropertyDetailsScreen = () => {
         </TouchableOpacity>
         {showSchools && schools.length > 0 && (
           <View style={{ padding: 16, gap: 12 }}>
-            {schools.map((school, idx) => (
-              <View key={idx} style={{
-                backgroundColor: '#fff',
-                borderRadius: 12,
-                padding: 14,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-                elevation: 2,
-                borderWidth: 1,
-                borderColor: '#eee',
-              }}>
-                {/* Name + Rating row */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <Text style={{ fontWeight: 'bold', fontSize: 15, flex: 1, marginRight: 8 }}>{school.name}</Text>
-                  {school.rating != null && (
-                    <View style={{
-                      backgroundColor: '#e0e0e0',
-                      borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3,
-                    }}>
-                      <Text style={{ color: '#444', fontWeight: '700', fontSize: 13 }}>★ {school.rating}</Text>
+            <View style={{
+              backgroundColor: '#fff',
+              borderRadius: 12,
+              padding: 12,
+              borderWidth: 1,
+              borderColor: '#eee',
+            }}>
+              <Text style={{ fontWeight: 'bold', marginBottom: 8 }}>School Districts For This Home</Text>
+              {schoolDistricts.length > 0 ? (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                  {schoolDistricts.map((district, idx) => (
+                    <View key={idx} style={{ backgroundColor: '#eef3ff', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+                      <Text style={{ fontSize: 12, color: '#3556a8' }}>{district}</Text>
                     </View>
-                  )}
+                  ))}
                 </View>
-                {/* Detail pills row */}
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
-                  {school.funding_type && (
-                    <View style={{
-                      backgroundColor: school.funding_type.toLowerCase() === 'private' ? '#1e3a5f' : '#f5f5f5',
-                      borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
-                    }}>
-                      <Text style={{ fontSize: 12, textTransform: 'capitalize', color: school.funding_type.toLowerCase() === 'private' ? '#fff' : '#555' }}>{school.funding_type}</Text>
-                    </View>
-                  )}
-                  {school.grades?.length > 0 && (
-                    <View style={{ backgroundColor: '#f0f4ff', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                      <Text style={{ fontSize: 12, color: '#3a5bc7' }}>Grades: {school.grades.join(', ')}</Text>
-                    </View>
-                  )}
-                  {school.distance_in_miles != null && (
-                    <View style={{ backgroundColor: '#f5f5f5', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                      <Text style={{ fontSize: 12, color: '#555' }}>{school.distance_in_miles} mi away</Text>
-                    </View>
-                  )}
-                  {school.student_count != null && (
-                    <View style={{ backgroundColor: '#f5f5f5', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                      <Text style={{ fontSize: 12, color: '#555' }}>{school.student_count} students</Text>
-                    </View>
-                  )}
-                </View>
-                {school.district?.name && (
-                  <Text style={{ fontSize: 12, color: '#888' }}>District: {school.district.name}</Text>
-                )}
-              </View>
-            ))}
+              ) : (
+                <Text style={{ color: '#666' }}>District data not provided.</Text>
+              )}
+            </View>
+
+            <Text style={{ fontWeight: '700', fontSize: 15, marginTop: 2 }}>Serviced By This Home</Text>
+            {servicedSchools.length > 0 ? (
+              servicedSchools.map((school, idx) => renderSchoolCard(school, `serviced-${idx}`))
+            ) : (
+              <Text style={{ color: '#666' }}>Specific serviced schools were not identified for this listing.</Text>
+            )}
+
+            {otherNearbySchools.length > 0 && (
+              <>
+                <Text style={{ fontWeight: '700', fontSize: 15, marginTop: 4 }}>Other Nearby Schools</Text>
+                {otherNearbySchools.map((school, idx) => renderSchoolCard(school, `nearby-${idx}`))}
+              </>
+            )}
           </View>
         )}
 

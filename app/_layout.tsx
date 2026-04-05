@@ -25,14 +25,14 @@ export default function RootLayout() {
 						name="register"
 						options={{ title: "Register" }}
 					/>
-					<Stack.Screen
+					{/* <Stack.Screen
 						name="client-dashboard"
 						options={{ title: "Client Dashboard", headerShown: false, headerBackVisible: false }}
 					/>
 					<Stack.Screen
 						name="agent-dashboard"
 						options={{ title: "Agent Dashboard", headerShown: false, headerBackVisible: false }}
-					/>
+					/> */}
 					<Stack.Screen
 						name="(tabs)"
 						options={{ headerShown: false, headerBackVisible: false }}
@@ -45,10 +45,10 @@ export default function RootLayout() {
 						name="agent"
 						options={{ headerShown: false, headerBackVisible: false }}
 					/>
-					<Stack.Screen
+					{/* <Stack.Screen
 						name="admin"
 						options={{ headerShown: false, headerBackVisible: false }}
-					/>
+					/> */}
 					<Stack.Screen
 						name="(shared_screens)"
 						options={{ headerShown: false, headerBackVisible: false }}
@@ -57,10 +57,10 @@ export default function RootLayout() {
 						name="role-redirect"
 						options={{ headerShown: false, headerBackVisible: false }}
 					/>
-					<Stack.Screen
+					{/* <Stack.Screen
 						name="modal"
 						options={{ presentation: "modal", title: "Modal" }}
-					/>
+					/> */}
 				</Stack>
 				<StatusBar style="auto" />
 			</ThemeProvider>
