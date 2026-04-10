@@ -6,6 +6,27 @@ export default function SharedScreensLayout() {
 		<ProtectedRoute>
 			<Stack>
 				<Stack.Screen
+					name="sell-home/index"
+					options={{
+						title: 'Sell My Home',
+						headerShown: true,
+					}}
+				/>
+				<Stack.Screen
+					name="sell-home/traditional-details"
+					options={{
+						title: 'Property Details',
+						headerShown: true,
+					}}
+				/>
+				<Stack.Screen
+					name="sell-home/traditional-availability"
+					options={{
+						title: 'Availability',
+						headerShown: true,
+					}}
+				/>
+				<Stack.Screen
 					name="client_favorites_list"
 					options={{
 						title: 'My Favorites',

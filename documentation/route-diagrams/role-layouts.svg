@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760">
+  <style>
+    .title { font: 700 28px Arial, sans-serif; fill: #183126; }
+    .label { font: 600 16px Arial, sans-serif; fill: #183126; }
+    .small { font: 400 13px Arial, sans-serif; fill: #4d5e56; }
+    .group { fill: #edf7ed; stroke: #2c5f2d; stroke-width: 2; rx: 16; }
+    .box { fill: #ffffff; stroke: #2c5f2d; stroke-width: 2; rx: 14; }
+    .admin { fill: #eef2ff; stroke: #3d5aa9; stroke-width: 2; rx: 16; }
+    .line { stroke: #7f9389; stroke-width: 2; }
+  </style>
+
+  <rect width="1200" height="760" fill="#f7f8f5" />
+  <text x="40" y="48" class="title">Role-Based Layouts</text>
+
+  <rect x="90" y="100" width="300" height="100" class="group" />
+  <text x="240" y="136" text-anchor="middle" class="label">client/(tabs)/_layout.tsx</text>
+  <text x="240" y="162" text-anchor="middle" class="small">ProtectedRoute requiredRole=Client</text>
+
+  <rect x="450" y="100" width="300" height="100" class="group" />
+  <text x="600" y="136" text-anchor="middle" class="label">agent/(tabs)/_layout.tsx</text>
+  <text x="600" y="162" text-anchor="middle" class="small">ProtectedRoute requiredRole=Agent</text>
+
+  <rect x="810" y="100" width="240" height="100" class="admin" />
+  <text x="930" y="136" text-anchor="middle" class="label">admin</text>
+  <text x="930" y="162" text-anchor="middle" class="small">standalone admin screen</text>
+
+  <line x1="240" y1="200" x2="240" y2="260" class="line" />
+  <line x1="600" y1="200" x2="600" y2="260" class="line" />
+  <line x1="930" y1="200" x2="930" y2="260" class="line" />
+
+  <rect x="60" y="280" width="160" height="72" class="box" />
+  <text x="140" y="308" text-anchor="middle" class="label">/client-dashboard</text>
+  <text x="140" y="330" text-anchor="middle" class="small">client home</text>
+
+  <rect x="240" y="280" width="140" height="72" class="box" />
+  <text x="310" y="308" text-anchor="middle" class="label">/favorites</text>
+  <text x="310" y="330" text-anchor="middle" class="small">client favorites</text>
+
+  <rect x="140" y="390" width="180" height="72" class="box" />
+  <text x="230" y="418" text-anchor="middle" class="label">/profile</text>
+  <text x="230" y="440" text-anchor="middle" class="small">client profile</text>
+
+  <line x1="240" y1="260" x2="140" y2="280" class="line" />
+  <line x1="240" y1="260" x2="310" y2="280" class="line" />
+  <line x1="240" y1="260" x2="230" y2="390" class="line" />
+
+  <rect x="420" y="280" width="180" height="72" class="box" />
+  <text x="510" y="308" text-anchor="middle" class="label">/agent-dashboard</text>
+  <text x="510" y="330" text-anchor="middle" class="small">agent home</text>
+
+  <rect x="620" y="280" width="140" height="72" class="box" />
+  <text x="690" y="308" text-anchor="middle" class="label">/calendar</text>
+  <text x="690" y="330" text-anchor="middle" class="small">agent calendar</text>
+
+  <rect x="500" y="390" width="180" height="72" class="box" />
+  <text x="590" y="418" text-anchor="middle" class="label">/profile</text>
+  <text x="590" y="440" text-anchor="middle" class="small">agent profile</text>
+
+  <rect x="470" y="500" width="250" height="72" class="box" />
+  <text x="595" y="528" text-anchor="middle" class="label">/agent/client-favorites</text>
+  <text x="595" y="550" text-anchor="middle" class="small">standalone referenced route</text>
+
+  <line x1="600" y1="260" x2="510" y2="280" class="line" />
+  <line x1="600" y1="260" x2="690" y2="280" class="line" />
+  <line x1="600" y1="260" x2="590" y2="390" class="line" />
+  <line x1="600" y1="260" x2="595" y2="500" class="line" />
+
+  <rect x="830" y="280" width="200" height="72" class="admin" />
+  <text x="930" y="308" text-anchor="middle" class="label">/admin/dashboard</text>
+  <text x="930" y="330" text-anchor="middle" class="small">admin/dashboard.tsx</text>
+
+  <line x1="930" y1="260" x2="930" y2="280" class="line" />
+</svg>

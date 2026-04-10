@@ -19,7 +19,7 @@ const firebaseConfig = {
   appId: '1:743617242604:web:46756324a80c3781cfccc9',
 };
 
-// Entry-level: Only initialize the app if it hasn't been initialized yet
+// initialize the app if it hasn't been initialized yet
 let app;
 if (getApps().length === 0) {
   app = initializeApp(firebaseConfig);

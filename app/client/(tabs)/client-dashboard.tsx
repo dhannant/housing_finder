@@ -185,6 +185,18 @@ export default function ClientDashboard() {
 						</View>
 						<Text style={landingStyles.arrow}>→</Text>
 					</TouchableOpacity>
+					<TouchableOpacity	style={[landingStyles.actionButton, landingStyles.sellButton, { marginHorizontal: 16, marginTop: 8, paddingVertical: 16, paddingHorizontal: 16 }]}	onPress={() => router.push('/sell-home' as any)} activeOpacity={0.8}>
+						<View style={[landingStyles.buttonContent, { minHeight: 42 }]}> 
+							<View style={[landingStyles.iconCircle, landingStyles.sellIconCircle, { width: 42, height: 42, borderRadius: 21, marginRight: 12 }]}> 
+								<Home color="#FFFFFF" size={22} />
+							</View>
+							<View style={landingStyles.buttonTextContainer}>
+								<Text style={landingStyles.buttonTitle}>I&apos;m looking to sell my land</Text>
+								<Text style={landingStyles.buttonSubtitle}>Start your listing request</Text>
+							</View>
+						</View>
+						<Text style={landingStyles.arrow}>→</Text>
+					</TouchableOpacity>
 					<TouchableOpacity style={[landingStyles.actionButton, landingStyles.geolocateButton, { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 8, paddingVertical: 16, paddingHorizontal: 16 }]} activeOpacity={0.8} onPress={() => router.push({ pathname: '/(tabs)/map', params: { userType: 'geolocate', zoomToUser: 'true' } })}>
 						<View style={[landingStyles.iconCircle, landingStyles.geolocateIconCircle, { width: 42, height: 42, borderRadius: 21, marginRight: 12 }]}> 
 							<MapPin color="#FFFFFF" size={22} />

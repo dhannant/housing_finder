@@ -32,7 +32,7 @@ export default function LandingScreen() {
         params: { userType: type, zoomToUser: 'false' }
       });
     } else if (type === 'sell') {
-      alert('Seller profile coming soon!');
+      router.push('/sell-home' as any);
     } else if (type === 'preapproval') {
       // alert('Pre-approval form coming soon!');
     }
@@ -144,8 +144,8 @@ export default function LandingScreen() {
                 <Home color="#FFFFFF" size={32} />
               </View>
               <View style={landingStyles.buttonTextContainer}>
-                <Text style={landingStyles.buttonTitle}>{"I'm looking to sell my home/land"}</Text>
-                <Text style={landingStyles.buttonSubtitle}>{"Get pre-approved & list your property"}</Text>
+                <Text style={landingStyles.buttonTitle}>{"I'm looking to sell my land"}</Text>
+                <Text style={landingStyles.buttonSubtitle}>{"Start your listing request"}</Text>
               </View>
             </View>
             <Text style={landingStyles.arrow}>→</Text>

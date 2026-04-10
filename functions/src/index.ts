@@ -1272,6 +1272,37 @@ export const notifyAgentOnClientRequestCreated = onDocumentCreated("clientReques
 	}
 });
 
+// New client property listing: notify the assigned agent.
+export const notifyAgentOnClientPropertyListingCreated = onDocumentCreated("clientPropertyListings/{listingId}", async (event) => {
+	const snapshot = event.data;
+	if (!snapshot) return;
+
+	const listing = snapshot.data() as any;
+	if (typeof listing?.assignedAgentId !== "string" || typeof listing?.clientId !== "string") return;
+
+	const db = getFirestore();
+	const clientSnap = await db.collection("users").doc(listing.clientId).get();
+	const clientName = getDisplayName(clientSnap.data(), "A client");
+
+	const sendResult = await sendExpoPushToUser(listing.assignedAgentId, {
+		title: "Client listing assistance requested",
+		body: `${clientName} submitted a home listing assistance request.`,
+		data: {
+			type: "client_property_listing_created",
+			listingId: snapshot.id,
+			clientId: listing.clientId,
+			assignedAgentId: listing.assignedAgentId,
+			status: listing.status || "Submitted",
+		},
+	});
+
+	if (!sendResult.ok) {
+		console.warn(
+			`[Push] notifyAgentOnClientPropertyListingCreated failed listingId=${snapshot.id}, assignedAgentId=${listing.assignedAgentId}, reason=${sendResult.reason}, details=${sendResult.details || "n/a"}`,
+		);
+	}
+});
+
 // Manual push test endpoint for debugging token/delivery independently from Firestore triggers.
 export const sendPushTestToUser = onRequest(async (req, res) => {
 	try {

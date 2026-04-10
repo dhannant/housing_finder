@@ -1,5 +1,5 @@
 import { login_styles } from '@/constants/styles';
-import { useAuth } from '@/contexts/AuthContext';
+import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -9,21 +9,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from '../components/firebaseConfig';
 
 export default function LoginScreen() {
-	const { role } = useAuth();
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
 	const [message, setMessage] = useState('');
 	const [loading, setLoading] = useState(false);
 	const router = useRouter();
 
+
+
+	
 	// Quick access login for testing
 	// TODO: delete this before next deployment
+	const hostUri = Constants.expoConfig?.hostUri || '';
+	const isLikelyLocalHost = /(localhost|127\.0\.0\.1|192\.168\.|10\.)/.test(hostUri);
+	const showQuickTestLogins = __DEV__ && (Constants.appOwnership === 'expo' || isLikelyLocalHost);
 	const testUsers = [
 		{ label: 'Test Client (1)', 	email: 'client1@gmail.com', 				password: '123456' },
 		{ label: 'Test Client (2)', 	email: 'client2@gmail.com', 				password: '123456' },
-		{ label: 'Test Client (3)', 	email: 'client3@gmail.com', 				password: '123456' },
 		{ label: 'Test Agent (1)', 	email: 'agent1@leadingedgega.com', 		password: '123456' },
-		{ label: 'Test Agent (2)', 	email: 'agent2@leadingedgega.com', 		password: '123456' },
 		{ label: 'Test Admin', 			email: 'admin@hitsolutionsllc.com', 	password: '123456' },
 	];
 
@@ -36,7 +39,7 @@ export default function LoginScreen() {
 			await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
 			setMessage('Login successful!');
 			router.replace('/role-redirect');
-		} catch (err: any) {
+		} catch {
 			setMessage('Test login failed. Please check your credentials and try again.');
 			setLoading(false);
 		} finally {
@@ -71,7 +74,7 @@ export default function LoginScreen() {
 			setMessage('Login successful!');
 			router.replace('/role-redirect');
 			setLoading(false);
-		} catch (err: any) {
+		} catch {
 			setMessage('An error occurred. Please try again.');
 			setLoading(false);
 		}
@@ -113,20 +116,21 @@ export default function LoginScreen() {
 						<Text style={{color: '#007AFF'}} onPress={() => router.push('/privacy-policy')}>Privacy Policy</Text>
 					</Text>
 
-					{/* Quick access login buttons for testing */}
-					{/* <View style={{ marginTop: 24, marginBottom: 8 }}>
-						<Text style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 8 }}>Quick Test Logins:</Text>
-						{testUsers.map((user, idx) => (
-							<View key={user.email} style={{ marginBottom: 8 }}>
-								<Button
-									title={user.label}
-									onPress={() => handleTestLogin(user.email, user.password)}
-									color="#2C5F2D"
-									disabled={loading}
-								/>
-							</View>
-						))}
-					</View> */}
+					{showQuickTestLogins && (
+						<View style={{ marginTop: 24, marginBottom: 8 }}>
+							<Text style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 8 }}>Quick Test Logins:</Text>
+							{testUsers.map((user) => (
+								<View key={user.email} style={{ marginBottom: 8 }}>
+									<Button
+										title={user.label}
+										onPress={() => handleTestLogin(user.email, user.password)}
+										color="#2C5F2D"
+										disabled={loading}
+									/>
+								</View>
+							))}
+						</View>
+					)}
 				</View>
 			</KeyboardAvoidingView>
 		</SafeAreaView>

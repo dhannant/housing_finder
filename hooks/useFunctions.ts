@@ -4,7 +4,7 @@ import {
     fetchUnassignedClients,
     fetchUserData,
 } from "@/utils/functions";
-import { ClientRequest, UserData } from "@/utils/interfaces";
+import { AgentAssignedClientPropertyListing, ClientPropertyListing, ClientRequest, UserData } from "@/utils/interfaces";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { useEffect, useState } from "react";
 
@@ -310,6 +310,96 @@ export const usePendingClientRequests = (userId: string | null | undefined, role
 
 		return () => unsubscribe();
 	}, [userId, role, reloadKey]);
+
+	return { data, loading, error, refetch };
+};
+
+const toMillis = (value: any): number => {
+	try {
+		if (!value) return 0;
+		if (typeof value?.toDate === "function") return value.toDate().getTime();
+		if (value instanceof Date) return value.getTime();
+		const parsed = new Date(value).getTime();
+		return Number.isFinite(parsed) ? parsed : 0;
+	} catch {
+		return 0;
+	}
+};
+
+export const useAgentAssignedPropertyListings = (
+	agentId: string | null | undefined,
+): UseDataReturn<AgentAssignedClientPropertyListing[]> => {
+	const [data, setData] = useState<AgentAssignedClientPropertyListing[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<Error | null>(null);
+	const [reloadKey, setReloadKey] = useState(0);
+
+	const refetch = async () => {
+		setReloadKey((prev) => prev + 1);
+	};
+
+	useEffect(() => {
+		if (!agentId) {
+			setData([]);
+			setError(null);
+			setLoading(false);
+			return;
+		}
+
+		setLoading(true);
+		let disposed = false;
+
+		const listingsRef = collection(db, "clientPropertyListings");
+		const q = query(listingsRef, where("assignedAgentId", "==", agentId));
+
+		const unsubscribe = onSnapshot(
+			q,
+			async (snapshot) => {
+				const rawListings = snapshot.docs.map(
+					(docSnap) => ({ id: docSnap.id, ...docSnap.data() } as ClientPropertyListing),
+				);
+
+				const enriched = await Promise.all(
+					rawListings.map(async (listing) => {
+						const client = await fetchUserData(listing.clientId);
+						const firstName = client?.firstName?.trim() || "";
+						const lastName = client?.lastName?.trim() || "";
+						const clientName = `${firstName} ${lastName}`.trim() || "Client";
+
+						return {
+							...listing,
+							id: listing.id || "",
+							clientName,
+							clientEmail: client?.email || listing.contactEmail || "",
+							clientPhoneNumber: client?.phoneNumber || listing.contactPhone || "",
+						} as AgentAssignedClientPropertyListing;
+					}),
+				);
+
+				enriched.sort((a, b) => {
+					const aTime = toMillis(a.submittedAt || a.createdAt);
+					const bTime = toMillis(b.submittedAt || b.createdAt);
+					return bTime - aTime;
+				});
+
+				if (disposed) return;
+				setData(enriched);
+				setError(null);
+				setLoading(false);
+			},
+			(err: unknown) => {
+				if (disposed) return;
+				setError(toError(err));
+				setLoading(false);
+				console.error("[useAgentAssignedPropertyListings] Listener error:", err);
+			},
+		);
+
+		return () => {
+			disposed = true;
+			unsubscribe();
+		};
+	}, [agentId, reloadKey]);
 
 	return { data, loading, error, refetch };
 };

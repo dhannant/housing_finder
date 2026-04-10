@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="760" viewBox="0 0 1100 760">
+  <style>
+    .title { font: 700 28px Arial, sans-serif; fill: #183126; }
+    .label { font: 600 16px Arial, sans-serif; fill: #183126; }
+    .small { font: 400 13px Arial, sans-serif; fill: #4d5e56; }
+    .box { fill: #ffffff; stroke: #2c5f2d; stroke-width: 2; rx: 14; }
+    .group { fill: #edf7ed; stroke: #2c5f2d; stroke-width: 2; rx: 16; }
+    .warn { fill: #fff4e5; stroke: #c77700; stroke-width: 2; rx: 16; }
+    .line { stroke: #7f9389; stroke-width: 2; }
+  </style>
+
+  <rect width="1100" height="760" fill="#f7f8f5" />
+  <text x="40" y="48" class="title">Shared Screens Layout</text>
+
+  <rect x="390" y="80" width="320" height="84" class="group" />
+  <text x="550" y="114" text-anchor="middle" class="label">app/(shared_screens)/_layout.tsx</text>
+  <text x="550" y="138" text-anchor="middle" class="small">ProtectedRoute wrapped stack</text>
+
+  <line x1="550" y1="164" x2="550" y2="210" class="line" />
+
+  <rect x="420" y="230" width="260" height="72" class="box" />
+  <text x="550" y="258" text-anchor="middle" class="label">/sell-home</text>
+  <text x="550" y="280" text-anchor="middle" class="small">sell-home/index.tsx</text>
+
+  <line x1="550" y1="302" x2="350" y2="370" class="line" />
+  <line x1="550" y1="302" x2="750" y2="370" class="line" />
+
+  <rect x="180" y="370" width="340" height="72" class="box" />
+  <text x="350" y="398" text-anchor="middle" class="label">/sell-home/traditional-details</text>
+  <text x="350" y="420" text-anchor="middle" class="small">traditional-details.tsx</text>
+
+  <rect x="580" y="370" width="340" height="72" class="box" />
+  <text x="750" y="398" text-anchor="middle" class="label">/property_details</text>
+  <text x="750" y="420" text-anchor="middle" class="small">property_details.tsx</text>
+
+  <line x1="350" y1="442" x2="350" y2="510" class="line" />
+
+  <rect x="180" y="510" width="340" height="72" class="box" />
+  <text x="350" y="538" text-anchor="middle" class="label">/sell-home/traditional-availability</text>
+  <text x="350" y="560" text-anchor="middle" class="small">traditional-availability.tsx</text>
+
+  <rect x="580" y="510" width="340" height="72" class="box" />
+  <text x="750" y="538" text-anchor="middle" class="label">/client_offer_details</text>
+  <text x="750" y="560" text-anchor="middle" class="small">client_offer_details.tsx</text>
+
+  <rect x="250" y="620" width="600" height="96" class="warn" />
+  <text x="550" y="654" text-anchor="middle" class="label">Declared In Layout But Missing Files</text>
+  <text x="550" y="680" text-anchor="middle" class="small">client_favorites_list and profile are still declared in the shared stack layout.</text>
+</svg>

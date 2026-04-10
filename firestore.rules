@@ -6,8 +6,14 @@ service cloud.firestore {
     // Helper Functions
     function isAuthenticated() { return request.auth != null; }
     function isOwner(userId) { return request.auth.uid == userId; }
-    function getUserRole() { return request.auth.token.role; }
-    function isAdmin() { return isAuthenticated() && getUserRole() == 'Admin'; }
+    function getUserRole() {
+      return isAuthenticated()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
+    function isAgent() { return getUserRole() == 'Agent' || getUserRole() == 'agent'; }
+    function isClient() { return getUserRole() == 'Client' || getUserRole() == 'client'; }
+    function isAdmin() { return isAuthenticated() && (getUserRole() == 'Admin' || getUserRole() == 'admin'); }
     function clientHasActiveOffer(clientId, propertyId) {
       return exists(
         /databases/$(database)/documents/clientOffers
@@ -64,12 +70,12 @@ service cloud.firestore {
         isAdmin() ||
         isOwner(userId) ||
         resource.data.role == 'Agent' ||
-        (getUserRole() == 'Agent' && resource.data.role == 'Client')
+        (isAgent() && resource.data.role == 'Client')
       );
       allow list: if isAuthenticated() && (
         isAdmin() ||
-        getUserRole() == 'Agent' ||
-        getUserRole() == 'Client'
+        isAgent() ||
+        isClient()
       );
     }
 
@@ -78,14 +84,14 @@ service cloud.firestore {
       allow create: if isAuthenticated() && (
         (request.resource.data.clientId == request.auth.uid &&
          request.resource.data.status == "Pending") ||
-        (getUserRole() == "Agent" &&
+        (isAgent() &&
          request.resource.data.status == "Approved")
       );
       allow read: if isAuthenticated() && (
         isAdmin() ||
         resource.data.clientId == request.auth.uid         // Client can read their own requests
         || resource.data.realtorId == request.auth.uid         // Agent can read their assigned requests
-        || getUserRole() == "Agent"                              // (Optional) Agent can read all requests
+        || isAgent()                              // (Optional) Agent can read all requests
       );
       allow update: if isAuthenticated()
         && resource.data.realtorId == request.auth.uid
@@ -100,12 +106,12 @@ service cloud.firestore {
     match /clientFavorites/{favoriteId} {
       allow create: if isAuthenticated() && (
         request.resource.data.userId == request.auth.uid ||
-        getUserRole() == "Agent"
+        isAgent()
       );
       allow read: if isAuthenticated() && (
         isAdmin() ||
         resource.data.userId == request.auth.uid ||
-        getUserRole() == "Agent"
+        isAgent()
       );
       allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
       allow update: if false;
@@ -114,20 +120,20 @@ service cloud.firestore {
     // clientOffers collection rules
     match /clientOffers/{offerId} {
       allow create: if isAuthenticated() &&
-        getUserRole() == "Agent"
+        isAgent()
         // isAssignedAgent(request.auth.uid, request.resource.data.clientId)
         // !clientHasActiveOffer(request.resource.data.clientId, request.resource.data.propertyId) &&
         // !propertyHasActiveOffer(request.resource.data.propertyId);
       allow read: if isAuthenticated() && (
         isAdmin() ||
         resource.data.clientId == request.auth.uid ||
-        getUserRole() == "Agent"
+        isAgent()
       );
       allow update: if isAuthenticated() && (
-        getUserRole() == "Agent"
+        isAgent()
       );
       allow delete: if isAuthenticated() && (
-        getUserRole() == "Agent" || resource.data.clientId == request.auth.uid
+        isAgent() || resource.data.clientId == request.auth.uid
       );
     }
 
@@ -160,6 +166,36 @@ service cloud.firestore {
     match /propertyDetails/{propertyId} {
       allow read: if true;
       allow create, update, delete: if false;
+    }
+
+    // clientPropertyListings collection rules
+    match /clientPropertyListings/{listingId} {
+      allow create: if isAuthenticated()
+        && request.resource.data.clientId == request.auth.uid
+        && request.resource.data.branchType in ['Traditional', 'Realty2Cash']
+        && request.resource.data.status in ['Submitted', 'Assigned', 'Contacted', 'In Review', 'Closed'];
+
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.clientId == request.auth.uid ||
+        resource.data.assignedAgentId == request.auth.uid
+      );
+
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (
+          resource.data.clientId == request.auth.uid &&
+          request.resource.data.clientId == resource.data.clientId &&
+          request.resource.data.assignedAgentId == resource.data.assignedAgentId
+        ) ||
+        (
+          resource.data.assignedAgentId == request.auth.uid &&
+          request.resource.data.clientId == resource.data.clientId &&
+          request.resource.data.assignedAgentId == resource.data.assignedAgentId
+        )
+      );
+
+      allow delete: if isAdmin();
     }
 
     // API pull telemetry (admin-only)

@@ -2,7 +2,7 @@ import { auth, db } from '@/components/firebaseConfig';
 import { fetchUserData, saveUserPushToken } from '@/utils/functions';
 import { UserData } from '@/utils/interfaces';
 import { registerForPushNotificationsDetailedAsync } from '@/utils/pushNotifications';
-import { User, getIdTokenResult, onAuthStateChanged, signOut } from 'firebase/auth';
+import { User, onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 
@@ -26,14 +26,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       // [REMOVED LOG]
       setUser(firebaseUser);
-      let customRole: string | null = null;
       if (firebaseUser) {
         try {
-          // Get custom claims from ID token
-          const idTokenResult = await getIdTokenResult(firebaseUser, true);
-          customRole = idTokenResult.claims?.role || null;
-          setRole(customRole);
-
           await setDoc(
             doc(db, 'users', firebaseUser.uid),
             {
@@ -44,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           const data = await fetchUserData(firebaseUser.uid);
           setUserData(data);
+          setRole(data?.role ?? null);
           // [REMOVED LOG]
 
           try {
@@ -68,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (error) {
           console.error('[AuthContext] Failed to fetch user data:', error);
           setUserData(null);
+          setRole(null);
         }
       } else {
         setUserData(null);

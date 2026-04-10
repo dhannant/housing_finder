@@ -14,6 +14,8 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const { user, userData, loading, role } = useAuth();
   const router = useRouter();
+  const effectiveRole = String(role ?? userData?.role ?? '').trim().toLowerCase();
+  const expectedRole = String(requiredRole ?? '').trim().toLowerCase();
 
   useEffect(() => {
     if (!loading) {
@@ -21,14 +23,14 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
         // Not logged in - redirect to login
         // [REMOVED LOG]
         router.replace('/login');
-      } else if (requiredRole && role !== requiredRole) {
+      } else if (requiredRole && effectiveRole !== expectedRole) {
         // Logged in but wrong role - redirect to home
         // [REMOVED LOG]
         alert(`This page is for ${requiredRole}s only`);
         router.replace('/');
       }
     }
-  }, [user, role, loading, requiredRole]);
+  }, [user, loading, requiredRole, effectiveRole, expectedRole, router]);
 
   if (loading) {
     return (
@@ -43,7 +45,7 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
     return null; // Will redirect in useEffect
   }
 
-  if (requiredRole && role !== requiredRole) {
+  if (requiredRole && effectiveRole !== expectedRole) {
     return null; // Will redirect in useEffect
   }
 

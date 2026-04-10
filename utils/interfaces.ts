@@ -334,3 +334,50 @@ export interface SearchOptions {
 	minListDate?: string;
 	maxListDate?: string;
 }
+
+export type SellBranchType = 'Realty2Cash' | 'Traditional';
+
+export type ListingStatus = 'Submitted' | 'Assigned' | 'Contacted' | 'In Review' | 'Closed';
+
+export type PreferredContactMethod = 'Call' | 'Text' | 'Email';
+
+export interface AvailabilityWindow {
+	dayOfWeek: string;
+	startTime: string;
+	endTime: string;
+}
+
+export interface ClientPropertyListing {
+	id?: string;
+	clientId: string;
+	assignedAgentId: string | null;
+	branchType: SellBranchType;
+	status: ListingStatus;
+	addressLine1: string;
+	addressLine2?: string;
+	city: string;
+	state: string;
+	postalCode: string;
+	propertyType?: string;
+	bedrooms?: number | null;
+	bathrooms?: number | null;
+	squareFeet?: number | null;
+	lotSizeSqft?: number | null;
+	yearBuilt?: number | null;
+	timelineToSell?: string;
+	notes?: string;
+	preferredContactMethod: PreferredContactMethod;
+	contactPhone?: string;
+	contactEmail?: string;
+	availability: AvailabilityWindow[];
+	createdAt?: any;
+	updatedAt?: any;
+	submittedAt?: any;
+}
+
+export interface AgentAssignedClientPropertyListing extends ClientPropertyListing {
+	id: string;
+	clientName: string;
+	clientEmail: string;
+	clientPhoneNumber?: string;
+}

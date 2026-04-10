@@ -1,17 +1,17 @@
 import { db } from '@/components/firebaseConfig';
 import {
-	addDoc,
-	arrayUnion,
-	collection,
-	deleteDoc,
-	doc,
-	getDoc,
-	getDocs,
-	getFirestore,
-	query,
-	setDoc,
-	updateDoc,
-	where,
+    addDoc,
+    arrayUnion,
+    collection,
+    deleteDoc,
+    doc,
+    getDoc,
+    getDocs,
+    getFirestore,
+    query,
+    setDoc,
+    updateDoc,
+    where,
 } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
 import { Alert, Linking, Platform } from 'react-native';
@@ -464,6 +464,162 @@ export async function saveUserPushToken(userId: string, pushToken: string): Prom
 		pushTokenUpdatedAt: new Date(),
 	}, { merge: true });
 }
+
+const dayOrder: Record<string, number> = {
+	Monday: 1,
+	Tuesday: 2,
+	Wednesday: 3,
+	Thursday: 4,
+	Friday: 5,
+	Saturday: 6,
+	Sunday: 7,
+};
+
+const toMinutes = (time: string): number | null => {
+	const match = String(time).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+	if (!match) return null;
+
+	let hour = Number(match[1]);
+	const minute = Number(match[2]);
+	const period = match[3].toUpperCase();
+
+	if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+	if (hour < 1 || hour > 12 || minute < 0 || minute > 59) return null;
+
+	if (period === 'AM') {
+		if (hour === 12) hour = 0;
+	} else {
+		if (hour !== 12) hour += 12;
+	}
+
+	return hour * 60 + minute;
+};
+
+const toTimeString = (minutes: number): string => {
+	const safe = Math.max(0, Math.min(24 * 60 - 1, Math.floor(minutes)));
+	const hour24 = Math.floor(safe / 60);
+	const minute = safe % 60;
+	const period = hour24 >= 12 ? 'PM' : 'AM';
+	const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+	return `${String(hour12).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${period}`;
+};
+
+const normalizeAvailabilityWindows = (
+	windows: interfaces.AvailabilityWindow[],
+): interfaces.AvailabilityWindow[] => {
+	type ParsedWindow = interfaces.AvailabilityWindow & { startMinutes: number; endMinutes: number };
+
+	const parsed: ParsedWindow[] = windows
+		.map((window) => {
+			const startMinutes = toMinutes(window.startTime);
+			const endMinutes = toMinutes(window.endTime);
+			if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) return null;
+			return { ...window, startMinutes, endMinutes };
+		})
+		.filter(Boolean) as ParsedWindow[];
+
+	parsed.sort((a, b) => {
+		const dayDelta = (dayOrder[a.dayOfWeek] ?? 999) - (dayOrder[b.dayOfWeek] ?? 999);
+		if (dayDelta !== 0) return dayDelta;
+		if (a.startMinutes !== b.startMinutes) return a.startMinutes - b.startMinutes;
+		return a.endMinutes - b.endMinutes;
+	});
+
+	const merged: ParsedWindow[] = [];
+	for (const window of parsed) {
+		const last = merged[merged.length - 1];
+		if (
+			last &&
+			last.dayOfWeek === window.dayOfWeek &&
+			window.startMinutes <= last.endMinutes
+		) {
+			last.endMinutes = Math.max(last.endMinutes, window.endMinutes);
+			last.endTime = toTimeString(last.endMinutes);
+			continue;
+		}
+
+		merged.push({ ...window });
+	}
+
+	return merged.map(({ dayOfWeek, startMinutes, endMinutes }) => ({
+		dayOfWeek,
+		startTime: toTimeString(startMinutes),
+		endTime: toTimeString(endMinutes),
+	}));
+};
+
+type SubmitClientPropertyListingInput = {
+	clientId: string;
+	branchType: interfaces.SellBranchType;
+	addressLine1: string;
+	addressLine2?: string;
+	city: string;
+	state?: string;
+	postalCode: string;
+	propertyType?: string;
+	bedrooms?: number | null;
+	bathrooms?: number | null;
+	squareFeet?: number | null;
+	lotSizeSqft?: number | null;
+	yearBuilt?: number | null;
+	timelineToSell?: string;
+	notes?: string;
+	preferredContactMethod: interfaces.PreferredContactMethod;
+	contactPhone?: string;
+	contactEmail?: string;
+	availability: interfaces.AvailabilityWindow[];
+};
+
+/**
+ * Creates a private sell-home listing request for a client and auto-links
+ * the currently approved agent (when present).
+ */
+export async function submitClientPropertyListing(
+	input: SubmitClientPropertyListingInput,
+): Promise<string> {
+	const now = new Date();
+
+	const requestsRef = collection(db, 'clientRequests');
+	const assignmentQuery = query(
+		requestsRef,
+		where('clientId', '==', input.clientId),
+		where('status', '==', 'Approved'),
+	);
+	const assignmentSnapshot = await getDocs(assignmentQuery);
+	const assignedAgentId = assignmentSnapshot.empty
+		? null
+		: (assignmentSnapshot.docs[0].data()?.realtorId ?? null);
+
+	const payload: interfaces.ClientPropertyListing = {
+		clientId: input.clientId,
+		assignedAgentId,
+		branchType: input.branchType,
+		status: assignedAgentId ? 'Assigned' : 'Submitted',
+		addressLine1: input.addressLine1.trim(),
+		addressLine2: input.addressLine2?.trim() || '',
+		city: input.city.trim(),
+		state: input.state?.trim() || '',
+		postalCode: input.postalCode.trim(),
+		propertyType: input.propertyType?.trim() || '',
+		bedrooms: input.bedrooms ?? null,
+		bathrooms: input.bathrooms ?? null,
+		squareFeet: input.squareFeet ?? null,
+		lotSizeSqft: input.lotSizeSqft ?? null,
+		yearBuilt: input.yearBuilt ?? null,
+		timelineToSell: input.timelineToSell?.trim() || '',
+		notes: input.notes?.trim() || '',
+		preferredContactMethod: input.preferredContactMethod,
+		contactPhone: input.contactPhone?.trim() || '',
+		contactEmail: input.contactEmail?.trim() || '',
+		availability: normalizeAvailabilityWindows(input.availability),
+		createdAt: now,
+		updatedAt: now,
+		submittedAt: now,
+	};
+
+	const docRef = await addDoc(collection(db, 'clientPropertyListings'), payload);
+	return docRef.id;
+}
  
  /** Used to send emails to the assigned agent for specific issues / tasks from the app.
   * This will first check if the logged in user has an account, and require them to create one if they don't.
@@ -479,7 +635,7 @@ export async function saveUserPushToken(userId: string, pushToken: string): Prom
 	try {
 		const mailtoUrl = `mailto:${realtorEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;	
 		Linking.openURL(mailtoUrl);
-	} catch (error) {
+	} catch {
 		Alert.alert('Failed building email', 'App failed to generate the email.')
 		// [REMOVED LOG]
 	}

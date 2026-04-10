@@ -6,6 +6,7 @@ import { ActivityIndicator, Image, Text, View } from 'react-native';
 export default function RoleRedirect() {
     const { user, userData, loading, role } = useAuth();
     const router = useRouter();
+    const effectiveRole = String(role ?? userData?.role ?? '').trim().toLowerCase();
 
     useEffect(() => {
         if (loading) {
@@ -15,20 +16,19 @@ export default function RoleRedirect() {
             router.replace('/login');
             return;
         }
-        if (!role) {
+        if (!effectiveRole) {
             return;
         }
-        const normalizedRole = String(role ?? '').trim().toLowerCase();
-        if (normalizedRole === 'admin') {
+        if (effectiveRole === 'admin') {
             router.replace('/admin/dashboard');
-        } else if (normalizedRole === 'client') {
+        } else if (effectiveRole === 'client') {
             router.replace('/client/(tabs)');
-        } else if (normalizedRole === 'agent') {
+        } else if (effectiveRole === 'agent') {
             router.replace('/agent/(tabs)');
         } else {
             router.replace('/');
         }
-    }, [user, role, loading, router])
+    }, [user, loading, router, effectiveRole])
     
     return (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
