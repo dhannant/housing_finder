@@ -1,9 +1,8 @@
-import { auth, db } from '@/components/firebaseConfig';
-import { fetchUserData, saveUserPushToken } from '@/utils/functions';
+import { auth } from '@/components/firebaseConfig';
+import { fetchUserData, saveUserPushToken, upsertUserSessionState } from '@/utils/functions';
 import { UserData } from '@/utils/interfaces';
 import { registerForPushNotificationsDetailedAsync } from '@/utils/pushNotifications';
 import { User, onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
 import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 
 interface AuthContextType {
@@ -28,13 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(firebaseUser);
       if (firebaseUser) {
         try {
-          await setDoc(
-            doc(db, 'users', firebaseUser.uid),
-            {
-              is_active: true,
-            },
-            { merge: true }
-          );
+          await upsertUserSessionState({});
 
           const data = await fetchUserData(firebaseUser.uid);
           setUserData(data);
@@ -46,16 +39,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (pushResult.token) {
               await saveUserPushToken(firebaseUser.uid, pushResult.token);
             }
-            await setDoc(
-              doc(db, 'users', firebaseUser.uid),
-              {
-                pushTokenStatus: pushResult.reason,
-                pushTokenStatusUpdatedAt: new Date(),
-                pushTokenStatusDetails: pushResult.details ?? null,
-                pushTokenAppOwnership: pushResult.appOwnership ?? null,
-              },
-              { merge: true },
-            );
+            await upsertUserSessionState({
+              pushTokenStatus: pushResult.reason,
+              pushTokenStatusDetails: pushResult.details ?? null,
+              pushTokenAppOwnership: pushResult.appOwnership ?? null,
+            });
             // [REMOVED LOG]
           } catch (pushError) {
             console.error('[AuthContext] Push token registration failed:', pushError);

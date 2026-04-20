@@ -2,8 +2,9 @@ import { auth, db } from "@/components/firebaseConfig";
 import CalendarModule from "@/components/modules/calendarModule";
 import { clientDashboard_styles, landingStyles } from '@/constants/styles';
 import { useAssignedRealtor, usePendingClientRequests, useRealtors, useUserData } from "@/hooks/useFunctions";
+import { createClientRequest } from "@/utils/functions";
 import { useRouter } from "expo-router";
-import { addDoc, collection, onSnapshot, query, where } from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { Home, MapPin, UserCircle } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
@@ -92,7 +93,7 @@ export default function ClientDashboard() {
 				Alert.alert("Error", "You must be logged in");
 				return;
 			}
-			await addDoc(collection(db, "clientRequests"), { clientId: user.uid, realtorId: realtorId, status: "Pending", createdAt: new Date() });
+			await createClientRequest(realtorId);
 			await refetchAssignedRealtor();
 			await refetchPendingRequests();
 			Alert.alert("Success", "Your request has been sent to the realtor!");

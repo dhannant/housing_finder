@@ -1,10 +1,9 @@
-import { auth, db } from "@/components/firebaseConfig";
+import { auth } from "@/components/firebaseConfig";
 import { agentDashboardStyles } from "@/constants/styles";
 import { useAssignedClients, usePendingClientRequests, useUnassignedClients, useUserData } from "@/hooks/useFunctions";
-import { fetchUserData, formatDate } from "@/utils/functions";
+import { assignClientRequest, declineClientRequest, fetchUserData, formatDate, releaseClientRequests } from "@/utils/functions";
 import { AvailableClients, ClientRequest, UserData } from "@/utils/interfaces";
 import { useRouter } from "expo-router";
-import { addDoc, collection, deleteDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { Briefcase, Mail, Phone, User } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
@@ -133,20 +132,7 @@ export default function RealtorDashboard() {
 	const handleAssignClient = async (clientId: string) => {
 		try {
 			if (!user) return;
-
-			// Check if there's an existing pending request for this client
-			const requestsRef = collection(db, "clientRequests");
-			const q = query(requestsRef, where("clientId", "==", clientId), where("status", "==", "Pending"));
-			const snapshot = await getDocs(q);
-
-			if (!snapshot.empty) {
-				// Update existing pending request to approved
-				const docRef = snapshot.docs[0].ref;
-				await updateDoc(docRef, { status: "Approved", realtorId: user.uid });
-			} else {
-				// No pending request exists, create a new approved request
-				await addDoc(requestsRef, { clientId, realtorId: user.uid, status: "Approved", createdAt: new Date() });
-			}
+			await assignClientRequest(clientId);
 			await refetchAssignedClients();
 			await refetchPendingRequests();
 			await refetchAvailableClients();
@@ -159,17 +145,7 @@ export default function RealtorDashboard() {
 	const handleDeclineRequest = async (clientId: string, reason: string) => {
 		try {
 			if (!user) return;
-
-			// get the pending request
-			const requestsRef = collection(db, "clientRequests");
-			const q = query(requestsRef, where("clientId", "==", clientId), where("status", "==", "Pending"));
-			const snapshot = await getDocs(q);
-
-			if (!snapshot.empty) {
-				// Update existing pending request to approved
-				const docRef = snapshot.docs[0].ref;
-				await updateDoc(docRef, { status: "Declined", reason, realtorId: user.uid });
-			}
+			await declineClientRequest(clientId, reason);
 			await refetchAssignedClients();
 			await refetchPendingRequests();
 			await refetchAvailableClients();
@@ -181,13 +157,7 @@ export default function RealtorDashboard() {
 
 	const handleReleaseClient = async (clientId: string) => {
 		try {
-			const requestsRef = collection(db, "clientRequests");
-			const q = query(requestsRef, where("clientId", "==", clientId));
-			const snapshot = await getDocs(q);
-
-			for (const doc of snapshot.docs) {
-				await deleteDoc(doc.ref); // Remove the request
-			}
+			await releaseClientRequests(clientId);
 
 			await refetchAssignedClients();
 			await refetchPendingRequests();

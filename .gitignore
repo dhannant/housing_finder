@@ -53,3 +53,7 @@ FIRESTORE_SECURITY_RULES.md
 
 GoogleService-Info.plist
 google-services.json
+
+# local secrets
+testing/sdk-harness/service-account.json
+**/service-account.json

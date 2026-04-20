@@ -1,10 +1,9 @@
 import { useRouter } from "expo-router";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { useState } from "react";
 import { Button, StyleSheet, Text, TextInput, View } from "react-native";
-import { auth, db } from "./firebaseConfig";
+import { auth } from "./firebaseConfig";
 
 export default function RegisterForm() {
 	const router = useRouter();
@@ -15,8 +14,6 @@ export default function RegisterForm() {
 	const [firstName, setFirstName] = useState<string>("");
 	const [lastName, setLastName] = useState<string>("");
 	const [phoneNumber, setPhoneNumber] = useState<string>("");
-	const [role, setRole] = useState<"Client" | "Agent" | "Admin">("Client"); // Will be set automatically
-	const [is_active, setIsActive] = useState<boolean>(true);
 
 
 	function formatPhoneNumber(value: string) {
@@ -51,16 +48,8 @@ export default function RegisterForm() {
 	}
 
 	/**
-	 * Handles user registration by creating a new user with email and password authentication,
-	 * then saving additional user information to Firestore.
-	 *
-	 * Steps:
-	 * 1. Registers the user using Firebase Auth.
-	 * 2. Stores extra user details (first name, last name, phone number, email, role, creation date) in Firestore.
-	 * 3. Sets success or error messages based on the operation outcome.
-	 *
-	 * @async
-	 * @returns {Promise<void>} Resolves when registration and Firestore write are complete.
+	 * Handles registration using Firebase Auth and then delegates profile creation
+	 * to a callable Firebase Function so Firestore writes happen server-side.
 	 */
 	const handleRegister = async () => {
 		setError("");
@@ -88,20 +77,19 @@ export default function RegisterForm() {
 				const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
 				const user = userCredential.user;
 
-				// Step 2: Determine role from email
-				const detectedRole = getRoleFromEmail(user.email || cleanEmail);
-				setRole(detectedRole);
-
-				// Step 3: Save extra info to Firestore
-				await setDoc(doc(db, "users", user.uid), {
+				// Step 2: Let backend create/merge the user profile document.
+				const createRegistrationProfile = httpsCallable(functions, "createRegistrationProfile");
+				const profileResp: any = await createRegistrationProfile({
 					firstName,
 					lastName,
 					phoneNumber,
-					email: user.email,
-					role: detectedRole,
-					is_active: true,
-					createdAt: new Date(),
 				});
+
+				const backendRole = (profileResp?.data?.role as "Client" | "Agent" | "Admin" | undefined)
+					|| getRoleFromEmail(user.email || cleanEmail);
+				if (!backendRole) {
+					throw new Error("Unable to determine role for registration profile");
+				}
 
 				setSuccess("Registration successful!");
 				regSuccess = true;
@@ -117,7 +105,7 @@ export default function RegisterForm() {
 			// Record registration attempt (success or failure)
 			const recordRegistrationAttempt = httpsCallable(functions, 'recordRegistrationAttempt');
 			await recordRegistrationAttempt({ email: cleanEmail, success: regSuccess });
-		} catch (err: any) {
+		} catch {
 			setError('An error occurred. Please try again.');
 		}
 	};

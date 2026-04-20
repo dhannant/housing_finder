@@ -7,7 +7,7 @@ import type { Property } from '@/utils/interfaces';
 import { Picker } from '@react-native-picker/picker';
 import * as Location from "expo-location";
 import { router, useLocalSearchParams } from 'expo-router';
-import { addDoc, collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { default as MapView, Marker, default as RNMapView, type Region } from 'react-native-maps';
@@ -253,10 +253,8 @@ export default function HomeScreen() {
 				return;
 			}
 
-			await addDoc(collection(db, 'helpRequests'), {
-				clientId: userId,
+			await Functions.createHelpRequest({
 				realtorId: assignedRealtorId,
-				status: 'Pending',
 				source: 'map_request_help',
 				searchRegion: currentRegion
 					? {
@@ -266,7 +264,6 @@ export default function HomeScreen() {
 						longitudeDelta: currentRegion.longitudeDelta,
 					}
 					: null,
-				createdAt: new Date(),
 			});
 
 			Alert.alert(

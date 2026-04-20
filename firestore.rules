@@ -36,36 +36,11 @@ service cloud.firestore {
 
     // Users collection rules
     match /users/{userId} {
-      // Allow create if authenticated and owner, and fields are valid
-      allow create: if isAuthenticated() && isOwner(userId)
-        && (request.resource.data.firstName is string)
-        && (request.resource.data.firstName.size() > 0 && request.resource.data.firstName.size() < 50)
-        && !(request.resource.data.firstName.matches('.*<script.*'))
-        && (request.resource.data.lastName is string)
-        && (request.resource.data.lastName.size() > 0 && request.resource.data.lastName.size() < 50)
-        && !(request.resource.data.lastName.matches('.*<script.*'))
-        && (request.resource.data.email is string)
-        && (request.resource.data.email.size() > 0 && request.resource.data.email.size() < 100)
-        && !(request.resource.data.email.matches('.*<script.*'))
-        && (request.resource.data.phoneNumber is string)
-        && (request.resource.data.phoneNumber.size() > 0 && request.resource.data.phoneNumber.size() < 25)
-        && request.resource.data.phoneNumber.matches('^[0-9+() -]{7,20}$');
-      // Allow update if authenticated, owner, NOT changing 'role', and fields are valid
-      allow update: if isAuthenticated() && isOwner(userId)
-        && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role)
-        && (request.resource.data.firstName is string)
-        && (request.resource.data.firstName.size() > 0 && request.resource.data.firstName.size() < 50)
-        && !(request.resource.data.firstName.matches('.*<script.*'))
-        && (request.resource.data.lastName is string)
-        && (request.resource.data.lastName.size() > 0 && request.resource.data.lastName.size() < 50)
-        && !(request.resource.data.lastName.matches('.*<script.*'))
-        && (request.resource.data.email is string)
-        && (request.resource.data.email.size() > 0 && request.resource.data.email.size() < 100)
-        && !(request.resource.data.email.matches('.*<script.*'))
-        && (request.resource.data.phoneNumber is string)
-        && (request.resource.data.phoneNumber.size() > 0 && request.resource.data.phoneNumber.size() < 25)
-        && request.resource.data.phoneNumber.matches('^[0-9+() -]{7,20}$');
-      allow delete: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      // User profile creation now happens through callable functions.
+      allow create: if false;
+      // User profile updates and deletes now happen through callable functions.
+      allow update: if false;
+      allow delete: if false;
       allow get: if isAuthenticated() && (
         isAdmin() ||
         isOwner(userId) ||
@@ -81,78 +56,52 @@ service cloud.firestore {
 
     // clientRequests collection rules
     match /clientRequests/{requestId} {
-      allow create: if isAuthenticated() && (
-        (request.resource.data.clientId == request.auth.uid &&
-         request.resource.data.status == "Pending") ||
-        (isAgent() &&
-         request.resource.data.status == "Approved")
-      );
+      // All writes now happen through callable functions.
+      allow create: if false;
       allow read: if isAuthenticated() && (
         isAdmin() ||
         resource.data.clientId == request.auth.uid         // Client can read their own requests
         || resource.data.realtorId == request.auth.uid         // Agent can read their assigned requests
         || isAgent()                              // (Optional) Agent can read all requests
       );
-      allow update: if isAuthenticated()
-        && resource.data.realtorId == request.auth.uid
-        && request.resource.data.realtorId == resource.data.realtorId
-        && request.resource.data.clientId == resource.data.clientId;
-      allow delete: if isAuthenticated() && (
-        resource.data.realtorId == request.auth.uid || resource.data.clientId == request.auth.uid
-      );
+      allow update: if false;
+      allow delete: if false;
     }
 
     // clientFavorites collection rules
     match /clientFavorites/{favoriteId} {
-      allow create: if isAuthenticated() && (
-        request.resource.data.userId == request.auth.uid ||
-        isAgent()
-      );
+      allow create: if false;
       allow read: if isAuthenticated() && (
         isAdmin() ||
         resource.data.userId == request.auth.uid ||
         isAgent()
       );
-      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow delete: if false;
       allow update: if false;
     }
 
     // clientOffers collection rules
     match /clientOffers/{offerId} {
-      allow create: if isAuthenticated() &&
-        isAgent()
-        // isAssignedAgent(request.auth.uid, request.resource.data.clientId)
-        // !clientHasActiveOffer(request.resource.data.clientId, request.resource.data.propertyId) &&
-        // !propertyHasActiveOffer(request.resource.data.propertyId);
+      allow create: if false;
       allow read: if isAuthenticated() && (
         isAdmin() ||
         resource.data.clientId == request.auth.uid ||
         isAgent()
       );
-      allow update: if isAuthenticated() && (
-        isAgent()
-      );
-      allow delete: if isAuthenticated() && (
-        isAgent() || resource.data.clientId == request.auth.uid
-      );
+      allow update: if false;
+      allow delete: if false;
     }
 
     // helpRequests collection rules
     match /helpRequests/{helpRequestId} {
-      allow create: if isAuthenticated()
-        && request.resource.data.clientId == request.auth.uid
-        && request.resource.data.status == "Pending";
+      // All writes now happen through callable functions.
+      allow create: if false;
       allow read: if isAuthenticated() && (
         isAdmin() ||
         resource.data.clientId == request.auth.uid ||
         resource.data.realtorId == request.auth.uid
       );
-      allow update: if isAuthenticated() && (
-        isAdmin() ||
-        resource.data.realtorId == request.auth.uid
-      )
-      && request.resource.data.clientId == resource.data.clientId
-      && request.resource.data.realtorId == resource.data.realtorId;
+      allow update: if false;
       allow delete: if false;
     }
 
@@ -170,10 +119,7 @@ service cloud.firestore {
 
     // clientPropertyListings collection rules
     match /clientPropertyListings/{listingId} {
-      allow create: if isAuthenticated()
-        && request.resource.data.clientId == request.auth.uid
-        && request.resource.data.branchType in ['Traditional', 'Realty2Cash']
-        && request.resource.data.status in ['Submitted', 'Assigned', 'Contacted', 'In Review', 'Closed'];
+      allow create: if false;
 
       allow read: if isAuthenticated() && (
         isAdmin() ||
@@ -181,21 +127,9 @@ service cloud.firestore {
         resource.data.assignedAgentId == request.auth.uid
       );
 
-      allow update: if isAuthenticated() && (
-        isAdmin() ||
-        (
-          resource.data.clientId == request.auth.uid &&
-          request.resource.data.clientId == resource.data.clientId &&
-          request.resource.data.assignedAgentId == resource.data.assignedAgentId
-        ) ||
-        (
-          resource.data.assignedAgentId == request.auth.uid &&
-          request.resource.data.clientId == resource.data.clientId &&
-          request.resource.data.assignedAgentId == resource.data.assignedAgentId
-        )
-      );
+      allow update: if false;
 
-      allow delete: if isAdmin();
+      allow delete: if false;
     }
 
     // API pull telemetry (admin-only)

@@ -1,19 +1,14 @@
 import { db } from '@/components/firebaseConfig';
 import {
-    addDoc,
-    arrayUnion,
     collection,
-    deleteDoc,
     doc,
     getDoc,
     getDocs,
-    getFirestore,
     query,
-    setDoc,
-    updateDoc,
     where,
 } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Alert, Linking, Platform } from 'react-native';
 import * as interfaces from './interfaces';
 
@@ -388,37 +383,14 @@ export const toggleFavorite = async (
 			throw new Error("Property ID is required to toggle favorite");
 		}
 
-		const isFavorite = await checkIfFavorite(userId, propertyId);
-		
-		if (isFavorite) {
-			// Property is already favorited - need to delete it
-			const favsRef = collection(db, 'clientFavorites');
-			const q = query(favsRef, where("userId", "==", userId), where("propertyId", "==", propertyId));
-			const querySnapshot = await getDocs(q);
-			
-			for (const favoriteDoc of querySnapshot.docs) {
-				await deleteDoc(doc(db, "clientFavorites", favoriteDoc.id));
-			}
-			return false;
-		} else {
-			// Property is not favorited - store minimal linkage data only
-			const favoriteDocId = makeFavoriteDocId(userId, propertyId);
-			const writePayload: Record<string, unknown> = {
-				userId,
-				propertyId,
-				savedAt: new Date(),
-			};
-
-			if (typeof metadata.assignedByAgentId === 'string' && metadata.assignedByAgentId.trim().length > 0) {
-				writePayload.assignedByAgentId = metadata.assignedByAgentId.trim();
-				writePayload.assignedAt = new Date();
-			}
-
-			await setDoc(doc(db, "clientFavorites", favoriteDocId), {
-				...writePayload,
-			}, { merge: true });
-			return true;
-		}
+		const functions = getFunctions();
+		const callable = httpsCallable(functions, 'toggleFavorite');
+		const response: any = await callable({
+			userId,
+			propertyId,
+			assignedByAgentId: metadata.assignedByAgentId ?? null,
+		});
+		return Boolean(response?.data?.isFavorite);
 	} catch (error) {
 		console.error(`[toggleFavorite] ✗ Error toggling favorite status:`, error);
 		throw error;
@@ -454,15 +426,120 @@ export function getShortDateString(date = new Date()) {
 	return `${mm}/${dd}/${yyyy}`;
  }
 
+export async function createClientRequest(realtorId: string): Promise<void> {
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, 'createClientRequest');
+	await callable({ realtorId });
+}
+
+export async function createHelpRequest(payload: {
+	realtorId: string;
+	source?: string;
+	searchRegion?: {
+		latitude: number;
+		longitude: number;
+		latitudeDelta: number;
+		longitudeDelta: number;
+	} | null;
+}): Promise<void> {
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, 'createHelpRequest');
+	await callable(payload);
+}
+
+export async function assignClientRequest(clientId: string): Promise<void> {
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, 'assignClientRequest');
+	await callable({ clientId });
+}
+
+export async function declineClientRequest(clientId: string, reason: string): Promise<void> {
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, 'declineClientRequest');
+	await callable({ clientId, reason });
+}
+
+export async function releaseClientRequests(clientId: string): Promise<void> {
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, 'releaseClientRequests');
+	await callable({ clientId });
+}
+
+export async function updateClientOfferDetails(
+	offerId: string,
+	updates: Record<string, unknown>,
+): Promise<void> {
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, 'updateClientOfferDetails');
+	await callable({ offerId, updates });
+}
+
+export async function upsertUserSessionState(payload: {
+	pushTokenStatus?: string | null;
+	pushTokenStatusDetails?: unknown;
+	pushTokenAppOwnership?: string | null;
+}): Promise<void> {
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, 'upsertUserSessionState');
+	await callable(payload);
+}
+
 export async function saveUserPushToken(userId: string, pushToken: string): Promise<void> {
 	if (!userId || !pushToken) return;
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, 'saveUserPushToken');
+	await callable({ pushToken, platform: Platform.OS });
+}
 
-	await setDoc(doc(db, 'users', userId), {
-		pushToken,
-		expoPushToken: pushToken,
-		pushTokenPlatform: Platform.OS,
-		pushTokenUpdatedAt: new Date(),
-	}, { merge: true });
+export async function updateOwnProfile(payload: {
+	firstName: string;
+	lastName: string;
+	email: string;
+	phoneNumber?: string | null;
+	teamMemberId?: string | null;
+	profileImageUrl?: string | null;
+	bioImageUrl?: string | null;
+}): Promise<void> {
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, 'updateOwnProfile');
+	await callable(payload);
+}
+
+export async function deleteOwnProfile(): Promise<void> {
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, 'deleteOwnProfile');
+	await callable({});
+}
+
+export async function submitClientPropertyListingToCloud(
+	input: SubmitClientPropertyListingInput,
+): Promise<string> {
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, 'submitClientPropertyListing');
+	const response: any = await callable(input);
+	return String(response?.data?.listingId || '');
+}
+
+export async function appendOfferFileMetadata(payload: {
+	offerId: string;
+	url: string;
+	name?: string | null;
+	metadata?: Record<string, unknown>;
+}): Promise<void> {
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, 'appendOfferFileMetadata');
+	await callable(payload);
+}
+
+export async function createClientOfferInCloud(payload: {
+	clientId: string;
+	propertyId: string;
+	status: string;
+}): Promise<string> {
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, 'createClientOffer');
+	const response: any = await callable(payload);
+	return String(response?.data?.offerId || '');
 }
 
 const dayOrder: Record<string, number> = {
@@ -577,48 +654,10 @@ type SubmitClientPropertyListingInput = {
 export async function submitClientPropertyListing(
 	input: SubmitClientPropertyListingInput,
 ): Promise<string> {
-	const now = new Date();
-
-	const requestsRef = collection(db, 'clientRequests');
-	const assignmentQuery = query(
-		requestsRef,
-		where('clientId', '==', input.clientId),
-		where('status', '==', 'Approved'),
-	);
-	const assignmentSnapshot = await getDocs(assignmentQuery);
-	const assignedAgentId = assignmentSnapshot.empty
-		? null
-		: (assignmentSnapshot.docs[0].data()?.realtorId ?? null);
-
-	const payload: interfaces.ClientPropertyListing = {
-		clientId: input.clientId,
-		assignedAgentId,
-		branchType: input.branchType,
-		status: assignedAgentId ? 'Assigned' : 'Submitted',
-		addressLine1: input.addressLine1.trim(),
-		addressLine2: input.addressLine2?.trim() || '',
-		city: input.city.trim(),
-		state: input.state?.trim() || '',
-		postalCode: input.postalCode.trim(),
-		propertyType: input.propertyType?.trim() || '',
-		bedrooms: input.bedrooms ?? null,
-		bathrooms: input.bathrooms ?? null,
-		squareFeet: input.squareFeet ?? null,
-		lotSizeSqft: input.lotSizeSqft ?? null,
-		yearBuilt: input.yearBuilt ?? null,
-		timelineToSell: input.timelineToSell?.trim() || '',
-		notes: input.notes?.trim() || '',
-		preferredContactMethod: input.preferredContactMethod,
-		contactPhone: input.contactPhone?.trim() || '',
-		contactEmail: input.contactEmail?.trim() || '',
+	return submitClientPropertyListingToCloud({
+		...input,
 		availability: normalizeAvailabilityWindows(input.availability),
-		createdAt: now,
-		updatedAt: now,
-		submittedAt: now,
-	};
-
-	const docRef = await addDoc(collection(db, 'clientPropertyListings'), payload);
-	return docRef.id;
+	});
 }
  
  /** Used to send emails to the assigned agent for specific issues / tasks from the app.
@@ -661,23 +700,18 @@ export async function uploadFileAndSaveUrl({
 	metadata?: any;
 }): Promise<string> {
 	const storage = getStorage();
-	const firestore = getFirestore();
 	const response = await fetch(fileUrl);
 	const blob = await response.blob();
 	const storageRef = ref(storage, storagePath);
 	await uploadBytes(storageRef, blob);
 	const downloadUrl = await getDownloadURL(storageRef);
 
-	// Save file info to Firestore (append to files array)
-	const offerDocRef = doc(firestore, 'clientOffers', offerDocId);
-	await updateDoc(offerDocRef, {
-		files: arrayUnion({
-			url: downloadUrl,
-			name: storagePath.split('/').pop(),
-			uploadedAt: new Date(),
-			...metadata,
-		}),
-  	});
+	await appendOfferFileMetadata({
+		offerId: offerDocId,
+		url: downloadUrl,
+		name: storagePath.split('/').pop() || null,
+		metadata,
+	});
 	return downloadUrl;
 }
 
@@ -801,17 +835,13 @@ export const createClientOffer = async (
 	status: string
 ) => {
 	try {
-		const now = new Date();
-		const offerData = {
+		void agentId;
+		const offerId = await createClientOfferInCloud({
 			clientId,
-			agentId,
 			propertyId,
 			status,
-			createdAt: now,
-			updatedAt: now,
-		};
-		const docRef = await addDoc(collection(db, "clientOffers"), offerData);
-		return docRef;
+		});
+		return { id: offerId };
 	} catch (error) {
 		console.error(`[createClientOffer] ✗ Error creating offer:`, error);
 		throw error;
@@ -825,7 +855,9 @@ export const createClientOffer = async (
 export const deleteFavoriteById = async (favoriteDocId: string): Promise<void> => {
   if (!favoriteDocId) return;
   try {
-    await deleteDoc(doc(db, 'clientFavorites', favoriteDocId));
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, 'deleteFavorite');
+	await callable({ favoriteDocId });
   } catch (error) {
     console.error(`[deleteFavoriteById] ✗ Error deleting favorite ${favoriteDocId}:`, error);
     throw error;

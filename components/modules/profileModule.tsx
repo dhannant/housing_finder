@@ -1,26 +1,17 @@
-import { auth, db } from '@/components/firebaseConfig';
+import { auth } from '@/components/firebaseConfig';
 import { landingStyles, profileModule_styles } from '@/constants/styles';
 import { teamMembers } from '@/constants/team-data';
 import { useAuth } from '@/contexts/AuthContext';
+import { deleteOwnProfile, updateOwnProfile } from '@/utils/functions';
 import { Picker } from '@react-native-picker/picker';
-import { router, useNavigation } from 'expo-router';
-import { deleteUser, EmailAuthProvider, reauthenticateWithCredential, sendPasswordResetEmail, updateEmail, updatePassword } from 'firebase/auth';
-import { collection, deleteDoc, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
+import { router } from 'expo-router';
+import { EmailAuthProvider, reauthenticateWithCredential, sendPasswordResetEmail, updatePassword } from 'firebase/auth';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-// Helper to delete all docs in a collection for a user
-async function deleteUserDocsByField(colName: string, field: string, value: string) {
-	const q = query(collection(db, colName), where(field, '==', value));
-	const snap = await getDocs(q);
-	for (const docSnap of snap.docs) {
-		await deleteDoc(docSnap.ref);
-	}
-}
 
 export default function ProfileScreen() {
 const { user, userData, role } = useAuth();
-	const navigation = useNavigation();
 		const [deleting, setDeleting] = useState(false);
 		// Delete profile and all associated data
 		const handleDeleteProfile = async () => {
@@ -48,19 +39,8 @@ const { user, userData, role } = useAuth();
 								// Re-authenticate
 								const credential = EmailAuthProvider.credential(user.email, inputPassword);
 								await reauthenticateWithCredential(user, credential);
-								// Delete user doc
-								await deleteDoc(doc(db, 'users', user.uid));
-								// Delete favorites
-								await deleteUserDocsByField('clientFavorites', 'userId', user.uid);
-								// Delete offers (as client)
-								await deleteUserDocsByField('clientOffers', 'clientId', user.uid);
-								// Optionally: delete offers as agent, requests, etc. (add more as needed)
-								// Delete clientRequests (as client)
-								await deleteUserDocsByField('clientRequests', 'clientId', user.uid);
-								// Delete clientRequests (as agent)
-								await deleteUserDocsByField('clientRequests', 'realtorId', user.uid);
-								// Delete auth user
-								await deleteUser(user);
+								await deleteOwnProfile();
+								await auth.signOut().catch(() => undefined);
 								Alert.alert('Profile Deleted', 'Your profile and all associated data have been deleted.');
 								router.replace('/login');
 							} catch (error: any) {
@@ -139,16 +119,13 @@ const { user, userData, role } = useAuth();
 		setSaving(true);
 		try {
 			const nextEmail = email.trim();
-			if (user.email !== nextEmail) {
-				await updateEmail(user, nextEmail);
-			}
 
 			const selectedTeamMember =
 				role === 'Agent'
 					? teamMembers.find((member) => member.id === selectedTeamMemberId) ?? null
 					: null;
 
-			await updateDoc(doc(db, 'users', user.uid), {
+			await updateOwnProfile({
 				firstName: firstName.trim(),
 				lastName: lastName.trim(),
 				email: nextEmail,
@@ -157,6 +134,7 @@ const { user, userData, role } = useAuth();
 				profileImageUrl: selectedTeamMember ? selectedTeamMember.imageUrl : null,
 				bioImageUrl: selectedTeamMember ? selectedTeamMember.imageUrl : null,
 			});
+			await user.reload();
 
 			Alert.alert('Saved', 'Your profile has been updated.');
 		} catch (error: any) {

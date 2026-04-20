@@ -1,11 +1,10 @@
 import * as styles from "@/constants/styles";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchOfferDatabyID, fetchPropertyData, fetchUserData, formatDate } from "@/utils/functions";
+import { fetchOfferDatabyID, fetchPropertyData, fetchUserData, formatDate, updateClientOfferDetails } from "@/utils/functions";
 import { OFFER_STATUSES, OfferData } from '@/utils/interfaces';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import { useLocalSearchParams } from 'expo-router';
-import { doc, getFirestore, updateDoc } from "firebase/firestore";
 import { Calendar, Mail, Phone, User } from "lucide-react-native";
 
 import { useEffect, useState } from "react";
@@ -95,10 +94,7 @@ export default function ClientOfferDetailsScreen() {
 	const handleSave = async () => {
 		try { 
 			const { offerId, clientId, agentId, createdAt, ...updateFields } = offerData;  //remove offerId, clientId, agentId from the offerData that will be pushed to firestore
-			// updateFields.updatedAt = new Date();  // update the updatedAt field
-
-			const offerUpdateRef = doc(getFirestore(), 'clientOffers', offerIdStr);
-			await updateDoc(offerUpdateRef, updateFields);
+			await updateClientOfferDetails(offerIdStr, updateFields as Record<string, unknown>);
 			alert("Offer updated!");
 		} catch (error) {
 			console.error("[ClientOfferDetailsScreen] Error in checkRole:", error);

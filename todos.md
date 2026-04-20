@@ -62,13 +62,14 @@
 
 
 Sell Your Home Feature
- Design Firestore sellRequests data model
- Draft Firestore security rules for sellRequests
- Implement Sell Your Home entry point and path selection UI
- Build multi-step form for property details and photo upload
- Implement draft/save/resume logic for Realty 2 Cash
- Enforce required fields and photo minimums on submit
- Create agent dashboard pool for seller requests
- Add seller/buyer distinction in agent dashboard UI
- Write unit/integration tests for new Firestore rules
- Test and validate end-to-end seller submission flow
+ [X] Design Firestore sellRequests data model
+ [X] Draft Firestore security rules for sellRequests
+ [X] Implement Sell Your Home entry point and path selection UI
+ [X] Build multi-step form for property details and photo upload
+ [X] Implement draft/save/resume logic for Realty 2 Cash
+ [X] Enforce required fields and photo minimums on submit
+ [X] Create agent dashboard pool for seller requests
+ [X] Add seller/buyer distinction in agent dashboard UI
+ [X] Write unit/integration tests for new Firestore rules
+ [X] Test and validate end-to-end seller submission flow
+
