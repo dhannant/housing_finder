@@ -3,7 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { onCall, onRequest } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
-import { onSchedule } from "firebase-functions/v2/scheduler";
+import { upsertPropertiesForPage } from "./propertyIngestShared";
 
 export const rapidApiKeySecret = defineSecret("RAPIDAPI_KEY");
 
@@ -61,18 +61,6 @@ function getPropertiesArray(data: any): any[] {
 	if (data?.home_search?.results && Array.isArray(data.home_search.results)) return data.home_search.results;
 	if (data?.data?.home_search?.results && Array.isArray(data.data.home_search.results)) return data.data.home_search.results;
 	return [];
-}
-
-function getPropertyDocId(property: any): string | null {
-	const rawPropertyId = property?.property_id;
-	if (rawPropertyId === undefined || rawPropertyId === null) {
-		return null;
-	}
-	const propertyId = String(rawPropertyId).trim();
-	if (!propertyId) {
-		return null;
-	}
-	return propertyId.replace(/\//g, "_");
 }
 
 function getApiReportedTotal(data: any): number | null {
@@ -354,58 +342,6 @@ async function probeZipHealth(batchZips: string[], rapidApiKey: string) {
 	return zipDiagnostics;
 }
 
-// ===== Firestore Writes =====
-
-async function upsertPropertiesForPage(
-	db: FirebaseFirestore.Firestore,
-	properties: any[],
-	pullDate: string,
-	runId: string,
-) {
-	let upserted = 0;
-	let skippedNoPropertyId = 0;
-
-	const writeBatch = db.batch();
-	const firstSeenBatch = db.batch();
-
-	for (const property of properties) {
-		const docId = getPropertyDocId(property);
-		if (!docId) {
-			skippedNoPropertyId += 1;
-			continue;
-		}
-
-		const docRef = db.collection("properties").doc(docId);
-		firstSeenBatch.set(docRef, {
-			apiFirstSeenDate: pullDate,
-		}, { merge: false });
-
-		writeBatch.set(docRef, {
-			...property,
-			property_id: docId,
-			apiPullDate: pullDate,
-			apiFirstSeenDate: pullDate,
-			apiLastSeenDate: pullDate,
-			apiPullRunId: runId,
-			apiSource: "rapidapi",
-			apiActive: true,
-		}, { merge: true });
-
-		upserted += 1;
-	}
-
-	if (upserted > 0) {
-		try {
-			await firstSeenBatch.commit();
-		} catch {
-			console.log("apiFirstSeenDate already exists for one or more docs in this batch; skipping first-seen initialization for existing docs.");
-		}
-		await writeBatch.commit();
-	}
-
-	return { upserted, skippedNoPropertyId };
-}
-
 // ===== Lease Locking =====
 
 async function tryAcquirePropertyIngestLease(
@@ -643,7 +579,7 @@ async function runPropertyIngest(
 
 				if (!dryRun) {
 					const pullDate = new Date().toISOString();
-					const result = await upsertPropertiesForPage(db, properties, pullDate, runId);
+					const result = await upsertPropertiesForPage(db, properties, pullDate, runId, "rapidapi");
 					batchStored += result.upserted;
 					batchSkippedNoPropertyId += result.skippedNoPropertyId;
 				}
@@ -731,60 +667,6 @@ async function runPropertyIngest(
 }
 
 // ===== Public Triggers =====
-
-export const fetchAndStoreProperties = onSchedule({
-	schedule: "every 24 hours",
-	timeZone: "America/New_York",
-	timeoutSeconds: 540,
-	maxInstances: 1,
-	secrets: [rapidApiKeySecret],
-}, async (_event) => {
-	const db = getFirestore();
-	const rapidApiKey = rapidApiKeySecret.value();
-	const schedulerRunId = `scheduled-${new Date().toISOString()}`;
-	const lease = await tryAcquirePropertyIngestLease(db, schedulerRunId, "scheduled_daily");
-
-	if (!lease.acquired) {
-		console.warn(`fetchAndStoreProperties skipped: reason=${lease.reason}, currentRunId=${lease.currentRunId || "unknown"}, expiresAtMs=${lease.expiresAtMs || 0}`);
-		return;
-	}
-
-	let finalStatus = "completed";
-	let summary: Record<string, unknown> | undefined;
-
-	try {
-		const result = await runPropertyIngest(db, rapidApiKey, {
-			maxPagesPerBatch: 50,
-			runLabel: "scheduled",
-			persistTelemetry: true,
-			dryRun: false,
-		});
-
-		if (result.errors > 0) {
-			finalStatus = "completed_with_errors";
-		}
-
-		summary = {
-			runId: result.runId,
-			writes: result.writes,
-			receivedProperties: result.receivedProperties,
-			errors: result.errors,
-			failedBatches: result.failedBatches,
-			failedPages: result.failedPages,
-			retriesPerformed: result.retriesPerformed,
-		};
-
-		console.log(
-			`fetchAndStoreProperties summary: runId=${result.runId}, requestsAttempted=${result.requestsAttempted}, outboundAttempts=${result.outboundAttempts}, retriesPerformed=${result.retriesPerformed}, received=${result.receivedProperties}, expectedKnown=${result.expectedPropertiesFromApiReported}, writes=${result.writes}, errors=${result.errors}, failedBatches=${result.failedBatches}, failedPages=${result.failedPages}`,
-		);
-	} catch (error) {
-		finalStatus = "failed";
-		console.error("fetchAndStoreProperties failed:", error);
-		throw error;
-	} finally {
-		await releasePropertyIngestLease(db, schedulerRunId, finalStatus, summary);
-	}
-});
 
 export const enqueuePropertyIngestNow = onRequest(async (req, res) => {
 	try {

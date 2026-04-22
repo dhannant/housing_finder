@@ -289,4 +289,8 @@ _Below is where you'll paste the actual response structure once you run api_test
 }
 ```
 
+API Reponse using Latitude
+```JSON
+
+```
 

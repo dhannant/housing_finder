@@ -15,18 +15,6 @@ export default function TabLayout() {
         headerShown: false,
         tabBarButton: HapticTab,
       }}>
-      <Tabs.Screen
-        name="index"
-        options={{ title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-        listeners={{
-          tabPress: (e) => {
-            e.preventDefault();
-            router.push('/');
-          }
-        }}
-      />
       {/* Conditionally render Dashboard tab for logged-in users (client or agent) */}
       {user && (role === 'Client' || role === 'Agent') && (
         <Tabs.Screen

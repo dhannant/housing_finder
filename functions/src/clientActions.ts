@@ -1,5 +1,4 @@
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { getAuth } from "firebase-admin/auth";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 
 type SearchRegionInput = {

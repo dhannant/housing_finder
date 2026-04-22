@@ -7,6 +7,8 @@ initializeApp();
 
 export * from "./auth";
 export * from "./properties";
+export * from "./propertiesByLatitude";
+export * from "./propertiesByState";
 export * from "./notifications";
 export * from "./users";
 export * from "./clientActions";

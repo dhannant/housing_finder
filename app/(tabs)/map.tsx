@@ -1,3 +1,4 @@
+import { query, where, limit , collection, getDocs } from "firebase/firestore";
 import { db } from '@/components/firebaseConfig';
 import PropertyModal from '@/components/modules/PropertyModal';
 import { mapStyles } from '@/constants/styles';
@@ -7,7 +8,6 @@ import type { Property } from '@/utils/interfaces';
 import { Picker } from '@react-native-picker/picker';
 import * as Location from "expo-location";
 import { router, useLocalSearchParams } from 'expo-router';
-import { collection, getDocs } from 'firebase/firestore';
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { default as MapView, Marker, default as RNMapView, type Region } from 'react-native-maps';
@@ -145,7 +145,16 @@ export default function HomeScreen() {
 			const regionLog = `center=(${lat.toFixed(5)}, ${lon.toFixed(5)}), latDelta=${latitudeDelta.toFixed(5)}, lonDelta=${longitudeDelta.toFixed(5)}`;
 			let properties: House[] = [];
 
-			const snapshot = await getDocs(collection(db, "properties"));
+			const box = buildBoundingBox(lat, lon, latitudeDelta, longitudeDelta);
+			const q = query(
+				collection(db, "properties"),
+				where("latitude", ">=", box.minLat),
+				where("latitude", "<=", box.maxLat),
+				where("longitude", ">=", box.minLon),
+				where("longitude", "<=", box.maxLon),
+				// limit(200) // adjust as needed
+			);
+			const snapshot = await getDocs(q);
 			properties = snapshot.docs
 				.map((doc) => mapFirestoreProperty(doc.id, doc.data()))
 				.filter(Boolean) as House[];
