@@ -57,3 +57,4 @@ google-services.json
 # local secrets
 testing/sdk-harness/service-account.json
 **/service-account.json
+firebase_service_account.json
