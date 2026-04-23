@@ -5,6 +5,9 @@ import {
     fetchUserData,
 } from "@/utils/functions";
 import { AgentAssignedClientPropertyListing, ClientPropertyListing, ClientRequest, UserData } from "@/utils/interfaces";
+import type { RealtorData , ClientData , ClientRequest } from "@/utils/interfaces";
+
+
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { useEffect, useState } from "react";
 
@@ -67,8 +70,8 @@ export const useUserData = (userId: string | null | undefined): UseDataReturn<Us
 	return { data, loading, error, refetch };
 };
 
-export const useRealtors = (): UseDataReturn<any[]> => {
-	const [data, setData] = useState<any[]>([]);
+export const useRealtors = (): UseDataReturn<RealtorData[]> => {
+const [data, setData] = useState<RealtorData[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<Error | null>(null);
 	const [reloadKey, setReloadKey] = useState(0);
@@ -100,8 +103,8 @@ export const useRealtors = (): UseDataReturn<any[]> => {
 	return { data, loading, error, refetch };
 };
 
-export const useUnassignedClients = (): UseDataReturn<any[]> => {
-	const [data, setData] = useState<any[]>([]);
+export const useUnassignedClients = (): UseDataReturn<ClientData[]> => {
+const [data, setData] = useState<ClientData[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<Error | null>(null);
 	const [reloadKey, setReloadKey] = useState(0);
@@ -183,8 +186,8 @@ export const useAssignedRealtor = (clientId: string | null | undefined): UseData
 	return { data, loading, error, refetch };
 };
 
-export const useAssignedClients = (realtorId: string | null | undefined): UseDataReturn<any[]> => {
-	const [data, setData] = useState<any[]>([]);
+export const useAssignedClients = (realtorId: string | null | undefined): UseDataReturn<ClientRequest[]> => {
+const [data, setData] = useState<ClientRequest[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<Error | null>(null);
 	const [reloadKey, setReloadKey] = useState(0);

@@ -41,7 +41,15 @@ const CalendarModule: React.FC<CalendarModuleProps> = ({ role, activeOfferId }) 
   const [offers, setOffers] = useState<Offer[]>([]);
   const [markedDates, setMarkedDates] = useState<MarkedDates>({});
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  const [selectedDayDetails, setSelectedDayDetails] = useState<any[]>([]);
+  interface SelectedDayDetail {
+    id: string;
+    title: string;
+    time?: string;
+    description?: string;
+    [key: string]: any; // Allow extra fields if needed
+  }
+
+  const [selectedDayDetails, setSelectedDayDetails] = useState<SelectedDayDetail[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const { user } = useAuth();
 

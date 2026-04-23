@@ -2,9 +2,10 @@ import { query, where, limit , collection, getDocs } from "firebase/firestore";
 import { db } from '@/components/firebaseConfig';
 import PropertyModal from '@/components/modules/PropertyModal';
 import { mapStyles } from '@/constants/styles';
+import type { ClientData , Property } from '@/utils/interfaces';
 import { useAuth } from '@/contexts/AuthContext';
 import * as Functions from '@/utils/functions';
-import type { Property } from '@/utils/interfaces';
+
 import { Picker } from '@react-native-picker/picker';
 import * as Location from "expo-location";
 import { router, useLocalSearchParams } from 'expo-router';
@@ -118,7 +119,7 @@ export default function HomeScreen() {
 	// Get current user and role from auth context
 	const { user, userData, role } = useAuth();
 	const [showAssignModal, setShowAssignModal] = useState(false);
-	const [eligibleClients, setEligibleClients] = useState<any[]>([]);
+	const [eligibleClients, setEligibleClients] = useState<ClientData[]>([]);
 	const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
 	// State variables (declare only once)
@@ -315,17 +316,18 @@ const hasZoomedRef = useRef(false);
 		}
 	}, [zoomToUser, location]);
 
+
 	const renderPropertyModal = () => {
 		if (!selectedHouse) return null;
-
 		return (
 			<PropertyModal
 				visible={selectedHouse !== null}
 				property={selectedHouse}
 				onClose={() => {
 					setSelectedHouse(null);
-					setShowAssignModal(false);
 				}}
+				user={user}
+				role={role}
 			/>
 		);
 	};
@@ -368,66 +370,6 @@ const hasZoomedRef = useRef(false);
 			</View>
 
 			{renderPropertyModal()}
-			{showAssignModal && (
-				<Modal
-					visible={showAssignModal}
-					animationType="slide"
-					transparent={true}
-					onRequestClose={() => setShowAssignModal(false)}
-				>
-					<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-						<View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 24, width: 320, alignItems: 'center' }}>
-							<Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>Assign Favorite to Client</Text>
-							<Text style={{ marginBottom: 12 }}>Select a client to assign this favorite:</Text>
-							<View style={{ width: '100%', marginBottom: 20, borderWidth: 1, borderColor: '#ccc', borderRadius: 6, overflow: 'hidden' }}>
-								<Picker
-									selectedValue={selectedClientId || 'placeholder'}
-									onValueChange={(itemValue) => {
-										if (itemValue !== 'placeholder') setSelectedClientId(itemValue);
-									}}
-									style={{ width: '100%' }}
-								>
-									<Picker.Item label="Select Client" value="placeholder" enabled={false} color="#888" />
-									{eligibleClients.map((client) => (
-										<Picker.Item
-											key={client.clientId}
-											label={`${client.firstName} ${client.lastName}`}
-											value={client.clientId}
-										/>
-									))}
-								</Picker>
-							</View>
-							<View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-								<TouchableOpacity
-									style={{ backgroundColor: '#2C5F2D', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 6, marginRight: 12, opacity: (!selectedClientId || selectedClientId === 'placeholder') ? 0.5 : 1 }}
-									disabled={!selectedClientId || selectedClientId === 'placeholder'}
-									onPress={async () => {
-										if (!selectedClientId || selectedClientId === 'placeholder' || !selectedHouse) return;
-										try {
-											await Functions.toggleFavorite(selectedClientId, selectedHouse, {
-												assignedByAgentId: user?.uid || undefined,
-											});
-											setShowAssignModal(false);
-											Alert.alert('Success', 'Favorite assigned to client.');
-										} catch (err) {
-											console.error('[Assign Favorite] Error assigning favorite:', err);
-											Alert.alert('Error', 'Failed to assign favorite.');
-										}
-									}}
-								>
-									<Text style={{ color: '#fff', fontWeight: 'bold' }}>Assign</Text>
-								</TouchableOpacity>
-								<TouchableOpacity
-									style={{ backgroundColor: '#ccc', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 6 }}
-									onPress={() => setShowAssignModal(false)}
-								>
-									<Text style={{ color: '#333', fontWeight: 'bold' }}>Cancel</Text>
-								</TouchableOpacity>
-							</View>
-						</View>
-					</View>
-				</Modal>
-			)}
 			{loading && (
 				<View style={mapStyles.loadingContainer}>
 					<ActivityIndicator size="large" color="#0000ff" />
