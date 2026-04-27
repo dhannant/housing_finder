@@ -25,4 +25,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       process.env.GOOGLE_SERVICE_INFO_PLIST ??
       './GoogleService-Info.plist',
   },
+  plugins: [
+    ...(Array.isArray(config.plugins) ? config.plugins : []),
+    'expo-web-browser',
+  ],
 });
