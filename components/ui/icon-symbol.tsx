@@ -25,6 +25,7 @@ const MAPPING = {
   'star.fill': 'star',
   'person.fill': 'person',
   'calendar': 'calendar-today',
+  'schedule': 'schedule',
 } as IconMapping;
 
 /**

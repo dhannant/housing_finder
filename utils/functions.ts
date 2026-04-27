@@ -7,10 +7,10 @@ import {
     query,
     where,
 } from 'firebase/firestore';
-import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
 import { Alert, Linking, Platform } from 'react-native';
-import * as interfaces from './interfaces';
+import type * as interfaces from './interfaces';
 
 /**
  * Data access helpers for Firestore-backed app workflows.
@@ -465,6 +465,38 @@ export async function releaseClientRequests(clientId: string): Promise<void> {
 	await callable({ clientId });
 }
 
+export async function createShowingRequest(payload: {
+	propertyId: string;
+	requestedBlocks: interfaces.ShowingTimeBlock[];
+	clientNotes?: string;
+	realtorId?: string;
+}): Promise<{ showingRequestId: string; status: string; existing: boolean }> {
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, "createShowingRequest");
+	const response: any = await callable(payload);
+	return {
+		showingRequestId: String(response?.data?.showingRequestId || ""),
+		status: String(response?.data?.status || "pending"),
+		existing: Boolean(response?.data?.existing),
+	};
+}
+
+export async function confirmShowingRequest(
+	showingRequestId: string,
+	confirmedBlockIndex: number,
+	agentNotes?: string,
+): Promise<void> {
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, "confirmShowingRequest");
+	await callable({ showingRequestId, confirmedBlockIndex, agentNotes: agentNotes || "" });
+}
+
+export async function declineShowingRequest(showingRequestId: string, agentNotes?: string): Promise<void> {
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, "declineShowingRequest");
+	await callable({ showingRequestId, agentNotes: agentNotes || "" });
+}
+
 export async function updateClientOfferDetails(
 	offerId: string,
 	updates: Record<string, unknown>,
@@ -509,6 +541,16 @@ export async function deleteOwnProfile(): Promise<void> {
 	const functions = getFunctions();
 	const callable = httpsCallable(functions, 'deleteOwnProfile');
 	await callable({});
+}
+
+export async function fetchCalendarEvents(
+	role: "agent" | "client",
+	activeOfferId?: string | null,
+): Promise<interfaces.GetCalendarEventsResponse> {
+	const fns = getFunctions();
+	const callable = httpsCallable(fns, "getCalendarEvents");
+	const result: any = await callable({ role, activeOfferId: activeOfferId ?? null });
+	return result.data as interfaces.GetCalendarEventsResponse;
 }
 
 export async function submitClientPropertyListingToCloud(

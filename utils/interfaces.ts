@@ -1,4 +1,24 @@
 // utils/interfaces.ts
+export type DateTimeString = string;
+
+export interface ShowingTimeBlock {
+	start: DateTimeString; // Format: MM/DD/YYYY HH:MM AM/PM
+	end: DateTimeString;
+ }
+ 
+ export interface ShowingRequest {
+	id: string;
+	propertyId: string;
+	clientId: string;
+	realtorId: string;
+	requestedBlocks: ShowingTimeBlock[];
+	confirmedBlockIndex: number | null;
+	status: "pending" | "confirmed" | "declined";
+	clientNotes?: string;
+	agentNotes?: string | null;
+	createdAt: DateTimeString;
+	updatedAt: DateTimeString;
+ }
 
 export interface UserData {
 	id: string,
@@ -48,6 +68,7 @@ export interface AvailableClients {
 	id: string;
 	firstName: string;
 	lastName: string;
+	role: string;
 	email: string;
 	phoneNumber?: string;
 	createdAt?: any;
@@ -380,4 +401,30 @@ export interface AgentAssignedClientPropertyListing extends ClientPropertyListin
 	clientName: string;
 	clientEmail: string;
 	clientPhoneNumber?: string;
+}
+
+// Calendar event types returned by getCalendarEvents cloud function
+export interface CalendarEventRange {
+	startDate: string; // YYYY-MM-DD
+	endDate: string;   // YYYY-MM-DD
+	type: "due_diligence";
+	color: string;
+	title: string;
+	description?: string;
+	sourceId: string;
+}
+
+export interface CalendarEventPoint {
+	date: string; // YYYY-MM-DD
+	type: "inspection" | "closing" | "showing";
+	color: string;
+	title: string;
+	description?: string;
+	time?: string;
+	sourceId: string;
+}
+
+export interface GetCalendarEventsResponse {
+	ranges: CalendarEventRange[];
+	points: CalendarEventPoint[];
 }

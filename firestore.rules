@@ -105,6 +105,26 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // showingRequests collection rules
+    match /showingRequests/{showingRequestId} {
+      // All writes now happen through callable functions.
+      allow create: if false;
+      // Single-document reads: allow admin (requires get() call), client, or agent.
+      allow get: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.clientId == request.auth.uid ||
+        resource.data.realtorId == request.auth.uid
+      );
+      // Collection queries: cannot use get() in list evaluation, so skip isAdmin().
+      // Query constraints (where clientId/realtorId == auth.uid) satisfy these conditions.
+      allow list: if isAuthenticated() && (
+        resource.data.clientId == request.auth.uid ||
+        resource.data.realtorId == request.auth.uid
+      );
+      allow update: if false;
+      allow delete: if false;
+    }
+
     // properties collection rules
     match /properties/{propertyId} {
       allow read: if true;

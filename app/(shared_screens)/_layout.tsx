@@ -42,6 +42,13 @@ export default function SharedScreensLayout() {
 						headerBackVisible: false,
 					}}
 				/>
+				<Stack.Screen
+					name="request-showing"
+					options={{
+						title: 'Request Showing',
+						headerShown: true,
+					}}
+				/>
 			</Stack>
 		</ProtectedRoute>
 	);

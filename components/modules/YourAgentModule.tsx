@@ -1,7 +1,7 @@
 
-import { fetchUserData } from '@/utils/functions';
-import { UserData } from '@/utils/interfaces';
 import { TeamMember, teamMembers } from '@/constants/team-data';
+import { fetchUserData } from '@/utils/functions';
+import type { UserData } from '@/utils/interfaces';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 

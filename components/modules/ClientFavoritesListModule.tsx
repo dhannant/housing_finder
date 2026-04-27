@@ -3,7 +3,7 @@ import PropertyModal from '@/components/modules/PropertyModal';
 import { landingStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';
 import { checkIfFavorite, createClientOffer, deleteFavoriteById, fetchClientFavorites, fetchFavoriteByID, fetchUserData } from '@/utils/functions';
-import { FavoriteProperty, OfferData } from '@/utils/interfaces';
+import type { FavoriteProperty, OfferData } from '@/utils/interfaces';
 import { router, useLocalSearchParams } from 'expo-router';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
@@ -378,7 +378,7 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
 												router.push({
 													pathname: "/(shared_screens)/client_offer_details",
 													params: {
-														offerId: offer.offerId,
+														offerId: offer.offerId ?? "",
 														clientId: offer.clientId,
 														agentId: offer.agentId,
 														propertyId: offer.propertyId,
@@ -425,13 +425,13 @@ export default function ClientFavoritesList({ favoriteIds }: { favoriteIds?: str
 												alert('Missing required offer information.');
 												return;
 											}
-											await createClientOffer(offerData.clientId, offerData.agentId, offerData.propertyId, offerData.status);
+											const createdOffer = await createClientOffer(offerData.clientId, offerData.agentId, offerData.propertyId, offerData.status);
 											// setOffers(prev => ({ ...prev, [`${item.userId}_${item.propertyId}`]: 'Offer Made' }));
 											setOffers(prev => ({
 												...prev,
 												[item.propertyId]: {
 													status: 'Offer Made',
-													offerId: '', // set to actual offerId if available
+													offerId: createdOffer?.id ?? '',
 													clientId: item.userId,
 													agentId: user?.uid ?? '',
 													propertyId: item.propertyId,

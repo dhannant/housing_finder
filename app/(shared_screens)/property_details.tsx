@@ -1,8 +1,9 @@
 import { mapStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';
-import { PropertyDetails } from '@/utils/interfaces';
+import { useUserData } from '@/hooks/useFunctions';
+import type { PropertyDetails } from '@/utils/interfaces';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
@@ -45,8 +46,10 @@ function toPhotoArray(photos: any, primaryPhoto: string | null): { href: string 
 
 
 const PropertyDetailsScreen = () => {
+  const router = useRouter();
   const { propertyId } = useLocalSearchParams();
   const { user, loading: authLoading } = useAuth();
+  const { data: userData } = useUserData(user?.uid || null);
   const propertyIdStr = Array.isArray(propertyId) ? propertyId[0] : propertyId;
   const [propertyDetails, setPropertyDetails] = useState<PropertyDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -276,6 +279,7 @@ const PropertyDetailsScreen = () => {
       textBlob.includes('school');
     return !isHoa && !isSchool;
   });
+  const canRequestShowing = userData?.role?.toLowerCase() === 'client' && !!propertyIdStr;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
@@ -351,10 +355,15 @@ const PropertyDetailsScreen = () => {
                 <Ionicons name="heart-outline" size={20} color="#e74c3c" />
                 <Text style={{ marginLeft: 8, color: '#333', fontWeight: '600' }}>Save as Favorite</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8f9fa', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#eee' }}>
-                <Ionicons name="calendar-outline" size={20} color="#2980b9" />
-                <Text style={{ marginLeft: 8, color: '#333', fontWeight: '600' }}>Request Showing</Text>
-              </TouchableOpacity>
+              {canRequestShowing && (
+                <TouchableOpacity
+                  onPress={() => router.push({ pathname: '/(shared_screens)/request-showing', params: { propertyId: propertyIdStr } })}
+                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8f9fa', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#eee' }}
+                >
+                  <Ionicons name="calendar-outline" size={20} color="#2980b9" />
+                  <Text style={{ marginLeft: 8, color: '#333', fontWeight: '600' }}>Request Showing</Text>
+                </TouchableOpacity>
+              )}
             </View>
             {/* Details List */}
             <View style={{ marginBottom: 24 }}>

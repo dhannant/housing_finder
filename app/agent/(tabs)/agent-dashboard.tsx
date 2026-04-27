@@ -2,7 +2,7 @@ import { auth } from "@/components/firebaseConfig";
 import { agentDashboardStyles } from "@/constants/styles";
 import { useAssignedClients, usePendingClientRequests, useUnassignedClients, useUserData } from "@/hooks/useFunctions";
 import { assignClientRequest, declineClientRequest, fetchUserData, formatDate, releaseClientRequests } from "@/utils/functions";
-import { AvailableClients, ClientRequest, UserData } from "@/utils/interfaces";
+import type { AvailableClients, ClientRequest, UserData } from "@/utils/interfaces";
 import { useRouter } from "expo-router";
 import { Briefcase, Mail, Phone, User } from "lucide-react-native";
 import { useEffect, useState } from "react";

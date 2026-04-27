@@ -1,13 +1,6 @@
 import { db } from "@/components/firebaseConfig";
-import {
-    fetchRealtors,
-    fetchUnassignedClients,
-    fetchUserData,
-} from "@/utils/functions";
-import { AgentAssignedClientPropertyListing, ClientPropertyListing, ClientRequest, UserData } from "@/utils/interfaces";
-import type { RealtorData , ClientData , ClientRequest } from "@/utils/interfaces";
-
-
+import { fetchCalendarEvents, fetchRealtors, fetchUnassignedClients, fetchUserData, } from "@/utils/functions";
+import type { AgentAssignedClientPropertyListing, ClientData, ClientPropertyListing, ClientRequest, GetCalendarEventsResponse, RealtorData, ShowingRequest, UserData } from "@/utils/interfaces";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { useEffect, useState } from "react";
 
@@ -25,6 +18,14 @@ const sortByCreatedAtDesc = (requests: ClientRequest[]): ClientRequest[] => {
 		const dateA = a.createdAt?.toDate?.() || new Date(0);
 		const dateB = b.createdAt?.toDate?.() || new Date(0);
 		return dateB.getTime() - dateA.getTime();
+	});
+};
+
+const sortShowingRequestsByUpdatedAtDesc = (requests: ShowingRequest[]): ShowingRequest[] => {
+	return [...requests].sort((a, b) => {
+		const dateA = Number.isFinite(new Date(a.updatedAt).getTime()) ? new Date(a.updatedAt).getTime() : 0;
+		const dateB = Number.isFinite(new Date(b.updatedAt).getTime()) ? new Date(b.updatedAt).getTime() : 0;
+		return dateB - dateA;
 	});
 };
 
@@ -237,7 +238,7 @@ const [data, setData] = useState<ClientRequest[]>([]);
 
 				if (disposed) return;
 
-				setData(activeRequests.filter(Boolean));
+				setData(activeRequests.filter((r): r is ClientRequest => r !== null));
 				setError(null);
 				setLoading(false);
 			},
@@ -313,6 +314,96 @@ export const usePendingClientRequests = (userId: string | null | undefined, role
 
 		return () => unsubscribe();
 	}, [userId, role, reloadKey]);
+
+	return { data, loading, error, refetch };
+};
+
+export const useClientShowingRequests = (clientId: string | null | undefined): UseDataReturn<ShowingRequest[]> => {
+	const [data, setData] = useState<ShowingRequest[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<Error | null>(null);
+	const [reloadKey, setReloadKey] = useState(0);
+
+	const refetch = async () => {
+		setReloadKey((prev) => prev + 1);
+	};
+
+	useEffect(() => {
+		if (!clientId) {
+			setData([]);
+			setError(null);
+			setLoading(false);
+			return;
+		}
+
+		setLoading(true);
+		const showingRequestsRef = collection(db, "showingRequests");
+		const q = query(showingRequestsRef, where("clientId", "==", clientId));
+
+		const unsubscribe = onSnapshot(
+			q,
+			(snapshot) => {
+				const showingRequests = sortShowingRequestsByUpdatedAtDesc(
+					snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as ShowingRequest)),
+				);
+				setData(showingRequests);
+				setError(null);
+				setLoading(false);
+			},
+			(err: unknown) => {
+				setError(toError(err));
+				setLoading(false);
+				console.error(`[useClientShowingRequests] Listener error for client ${clientId}:`, err);
+			},
+		);
+
+		return () => unsubscribe();
+	}, [clientId, reloadKey]);
+
+	return { data, loading, error, refetch };
+};
+
+export const useAgentShowingRequests = (realtorId: string | null | undefined): UseDataReturn<ShowingRequest[]> => {
+	const [data, setData] = useState<ShowingRequest[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<Error | null>(null);
+	const [reloadKey, setReloadKey] = useState(0);
+
+	const refetch = async () => {
+		setReloadKey((prev) => prev + 1);
+	};
+
+	useEffect(() => {
+		if (!realtorId) {
+			setData([]);
+			setError(null);
+			setLoading(false);
+			return;
+		}
+
+		setLoading(true);
+		const showingRequestsRef = collection(db, "showingRequests");
+		const q = query(showingRequestsRef, where("realtorId", "==", realtorId));
+
+		const unsubscribe = onSnapshot(
+			q,
+			(snapshot) => {
+				const showingRequests = sortShowingRequestsByUpdatedAtDesc(
+					snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as ShowingRequest)),
+				);
+				setData(showingRequests);
+				setError(null);
+				setLoading(false);
+			},
+			(err: unknown) => {
+				setError(toError(err));
+				setLoading(false);
+				console.error(`[useAgentShowingRequests] Listener error for agent ${realtorId}:`, err);
+			},
+		);
+
+		return () => unsubscribe();
+	}, [realtorId, reloadKey]);
 
 	return { data, loading, error, refetch };
 };
@@ -403,6 +494,47 @@ export const useAgentAssignedPropertyListings = (
 			unsubscribe();
 		};
 	}, [agentId, reloadKey]);
+
+	return { data, loading, error, refetch };
+};
+
+export const useCalendarEvents = (
+	role: "agent" | "client" | null,
+	activeOfferId?: string | null,
+): UseDataReturn<GetCalendarEventsResponse> => {
+	const [data, setData] = useState<GetCalendarEventsResponse | null>(null);
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState<Error | null>(null);
+	const [reloadKey, setReloadKey] = useState(0);
+
+	const refetch = async () => {
+		setReloadKey((prev) => prev + 1);
+	};
+
+	useEffect(() => {
+		if (!role) {
+			setData(null);
+			setLoading(false);
+			return;
+		}
+		let cancelled = false;
+		const load = async () => {
+			try {
+				setLoading(true);
+				const result = await fetchCalendarEvents(role, activeOfferId);
+				if (!cancelled) {
+					setData(result);
+					setError(null);
+				}
+			} catch (err: unknown) {
+				if (!cancelled) setError(toError(err));
+			} finally {
+				if (!cancelled) setLoading(false);
+			}
+		};
+		load();
+		return () => { cancelled = true; };
+	}, [role, activeOfferId, reloadKey]);
 
 	return { data, loading, error, refetch };
 };

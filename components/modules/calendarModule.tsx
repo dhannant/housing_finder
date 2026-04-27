@@ -1,213 +1,200 @@
-import { fetchOfferDatabyID } from "@/utils/functions";
-import { collection, getDocs, getFirestore, query, where } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
-import { Modal, Text, TouchableOpacity, View } from "react-native";
+import { useCalendarEvents } from "@/hooks/useFunctions";
+import type { CalendarEventRange } from "@/utils/interfaces";
+import React, { useEffect, useMemo, useState } from "react";
+import type { TextStyle } from "react-native";
+import { Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { useAuth } from "../../contexts/AuthContext";
 
 type MarkedDates = {
   [date: string]: {
-    marked?: boolean;
-    dotColor?: string;
-    color?: string;
-    startingDay?: boolean;
-    endingDay?: boolean;
-    activeOpacity?: number;
+    customStyles?: {
+      container?: {
+        backgroundColor?: string;
+        borderWidth?: number;
+        borderColor?: string;
+        borderRadius?: number;
+      };
+      text?: Pick<TextStyle, "color" | "fontWeight">;
+    };
   };
 };
-
-interface Offer {
-  id: string;
-  closingDate?: string;
-  dueDiligenceStart?: string;
-  dueDiligenceEnd?: string;
-  inspectionDate?: string;
-}
 
 interface CalendarModuleProps {
   role: "agent" | "client";
   activeOfferId?: string | null;
 }
 
-function formatDate(date: any): string | undefined {
-  if (!date) return undefined;
-  if (typeof date === "string") return date.split("T")[0];
-  if (date instanceof Date) return date.toISOString().split("T")[0];
-  if (date.seconds) return new Date(date.seconds * 1000).toISOString().split("T")[0];
-  return undefined;
+function getColorByOverlapCount(count: number): string {
+  if (count >= 4) return "#FFC107";
+  if (count === 3) return "#FFD54F";
+  if (count === 2) return "#FFE082";
+  return "#FFF9C4";
 }
 
 const CalendarModule: React.FC<CalendarModuleProps> = ({ role, activeOfferId }) => {
-  const [offers, setOffers] = useState<Offer[]>([]);
-  const [markedDates, setMarkedDates] = useState<MarkedDates>({});
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  interface SelectedDayDetail {
+  type DayDetail = {
     id: string;
     title: string;
+    type: "due_diligence" | "point";
     time?: string;
     description?: string;
-    [key: string]: any; // Allow extra fields if needed
-  }
+    startDate?: string;
+    endDate?: string;
+  };
 
-  const [selectedDayDetails, setSelectedDayDetails] = useState<SelectedDayDetail[]>([]);
+  const [markedDates, setMarkedDates] = useState<MarkedDates>({});
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [selectedDayDetails, setSelectedDayDetails] = useState<DayDetail[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+
   const { user } = useAuth();
 
-  function getColorByOverlapCount(count: number) {
-    // More overlaps = darker color
-    if (count === 1) return '#FFF9C4';
-    if (count === 2) return '#FFE082';
-    if (count === 3) return '#FFD54F';
-    if (count >= 4) return '#FFC107';
-    return '#FFF9C4';
+  // Only invoke the hook once the user is authenticated
+  const effectiveRole = user?.uid ? role : null;
+  const { data: calendarData, loading: calendarLoading, error: calendarError } = useCalendarEvents(effectiveRole, activeOfferId);
+
+  // Build a flat, sorted list of events visible in the currently displayed month
+  type MonthlyEvent = {
+    sortDate: string;
+    sortTime: string;
+    title: string;
+    typLabel: string;
+    color: string;
+    description?: string;
+    detail: string;
+  };
+
+  const monthlyEvents = useMemo((): MonthlyEvent[] => {
+    if (!calendarData) return [];
+    const [year, month] = currentMonth.split("-").map(Number);
+    const firstDay = `${currentMonth}-01`;
+    const lastDay = `${currentMonth}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+
+    const events: MonthlyEvent[] = [];
+
+    for (const range of calendarData.ranges) {
+      if (range.startDate <= lastDay && range.endDate >= firstDay) {
+        events.push({
+          sortDate: range.startDate < firstDay ? firstDay : range.startDate,
+          sortTime: "00:00",
+          title: range.title,
+          typLabel: "Due Diligence",
+          color: range.color,
+          description: range.description,
+          detail: `${range.startDate} – ${range.endDate}`,
+        });
+      }
+    }
+
+    for (const point of calendarData.points) {
+      if (point.date >= firstDay && point.date <= lastDay) {
+        events.push({
+          sortDate: point.date,
+          sortTime: point.time ?? "99:99",
+          title: point.title,
+          typLabel: point.type.charAt(0).toUpperCase() + point.type.slice(1),
+          color: point.color,
+          description: point.description,
+          detail: point.time ? `${point.date} at ${point.time}` : point.date,
+        });
+      }
+    }
+
+    events.sort((a, b) => {
+      const d = a.sortDate.localeCompare(b.sortDate);
+      return d !== 0 ? d : a.sortTime.localeCompare(b.sortTime);
+    });
+    return events;
+  }, [calendarData, currentMonth]);
+
+  // Build markedDates whenever the server data changes
+  useEffect(() => {
+    if (!calendarData) return;
+
+    const { ranges, points } = calendarData;
+
+    // Count how many due-diligence ranges cover each date (for overlap shading)
+    const dateOverlapCount: Record<string, number> = {};
+    for (const range of ranges) {
+      let current = new Date(range.startDate);
+      const end = new Date(range.endDate);
+      while (current <= end) {
+        const dateStr = current.toISOString().split("T")[0];
+        dateOverlapCount[dateStr] = (dateOverlapCount[dateStr] || 0) + 1;
+        current.setDate(current.getDate() + 1);
+      }
+    }
+
+    // Group point events by date so we can draw a border
+    const dateDots: Record<string, { key: string; color: string }[]> = {};
+    for (const point of points) {
+      if (!dateDots[point.date]) dateDots[point.date] = [];
+      dateDots[point.date].push({ key: point.sourceId, color: point.color });
+    }
+
+    const allDates = new Set([...Object.keys(dateOverlapCount), ...Object.keys(dateDots)]);
+    const marks: MarkedDates = {};
+
+    for (const dateStr of allDates) {
+      const overlap = dateOverlapCount[dateStr] || 0;
+      const dots = dateDots[dateStr] || [];
+      const bgColor = overlap > 0 ? getColorByOverlapCount(overlap) : undefined;
+
+      marks[dateStr] = {
+        customStyles: {
+          container: {
+            backgroundColor: bgColor,
+            borderWidth: dots.length > 0 ? 2 : 0,
+            borderColor: dots.length > 0 ? dots[0].color : undefined,
+            borderRadius: 16,
+          },
+          text: {
+            color: bgColor ? "#1a1a1a" : undefined,
+            fontWeight: dots.length > 0 ? "700" : undefined,
+          },
+        },
+      };
+    }
+
+    setMarkedDates(marks);
+  }, [calendarData]);
+
+  function isDateWithinRange(date: string, range: CalendarEventRange): boolean {
+    return date >= range.startDate && date <= range.endDate;
   }
 
-  useEffect(() => {
-    const fetchOffers = async () => {
-      if (role === "agent") {
-        const db = getFirestore();
-        const q = query(collection(db, "clientOffers"), where("agentId", "==", user?.uid));
-        const snapshot = await getDocs(q);
-        const offers: Offer[] = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            closingDate: formatDate(data.closingDate),
-            dueDiligenceStart: formatDate(data.dueDiligenceStart),
-            dueDiligenceEnd: formatDate(data.dueDiligenceEnd),
-            inspectionDate: formatDate(data.inspectionDate),
-          };
-        });
-        setOffers(offers);
-        const dateOverlapCount: { [date: string]: number } = {};
-        const dateDots: { [date: string]: { key: string; color: string }[] } = {};
-        offers.forEach((offer, idx) => {
-          if (offer.dueDiligenceStart && offer.dueDiligenceEnd) {
-            let current = new Date(offer.dueDiligenceStart);
-            const endDate = new Date(offer.dueDiligenceEnd);
-            while (current <= endDate) {
-              const dateStr = current.toISOString().split('T')[0];
-              dateOverlapCount[dateStr] = (dateOverlapCount[dateStr] || 0) + 1;
-              current.setDate(current.getDate() + 1);
-            }
-          }
-          if (offer.inspectionDate) {
-            if (!dateDots[offer.inspectionDate]) dateDots[offer.inspectionDate] = [];
-            dateDots[offer.inspectionDate].push({ key: `inspection${idx}`, color: '#1976D2' });
-          }
-          if (offer.closingDate) {
-            if (!dateDots[offer.closingDate]) dateDots[offer.closingDate] = [];
-            dateDots[offer.closingDate].push({ key: `closing${idx}`, color: '#F44336' });
-          }
-        });
-        const marks: MarkedDates = {};
-        Object.keys({ ...dateOverlapCount, ...dateDots }).forEach(dateStr => {
-          const overlap = dateOverlapCount[dateStr] || 0;
-          const dots = dateDots[dateStr] || [];
-          let color: string | undefined = undefined;
-          if (overlap > 1) {
-            color = getColorByOverlapCount(overlap);
-          } else if (overlap === 1) {
-            color = '#FFF9C4'; // light yellow for single period
-          }
-          marks[dateStr] = {
-            startingDay: false,
-            endingDay: false,
-            color,
-            marked: dots.length > 0,
-            dotColor: dots.length > 0 ? dots[0].color : undefined,
-          };
-        });
-        setMarkedDates(marks);
-      } else if (role === "client" && activeOfferId) {
-        const offerData = await fetchOfferDatabyID(activeOfferId);
-        if (!offerData) {
-          setOffers([]);
-          setMarkedDates({});
-          return;
-        }
-        setOffers([{ 
-          id: offerData.offerId || activeOfferId || '',
-          closingDate: formatDate(offerData.closingDate),
-          dueDiligenceStart: formatDate(offerData.dueDiligenceStart),
-          dueDiligenceEnd: formatDate(offerData.dueDiligenceEnd),
-          inspectionDate: formatDate(offerData.inspectionDate)
-        }]);
-        const dateOverlapCount: { [date: string]: number } = {};
-        const dateDots: { [date: string]: { key: string; color: string }[] } = {};
-        const offer = offerData;
-        if (offer.dueDiligenceStart && offer.dueDiligenceEnd) {
-          let current = new Date(formatDate(offer.dueDiligenceStart)!);
-          const endDate = new Date(formatDate(offer.dueDiligenceEnd)!);
-          while (current <= endDate) {
-            const dateStr = current.toISOString().split('T')[0];
-            dateOverlapCount[dateStr] = (dateOverlapCount[dateStr] || 0) + 1;
-            current.setDate(current.getDate() + 1);
-          }
-        }
-        if (offer.inspectionDate) {
-          const dateStr = formatDate(offer.inspectionDate)!;
-          if (!dateDots[dateStr]) dateDots[dateStr] = [];
-          dateDots[dateStr].push({ key: 'inspection', color: '#1976D2' });
-        }
-        if (offer.closingDate) {
-          const dateStr = formatDate(offer.closingDate)!;
-          if (!dateDots[dateStr]) dateDots[dateStr] = [];
-          dateDots[dateStr].push({ key: 'closing', color: '#F44336' });
-        }
-        const marks: MarkedDates = {};
-        Object.keys({ ...dateOverlapCount, ...dateDots }).forEach(dateStr => {
-          const overlap = dateOverlapCount[dateStr] || 0;
-          const dots = dateDots[dateStr] || [];
-          let color: string | undefined = undefined;
-          if (overlap > 1) {
-            color = getColorByOverlapCount(overlap);
-          } else if (overlap === 1) {
-            color = '#FFF9C4'; // light yellow for single period
-          }
-          marks[dateStr] = {
-            startingDay: false,
-            endingDay: false,
-            color,
-            marked: dots.length > 0,
-            dotColor: dots.length > 0 ? dots[0].color : undefined,
-          };
-        });
-        setMarkedDates(marks);
-      } else {
-        setOffers([]);
-        setMarkedDates({});
-      }
-    };
-    if (user?.uid) fetchOffers();
-  }, [role, user, activeOfferId]);
-
-  // Handler for day press
   function handleDayPress(day: { dateString: string }) {
-    const dateStr = day.dateString;
-    const details: any[] = [];
-    // Use consistent date format for comparison
-    offers.forEach(offer => {
-      if (offer.dueDiligenceStart && offer.dueDiligenceEnd) {
-        const start = formatDate(offer.dueDiligenceStart);
-        const end = formatDate(offer.dueDiligenceEnd);
-        if (dateStr >= start! && dateStr <= end!) {
-          details.push({ type: 'Due Diligence', start, end });
-        }
-      }
-      if (offer.inspectionDate && formatDate(offer.inspectionDate) === dateStr) {
-        details.push({ type: 'Inspection', date: dateStr });
-      }
-      if (offer.closingDate && formatDate(offer.closingDate) === dateStr) {
-        details.push({ type: 'Closing', date: dateStr });
-      }
-    });
-    setSelectedDay(dateStr);
-    setSelectedDayDetails(details);
+    const dayRanges = (calendarData?.ranges ?? [])
+      .filter((range) => isDateWithinRange(day.dateString, range))
+      .map((range): DayDetail => ({
+        id: `range-${range.sourceId}`,
+        title: range.title,
+        type: "due_diligence",
+        description: range.description,
+        startDate: range.startDate,
+        endDate: range.endDate,
+      }));
+
+    const dayPoints = (calendarData?.points ?? [])
+      .filter((p) => p.date === day.dateString)
+      .map((point): DayDetail => ({
+        id: `point-${point.sourceId}-${point.type}`,
+        title: point.title,
+        type: "point",
+        description: point.description,
+        time: point.time,
+      }));
+
+    setSelectedDay(day.dateString);
+    setSelectedDayDetails([...dayRanges, ...dayPoints]);
     setModalVisible(true);
   }
 
-  // Modal for day details
   function renderDayDetails() {
     return (
       <Modal
@@ -216,22 +203,31 @@ const CalendarModule: React.FC<CalendarModuleProps> = ({ role, activeOfferId }) 
         animationType="slide"
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-          <View style={{ backgroundColor: '#fff', borderRadius: 8, padding: 20, minWidth: 300 }}>
-            <Text style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 8 }}>Details for {selectedDay}</Text>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.3)" }}>
+          <View style={{ backgroundColor: "#fff", borderRadius: 8, padding: 20, minWidth: 300 }}>
+            <Text style={{ fontWeight: "bold", fontSize: 16, marginBottom: 8 }}>
+              Details for {selectedDay}
+            </Text>
             {selectedDayDetails.length === 0 ? (
-              <Text>No events or periods for this day.</Text>
+              <Text>No events for this day.</Text>
             ) : (
               selectedDayDetails.map((detail, idx) => (
-                <View key={idx} style={{ marginBottom: 8 }}>
-                  <Text style={{ fontWeight: 'bold' }}>{detail.type}</Text>
-                  {detail.start && detail.end && <Text>Period: {detail.start} to {detail.end}</Text>}
-                  {detail.date && <Text>Date: {detail.date}</Text>}
+                <View key={detail.id || idx} style={{ marginBottom: 8 }}>
+                  <Text style={{ fontWeight: "bold" }}>{detail.title}</Text>
+                  {detail.type === "due_diligence" && detail.startDate && detail.endDate ? (
+                    <Text>Period: {detail.startDate} to {detail.endDate}</Text>
+                  ) : null}
+                  {detail.time ? <Text>Time: {detail.time}</Text> : null}
+                  {detail.description
+                    ? detail.description.split("\n").map((line, i) => (
+                        <Text key={i}>{line}</Text>
+                      ))
+                    : null}
                 </View>
               ))
             )}
             <TouchableOpacity onPress={() => setModalVisible(false)}>
-              <Text style={{ color: '#1976D2', marginTop: 8 }}>Close</Text>
+              <Text style={{ color: "#1976D2", marginTop: 8 }}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -239,20 +235,103 @@ const CalendarModule: React.FC<CalendarModuleProps> = ({ role, activeOfferId }) 
     );
   }
 
+  const hasNoEvents =
+    !calendarData ||
+    (calendarData.ranges.length === 0 && calendarData.points.length === 0);
+
+  // Month label for the list heading (e.g. "April 2026")
+  const monthLabel = (() => {
+    const [year, month] = currentMonth.split("-").map(Number);
+    return new Date(year, month - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  })();
+
   return (
-    <View>
+    <ScrollView showsVerticalScrollIndicator={false}>
       <Text style={{ fontWeight: "bold", fontSize: 18, marginBottom: 8 }}>Offer Calendar</Text>
+      {calendarError ? (
+        <Text style={{ color: "#F44336", marginBottom: 8 }}>
+          Failed to load calendar: {calendarError.message}
+        </Text>
+      ) : null}
       <Calendar
         markedDates={markedDates}
-        markingType="period"
+        markingType="custom"
         onDayPress={handleDayPress}
+        onMonthChange={(month: { year: number; month: number }) => {
+          setCurrentMonth(
+            `${month.year}-${String(month.month).padStart(2, "0")}`
+          );
+        }}
       />
       {renderDayDetails()}
-      {offers.length === 0 && (
+      {!calendarLoading && hasNoEvents && !calendarError && (
         <Text style={{ marginTop: 16, color: "#888" }}>No offer events found for your account.</Text>
       )}
-    </View>
+
+      {/* Monthly appointments list */}
+      <View style={{ marginTop: 24 }}>
+        <Text style={{ fontWeight: "bold", fontSize: 16, marginBottom: 12, color: "#1A1A1A" }}>
+          Appointments — {monthLabel}
+        </Text>
+        {calendarLoading ? (
+          <Text style={{ color: "#888" }}>Loading…</Text>
+        ) : monthlyEvents.length === 0 ? (
+          <Text style={{ color: "#888" }}>No appointments this month.</Text>
+        ) : (
+          monthlyEvents.map((evt, idx) => (
+            <View
+              key={idx}
+              style={{
+                flexDirection: "row",
+                alignItems: "flex-start",
+                backgroundColor: "#fff",
+                borderRadius: 8,
+                marginBottom: 10,
+                padding: 12,
+                shadowColor: "#000",
+                shadowOpacity: 0.06,
+                shadowRadius: 4,
+                shadowOffset: { width: 0, height: 2 },
+                elevation: 2,
+              }}
+            >
+              {/* Color badge */}
+              <View
+                style={{
+                  width: 4,
+                  borderRadius: 2,
+                  backgroundColor: evt.color,
+                  alignSelf: "stretch",
+                  marginRight: 12,
+                }}
+              />
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                  <Text style={{ fontWeight: "700", fontSize: 14, color: "#1A1A1A", flex: 1 }}>{evt.title}</Text>
+                  <View style={{
+                    backgroundColor: evt.color + "33",
+                    borderRadius: 4,
+                    paddingHorizontal: 6,
+                    paddingVertical: 2,
+                    marginLeft: 8,
+                  }}>
+                    <Text style={{ fontSize: 11, color: evt.color, fontWeight: "600" }}>{evt.typLabel}</Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 12, color: "#555", marginBottom: evt.description ? 4 : 0 }}>{evt.detail}</Text>
+                {evt.description
+                  ? evt.description.split("\n").map((line, i) => (
+                      <Text key={i} style={{ fontSize: 12, color: "#666" }}>{line}</Text>
+                    ))
+                  : null}
+              </View>
+            </View>
+          ))
+        )}
+      </View>
+    </ScrollView>
   );
 };
 
 export default CalendarModule;
+

@@ -95,6 +95,53 @@ function isAdminRole(role: string | null) {
 	return role === "Admin" || role === "admin";
 }
 
+const dateTimeStringPattern = /^(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])\/\d{4}\s(0[1-9]|1[0-2]):([0-5]\d)\s(AM|PM)$/;
+
+function formatDateTimeString(value = new Date()): string {
+	const month = String(value.getMonth() + 1).padStart(2, "0");
+	const day = String(value.getDate()).padStart(2, "0");
+	const year = value.getFullYear();
+	const hours24 = value.getHours();
+	const minutes = String(value.getMinutes()).padStart(2, "0");
+	const meridiem = hours24 >= 12 ? "PM" : "AM";
+	const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+	return `${month}/${day}/${year} ${String(hours12).padStart(2, "0")}:${minutes} ${meridiem}`;
+}
+
+function parseDateTimeStringForCompare(value: string): number {
+	const parsed = Date.parse(value);
+	if (!Number.isFinite(parsed)) {
+		throw new HttpsError("invalid-argument", "Invalid showing datetime value.");
+	}
+	return parsed;
+}
+
+function asShowingTimeBlocks(value: unknown) {
+	if (!Array.isArray(value) || value.length === 0) {
+		throw new HttpsError("invalid-argument", "requestedBlocks is required.");
+	}
+
+	return value.map((block, index) => {
+		const start = asNonEmptyString((block as any)?.start, `requestedBlocks[${index}].start`);
+		const end = asNonEmptyString((block as any)?.end, `requestedBlocks[${index}].end`);
+
+		if (!dateTimeStringPattern.test(start) || !dateTimeStringPattern.test(end)) {
+			throw new HttpsError(
+				"invalid-argument",
+				`requestedBlocks[${index}] must use format MM/DD/YYYY HH:MM AM/PM.`,
+			);
+		}
+
+		const startMillis = parseDateTimeStringForCompare(start);
+		const endMillis = parseDateTimeStringForCompare(end);
+		if (endMillis <= startMillis) {
+			throw new HttpsError("invalid-argument", `requestedBlocks[${index}] end must be after start.`);
+		}
+
+		return { start, end };
+	});
+}
+
 export const createClientRequest = onCall(async (request) => {
 	const clientId = requireAuthUid(request);
 	const realtorId = asNonEmptyString(request.data?.realtorId, "realtorId");
@@ -161,6 +208,143 @@ export const createHelpRequest = onCall(async (request) => {
 	});
 
 	return { ok: true, requestId: created.id };
+});
+
+export const createShowingRequest = onCall(async (request) => {
+	const clientId = requireAuthUid(request);
+	const propertyId = asNonEmptyString(request.data?.propertyId, "propertyId");
+	const requestedBlocks = asShowingTimeBlocks(request.data?.requestedBlocks);
+	const clientNotes = asOptionalTrimmedString(request.data?.clientNotes);
+
+	const db = getFirestore();
+	const assignmentSnapshot = await db
+		.collection("clientRequests")
+		.where("clientId", "==", clientId)
+		.where("status", "==", "Approved")
+		.limit(1)
+		.get();
+
+	if (assignmentSnapshot.empty) {
+		throw new HttpsError("failed-precondition", "Client must have an assigned agent before requesting a showing.");
+	}
+
+	const assignedRealtorId = assignmentSnapshot.docs[0].data()?.realtorId;
+	if (typeof assignedRealtorId !== "string" || assignedRealtorId.trim().length === 0) {
+		throw new HttpsError("failed-precondition", "Assigned agent could not be determined.");
+	}
+
+	const realtorId = assignedRealtorId.trim();
+	const providedRealtorIdRaw = typeof request.data?.realtorId === "string" ? request.data.realtorId.trim() : "";
+	if (providedRealtorIdRaw && providedRealtorIdRaw !== realtorId) {
+		throw new HttpsError("invalid-argument", "realtorId does not match the client assigned agent.");
+	}
+
+	const existingSnapshot = await db
+		.collection("showingRequests")
+		.where("clientId", "==", clientId)
+		.where("propertyId", "==", propertyId)
+		.get();
+
+	const activeDoc = existingSnapshot.docs.find((docSnap) => {
+		const status = docSnap.data()?.status;
+		return status === "pending" || status === "confirmed";
+	});
+
+	if (activeDoc) {
+		return {
+			ok: true,
+			showingRequestId: activeDoc.id,
+			status: activeDoc.data()?.status ?? "pending",
+			existing: true,
+		};
+	}
+
+	const now = formatDateTimeString(new Date());
+	const created = await db.collection("showingRequests").add({
+		propertyId,
+		clientId,
+		realtorId,
+		requestedBlocks,
+		confirmedBlockIndex: null,
+		status: "pending",
+		clientNotes,
+		agentNotes: null,
+		createdAt: now,
+		updatedAt: now,
+	});
+
+	return {
+		ok: true,
+		showingRequestId: created.id,
+		status: "pending",
+		existing: false,
+	};
+});
+
+export const confirmShowingRequest = onCall(async (request) => {
+	const realtorId = requireAuthUid(request);
+	const showingRequestId = asNonEmptyString(request.data?.showingRequestId, "showingRequestId");
+	const confirmedBlockIndex = Number(request.data?.confirmedBlockIndex);
+	if (!Number.isInteger(confirmedBlockIndex) || confirmedBlockIndex < 0) {
+		throw new HttpsError("invalid-argument", "confirmedBlockIndex must be a non-negative integer.");
+	}
+	const agentNotes = asOptionalTrimmedString(request.data?.agentNotes);
+
+	const db = getFirestore();
+	const showingRef = db.collection("showingRequests").doc(showingRequestId);
+	const showingSnap = await showingRef.get();
+	if (!showingSnap.exists) {
+		throw new HttpsError("not-found", "Showing request not found.");
+	}
+
+	const showing = showingSnap.data() || {};
+	if (showing.realtorId !== realtorId) {
+		throw new HttpsError("permission-denied", "Only the assigned agent can confirm this showing.");
+	}
+	if (showing.status === "declined") {
+		throw new HttpsError("failed-precondition", "Declined showing requests cannot be confirmed.");
+	}
+
+	const requestedBlocks = Array.isArray(showing.requestedBlocks) ? showing.requestedBlocks : [];
+	if (confirmedBlockIndex >= requestedBlocks.length) {
+		throw new HttpsError("failed-precondition", "confirmedBlockIndex is out of range for requestedBlocks.");
+	}
+
+	await showingRef.update({
+		confirmedBlockIndex,
+		status: "confirmed",
+		agentNotes,
+		updatedAt: formatDateTimeString(new Date()),
+	});
+
+	return { ok: true, showingRequestId };
+});
+
+export const declineShowingRequest = onCall(async (request) => {
+	const realtorId = requireAuthUid(request);
+	const showingRequestId = asNonEmptyString(request.data?.showingRequestId, "showingRequestId");
+	const agentNotes = asOptionalTrimmedString(request.data?.agentNotes);
+
+	const db = getFirestore();
+	const showingRef = db.collection("showingRequests").doc(showingRequestId);
+	const showingSnap = await showingRef.get();
+	if (!showingSnap.exists) {
+		throw new HttpsError("not-found", "Showing request not found.");
+	}
+
+	const showing = showingSnap.data() || {};
+	if (showing.realtorId !== realtorId) {
+		throw new HttpsError("permission-denied", "Only the assigned agent can decline this showing.");
+	}
+
+	await showingRef.update({
+		confirmedBlockIndex: null,
+		status: "declined",
+		agentNotes,
+		updatedAt: formatDateTimeString(new Date()),
+	});
+
+	return { ok: true, showingRequestId };
 });
 
 export const assignClientRequest = onCall(async (request) => {
@@ -450,6 +634,9 @@ export const createClientOffer = onCall(async (request) => {
 		createdAt: now,
 		updatedAt: now,
 	});
+
+	// Write offerId back into the document so it's queryable as a field
+	await created.update({ offerId: created.id });
 
 	return { ok: true, offerId: created.id };
 });

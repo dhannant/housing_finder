@@ -53,6 +53,14 @@ function normalizeComparableValue(value: unknown): string {
 	}
 }
 
+function formatShowingBlock(block: any): string {
+	const start = typeof block?.start === "string" ? block.start.trim() : "";
+	const end = typeof block?.end === "string" ? block.end.trim() : "";
+	if (!start && !end) return "a requested time";
+	if (start && end) return `${start} - ${end}`;
+	return start || end;
+}
+
 async function getUserPushToken(userId: string): Promise<string | null> {
 	if (!userId) return null;
 	const db = getFirestore();
@@ -504,5 +512,93 @@ export const notifyAgentOnHelpRequestCreated = onDocumentCreated("helpRequests/{
 		console.warn(
 			`[Push] notifyAgentOnHelpRequestCreated failed helpRequestId=${snapshot.id}, realtorId=${request.realtorId}, reason=${result.reason}, details=${result.details || "n/a"}`,
 		);
+	}
+});
+
+// New showing request created by client: notify assigned agent.
+export const notifyAgentOnShowingRequestCreated = onDocumentCreated("showingRequests/{showingRequestId}", async (event) => {
+	const snapshot = event.data;
+	if (!snapshot) return;
+
+	const showingRequest = snapshot.data() as any;
+	if (showingRequest?.status !== "pending") return;
+	if (typeof showingRequest?.realtorId !== "string" || typeof showingRequest?.clientId !== "string") return;
+
+	const db = getFirestore();
+	const clientSnap = await db.collection("users").doc(showingRequest.clientId).get();
+	const clientName = getDisplayName(clientSnap.data(), "A client");
+
+	const sendResult = await sendExpoPushToUser(showingRequest.realtorId, {
+		title: "New showing request",
+		body: `${clientName} requested a home showing.`,
+		data: {
+			type: "showing_request_created",
+			showingRequestId: snapshot.id,
+			propertyId: showingRequest.propertyId || null,
+			clientId: showingRequest.clientId,
+			realtorId: showingRequest.realtorId,
+			status: showingRequest.status,
+		},
+	});
+
+	if (!sendResult.ok) {
+		console.warn(
+			`[Push] notifyAgentOnShowingRequestCreated failed showingRequestId=${snapshot.id}, realtorId=${showingRequest.realtorId}, reason=${sendResult.reason}, details=${sendResult.details || "n/a"}`,
+		);
+	}
+});
+
+// Showing request status changes: notify client.
+export const notifyClientOnShowingRequestUpdated = onDocumentUpdated("showingRequests/{showingRequestId}", async (event) => {
+	const showingRequestId = typeof event.params?.showingRequestId === "string" ? event.params.showingRequestId : "unknown";
+	const before = event.data?.before?.data() as any;
+	const after = event.data?.after?.data() as any;
+	if (!before || !after) return;
+
+	if (before.status === after.status) return;
+	if (typeof after?.clientId !== "string") return;
+
+	if (after.status === "confirmed") {
+		const blocks = Array.isArray(after.requestedBlocks) ? after.requestedBlocks : [];
+		const confirmedIndex = Number(after.confirmedBlockIndex);
+		const confirmedBlock = Number.isInteger(confirmedIndex) && confirmedIndex >= 0 && confirmedIndex < blocks.length
+			? blocks[confirmedIndex]
+			: null;
+		const confirmedLabel = formatShowingBlock(confirmedBlock);
+
+		await sendExpoPushToUser(after.clientId, {
+			title: "Showing confirmed",
+			body: `Your showing is confirmed for ${confirmedLabel}.`,
+			data: {
+				type: "showing_request_confirmed",
+				showingRequestId,
+				propertyId: after.propertyId || null,
+				clientId: after.clientId,
+				realtorId: after.realtorId || null,
+				status: after.status,
+				confirmedBlockIndex: after.confirmedBlockIndex ?? null,
+			},
+		});
+		return;
+	}
+
+	if (after.status === "declined") {
+		const reason = typeof after.agentNotes === "string" && after.agentNotes.trim().length > 0
+			? ` Reason: ${after.agentNotes.trim()}`
+			: "";
+
+		await sendExpoPushToUser(after.clientId, {
+			title: "Showing request declined",
+			body: `Your showing request was declined.${reason}`,
+			data: {
+				type: "showing_request_declined",
+				showingRequestId,
+				propertyId: after.propertyId || null,
+				clientId: after.clientId,
+				realtorId: after.realtorId || null,
+				status: after.status,
+				agentNotes: after.agentNotes || null,
+			},
+		});
 	}
 });

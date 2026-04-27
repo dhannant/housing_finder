@@ -293,6 +293,26 @@ export default function PropertyModal({
 						>
 							<Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Open Full Property Details</Text>
 						</TouchableOpacity>
+						{(role?.toLowerCase() === 'client') && (
+							<TouchableOpacity
+								onPress={() => {
+									const propertyId = property.propertyId ?? property.id;
+									if (!propertyId) return;
+									onClose();
+									router.push((`/(shared_screens)/request-showing?propertyId=${encodeURIComponent(propertyId)}`) as any);
+								}}
+								style={{
+									marginTop: 10,
+									backgroundColor: '#1A3A5C',
+									paddingVertical: 12,
+									paddingHorizontal: 14,
+									borderRadius: 8,
+									alignItems: 'center',
+								}}
+							>
+								<Text style={{ color: '#FFFFFF', fontWeight: '700' }}>📅 Request Showing</Text>
+							</TouchableOpacity>
+						)}
 					</View>
 				</View>
 			</Modal>

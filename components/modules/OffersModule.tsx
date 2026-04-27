@@ -1,5 +1,5 @@
 import { fetchFavoriteByID, fetchOfferDatabyID } from '@/utils/functions';
-import { FavoriteProperty, OfferData } from '@/utils/interfaces';
+import type { FavoriteProperty, OfferData } from '@/utils/interfaces';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Text, View } from 'react-native';

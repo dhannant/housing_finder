@@ -1,6 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { submitClientPropertyListing } from '@/utils/functions';
-import { PreferredContactMethod } from '@/utils/interfaces';
+import type { PreferredContactMethod } from '@/utils/interfaces';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';

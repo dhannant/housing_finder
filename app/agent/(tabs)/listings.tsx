@@ -1,8 +1,11 @@
 import { auth } from '@/components/firebaseConfig';
 import { useAgentAssignedPropertyListings } from '@/hooks/useFunctions';
-import { AgentAssignedClientPropertyListing } from '@/utils/interfaces';
+import type { AgentAssignedClientPropertyListing } from '@/utils/interfaces';
+import { useState } from 'react';
 import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 const formatDate = (value: any): string => {
 	try {
@@ -17,17 +20,40 @@ const formatDate = (value: any): string => {
 	}
 };
 
-const renderAvailability = (listing: AgentAssignedClientPropertyListing): string => {
-	if (!Array.isArray(listing.availability) || listing.availability.length === 0) return 'No windows provided';
-	return listing.availability
-		.map((slot) => `${slot.dayOfWeek} ${slot.startTime}-${slot.endTime}`)
-		.join(', ');
+const getAvailabilityByDay = (listing: AgentAssignedClientPropertyListing): { day: string; times: string[] }[] => {
+	if (!Array.isArray(listing.availability) || listing.availability.length === 0) return [];
+
+	const grouped: Record<string, string[]> = {};
+	for (const slot of listing.availability) {
+		const day = slot.dayOfWeek || 'Unknown';
+		if (!grouped[day]) grouped[day] = [];
+		grouped[day].push(`${slot.startTime} - ${slot.endTime}`);
+	}
+
+	return Object.entries(grouped)
+		.sort(([dayA], [dayB]) => {
+			const idxA = dayOrder.indexOf(dayA);
+			const idxB = dayOrder.indexOf(dayB);
+			if (idxA === -1 && idxB === -1) return dayA.localeCompare(dayB);
+			if (idxA === -1) return 1;
+			if (idxB === -1) return -1;
+			return idxA - idxB;
+		})
+		.map(([day, times]) => ({ day, times }));
 };
 
 export default function AgentListingsTab() {
 	const user = auth.currentUser;
 	const { data, loading } = useAgentAssignedPropertyListings(user?.uid || null);
 	const listings = data || [];
+	const [expandedAvailability, setExpandedAvailability] = useState<Record<string, boolean>>({});
+
+	const toggleAvailability = (listingId: string) => {
+		setExpandedAvailability((prev) => ({
+			...prev,
+			[listingId]: !prev[listingId],
+		}));
+	};
 
 	if (loading) {
 		return (
@@ -55,32 +81,59 @@ export default function AgentListingsTab() {
 					listings.map((listing) => {
 						const phone = listing.clientPhoneNumber || listing.contactPhone || '';
 						const email = listing.clientEmail || listing.contactEmail || '';
+						const availabilityByDay = getAvailabilityByDay(listing);
+						const isAvailabilityExpanded = !!expandedAvailability[listing.id];
 						return (
 							<View key={listing.id} style={styles.card}>
 								<View style={styles.cardHeader}>
-									<Text style={styles.clientName}>{listing.clientName}</Text>
+									<View style={styles.clientHeaderLeft}>
+										<Text style={styles.clientName}>{listing.clientName}</Text>
+										<View style={styles.contactLinksRow}>
+											{phone ? (
+												<TouchableOpacity onPress={() => Linking.openURL(`tel:${phone}`)}>
+													<Text style={styles.contactLink}>Call {phone}</Text>
+												</TouchableOpacity>
+											) : (
+												<Text style={styles.contactLinkMuted}>No phone</Text>
+											)}
+											{email ? (
+												<TouchableOpacity onPress={() => Linking.openURL(`mailto:${email}`)}>
+													<Text style={styles.contactLink}>Email {email}</Text>
+												</TouchableOpacity>
+											) : (
+												<Text style={styles.contactLinkMuted}>No email</Text>
+											)}
+										</View>
+									</View>
 									<Text style={styles.status}>{listing.status}</Text>
 								</View>
 								<Text style={styles.address}>{listing.addressLine1}, {listing.city} {listing.postalCode}</Text>
 								<Text style={styles.meta}>Submitted: {formatDate(listing.submittedAt || listing.createdAt)}</Text>
 								<Text style={styles.meta}>Preferred contact: {listing.preferredContactMethod}</Text>
-								<Text style={styles.meta}>Availability: {renderAvailability(listing)}</Text>
 
-								<View style={styles.contactRow}>
-									<TouchableOpacity
-										disabled={!phone}
-										onPress={() => phone && Linking.openURL(`tel:${phone}`)}
-										style={[styles.contactButton, !phone && styles.contactButtonDisabled]}
-									>
-										<Text style={styles.contactButtonText}>{phone ? `Call ${phone}` : 'No phone'}</Text>
+								<View style={styles.availabilitySection}>
+									<TouchableOpacity onPress={() => toggleAvailability(listing.id)} style={styles.availabilityHeader}>
+										<Text style={styles.meta}>Availability</Text>
+										<Text style={styles.availabilityToggleText}>{isAvailabilityExpanded ? 'Hide ▲' : 'Show ▼'}</Text>
 									</TouchableOpacity>
-									<TouchableOpacity
-										disabled={!email}
-										onPress={() => email && Linking.openURL(`mailto:${email}`)}
-										style={[styles.contactButton, !email && styles.contactButtonDisabled]}
-									>
-										<Text style={styles.contactButtonText}>{email ? `Email ${email}` : 'No email'}</Text>
-									</TouchableOpacity>
+									{isAvailabilityExpanded ? (
+										availabilityByDay.length === 0 ? (
+											<Text style={styles.availabilityEmpty}>No windows provided</Text>
+										) : (
+											availabilityByDay.map(({ day, times }) => (
+												<View key={day} style={styles.dayCard}>
+													<Text style={styles.dayCardTitle}>{day}</Text>
+													<View style={styles.timePillsRow}>
+														{times.map((timeRange) => (
+															<View key={`${day}-${timeRange}`} style={styles.timePill}>
+																<Text style={styles.timePillText}>{timeRange}</Text>
+															</View>
+														))}
+													</View>
+												</View>
+											))
+										)
+									) : null}
 								</View>
 							</View>
 						);
@@ -148,12 +201,32 @@ const styles = StyleSheet.create({
 	cardHeader: {
 		flexDirection: 'row',
 		justifyContent: 'space-between',
-		alignItems: 'center',
+		alignItems: 'flex-start',
+	},
+	clientHeaderLeft: {
+		flex: 1,
+		paddingRight: 8,
 	},
 	clientName: {
 		fontSize: 16,
 		fontWeight: '700',
 		color: '#1C3A2C',
+	},
+	contactLinksRow: {
+		marginTop: 3,
+		flexDirection: 'row',
+		flexWrap: 'wrap',
+		gap: 10,
+	},
+	contactLink: {
+		fontSize: 12,
+		fontWeight: '600',
+		color: '#0D47A1',
+		textDecorationLine: 'underline',
+	},
+	contactLinkMuted: {
+		fontSize: 12,
+		color: '#7A8680',
 	},
 	status: {
 		fontSize: 12,
@@ -169,25 +242,51 @@ const styles = StyleSheet.create({
 		fontSize: 12,
 		color: '#4F5D56',
 	},
-	contactRow: {
-		marginTop: 4,
+	availabilitySection: {
+		marginTop: 2,
+		gap: 6,
+	},
+	availabilityHeader: {
 		flexDirection: 'row',
-		gap: 8,
+		justifyContent: 'space-between',
+		alignItems: 'center',
 	},
-	contactButton: {
-		flex: 1,
-		paddingVertical: 8,
-		paddingHorizontal: 10,
-		borderRadius: 8,
-		backgroundColor: '#E6ECE7',
-	},
-	contactButtonDisabled: {
-		opacity: 0.5,
-	},
-	contactButtonText: {
+	availabilityToggleText: {
 		fontSize: 12,
+		fontWeight: '700',
+		color: '#2C5F2D',
+	},
+	availabilityEmpty: {
+		fontSize: 12,
+		color: '#6B766F',
+	},
+	dayCard: {
+		borderWidth: 1,
+		borderColor: '#E2E8E3',
+		borderRadius: 8,
+		backgroundColor: '#FAFCFA',
+		padding: 8,
+		gap: 6,
+	},
+	dayCardTitle: {
+		fontSize: 12,
+		fontWeight: '700',
+		color: '#1C3A2C',
+	},
+	timePillsRow: {
+		flexDirection: 'row',
+		flexWrap: 'wrap',
+		gap: 6,
+	},
+	timePill: {
+		paddingVertical: 4,
+		paddingHorizontal: 8,
+		borderRadius: 999,
+		backgroundColor: '#E8F3EC',
+	},
+	timePillText: {
+		fontSize: 11,
 		fontWeight: '600',
 		color: '#1F4A2A',
-		textAlign: 'center',
 	},
 });

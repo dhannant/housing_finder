@@ -1,6 +1,6 @@
 import { auth } from '@/components/firebaseConfig';
 import { fetchUserData, saveUserPushToken, upsertUserSessionState } from '@/utils/functions';
-import { UserData } from '@/utils/interfaces';
+import type { UserData } from '@/utils/interfaces';
 import { registerForPushNotificationsDetailedAsync } from '@/utils/pushNotifications';
 import { User, onAuthStateChanged, signOut } from 'firebase/auth';
 import { ReactNode, createContext, useContext, useEffect, useState } from 'react';

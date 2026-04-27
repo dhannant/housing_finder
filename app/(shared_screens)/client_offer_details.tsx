@@ -1,10 +1,11 @@
 import * as styles from "@/constants/styles";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchOfferDatabyID, fetchPropertyData, fetchUserData, formatDate, updateClientOfferDetails } from "@/utils/functions";
-import { OFFER_STATUSES, OfferData } from '@/utils/interfaces';
+import type { OfferData } from '@/utils/interfaces';
+import { OFFER_STATUSES } from '@/utils/interfaces';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Calendar, Mail, Phone, User } from "lucide-react-native";
 
 import { useEffect, useState } from "react";
@@ -16,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function ClientOfferDetailsScreen() {
 	const [ activeDatePicker, setActiveDatePicker ] = useState<string | null>(null);
 	const { user, userData, role } = useAuth();
+	const router = useRouter();
 	// const { offerId, clientId, agentId, propertyId, initialOfferData } = useLocalSearchParams();
 	const params = useLocalSearchParams();
 
@@ -48,6 +50,8 @@ export default function ClientOfferDetailsScreen() {
 		files: "",
 	});
 
+	const effectiveOfferId = offerIdStr || offerData.offerId;
+
 	const isUnderContract = offerData.status !== 'Offer Declined' && 
 								   offerData.status !== 'Offer Withdrawn' &&
   									offerData.status !== 'Offer Made';
@@ -69,7 +73,7 @@ export default function ClientOfferDetailsScreen() {
 			setIsAssignedAgent(user?.uid === agentIdStr);
 		}
 		checkRole();
-	}, [user, clientIdStr, agentIdStr]);
+	}, [user, clientIdStr, agentIdStr, propertyIdStr, offerIdStr, role]);
 
 	// click phone number
 	const handleCall = (phone: string) => {
@@ -90,14 +94,47 @@ export default function ClientOfferDetailsScreen() {
 		setOfferData((prev: OfferData) => ({ ...prev, [field]: value, updatedAt: new Date() }));
 	};
 
+	const normalizeDateInput = (value: unknown): Date | null => {
+		if (value === null || value === undefined || value === "") return null;
+		if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+		if (typeof (value as any)?.toDate === "function") {
+			const converted = (value as any).toDate();
+			return converted instanceof Date && !Number.isNaN(converted.getTime()) ? converted : null;
+		}
+		if (typeof value === "number" || typeof value === "string") {
+			const parsed = new Date(value);
+			return Number.isNaN(parsed.getTime()) ? null : parsed;
+		}
+		const raw = value as any;
+		if (raw && (typeof raw.seconds === "number" || typeof raw._seconds === "number")) {
+			const seconds = typeof raw.seconds === "number" ? raw.seconds : raw._seconds;
+			const parsed = new Date(seconds * 1000);
+			return Number.isNaN(parsed.getTime()) ? null : parsed;
+		}
+		return null;
+	};
+
 	// Handler for agent saving changes
 	const handleSave = async () => {
+		if (!effectiveOfferId) {
+			alert("Cannot save: offer ID is missing.");
+			return;
+		}
 		try { 
-			const { offerId, clientId, agentId, createdAt, ...updateFields } = offerData;  //remove offerId, clientId, agentId from the offerData that will be pushed to firestore
-			await updateClientOfferDetails(offerIdStr, updateFields as Record<string, unknown>);
+			const { offerId, clientId, agentId, propertyId, createdAt, ...updateFields } = offerData;  // remove immutable fields before pushing updates
+			const sanitizedUpdates: Record<string, unknown> = {
+				...updateFields,
+				dueDiligenceStart: normalizeDateInput((updateFields as any).dueDiligenceStart),
+				dueDiligenceEnd: normalizeDateInput((updateFields as any).dueDiligenceEnd),
+				closingDate: normalizeDateInput((updateFields as any).closingDate),
+				inspectionDate: normalizeDateInput((updateFields as any).inspectionDate),
+				earnestMoneyDueDate: normalizeDateInput((updateFields as any).earnestMoneyDueDate),
+			};
+			await updateClientOfferDetails(effectiveOfferId, sanitizedUpdates);
 			alert("Offer updated!");
+			router.replace('/role-redirect');
 		} catch (error) {
-			console.error("[ClientOfferDetailsScreen] Error in checkRole:", error);
+			console.error("[ClientOfferDetailsScreen] Error in handleSave:", error);
 		}
 	};
 
