@@ -16,11 +16,15 @@ function requireAuthUid(request: { auth?: { uid?: string } }) {
 	return uid;
 }
 
-function asNonEmptyString(value: unknown, fieldName: string) {
+function asNonEmptyString(value: unknown, fieldName: string, maxLength = 100) {
 	if (typeof value !== "string" || !value.trim()) {
 		throw new HttpsError("invalid-argument", `${fieldName} is required.`);
 	}
-	return value.trim();
+	const trimmed = value.trim();
+	if (trimmed.length > maxLength) {
+		throw new HttpsError("invalid-argument", `${fieldName} exceeds maximum length of ${maxLength}.`);
+	}
+	return trimmed;
 }
 
 function normalizeSearchRegion(input: SearchRegionInput | null | undefined) {
@@ -52,9 +56,13 @@ function normalizeDateField(value: unknown): Date | null {
 	throw new HttpsError("invalid-argument", "Invalid date field value.");
 }
 
-function asOptionalTrimmedString(value: unknown) {
+function asOptionalTrimmedString(value: unknown, maxLength = 100) {
 	if (typeof value !== "string") return "";
-	return value.trim();
+	const trimmed = value.trim();
+	if (trimmed.length > maxLength) {
+		throw new HttpsError("invalid-argument", `Value exceeds maximum length of ${maxLength}.`);
+	}
+	return trimmed;
 }
 
 function asOptionalNumber(value: unknown) {
@@ -144,7 +152,7 @@ function asShowingTimeBlocks(value: unknown) {
 
 export const createClientRequest = onCall(async (request) => {
 	const clientId = requireAuthUid(request);
-	const realtorId = asNonEmptyString(request.data?.realtorId, "realtorId");
+	const realtorId = asNonEmptyString(request.data?.realtorId, "realtorId", 128);
 
 	const db = getFirestore();
 	const pendingSnapshot = await db
@@ -191,7 +199,7 @@ export const createClientRequest = onCall(async (request) => {
 
 export const createHelpRequest = onCall(async (request) => {
 	const clientId = requireAuthUid(request);
-	const realtorId = asNonEmptyString(request.data?.realtorId, "realtorId");
+	const realtorId = asNonEmptyString(request.data?.realtorId, "realtorId", 128);
 	const sourceRaw = typeof request.data?.source === "string" ? request.data.source.trim() : "";
 	const source = sourceRaw || "map_request_help";
 
@@ -212,9 +220,9 @@ export const createHelpRequest = onCall(async (request) => {
 
 export const createShowingRequest = onCall(async (request) => {
 	const clientId = requireAuthUid(request);
-	const propertyId = asNonEmptyString(request.data?.propertyId, "propertyId");
+	const propertyId = asNonEmptyString(request.data?.propertyId, "propertyId", 128);
 	const requestedBlocks = asShowingTimeBlocks(request.data?.requestedBlocks);
-	const clientNotes = asOptionalTrimmedString(request.data?.clientNotes);
+	const clientNotes = asOptionalTrimmedString(request.data?.clientNotes, 1000);
 
 	const db = getFirestore();
 	const assignmentSnapshot = await db
@@ -283,12 +291,12 @@ export const createShowingRequest = onCall(async (request) => {
 
 export const confirmShowingRequest = onCall(async (request) => {
 	const realtorId = requireAuthUid(request);
-	const showingRequestId = asNonEmptyString(request.data?.showingRequestId, "showingRequestId");
+	const showingRequestId = asNonEmptyString(request.data?.showingRequestId, "showingRequestId", 128);
 	const confirmedBlockIndex = Number(request.data?.confirmedBlockIndex);
 	if (!Number.isInteger(confirmedBlockIndex) || confirmedBlockIndex < 0) {
 		throw new HttpsError("invalid-argument", "confirmedBlockIndex must be a non-negative integer.");
 	}
-	const agentNotes = asOptionalTrimmedString(request.data?.agentNotes);
+	const agentNotes = asOptionalTrimmedString(request.data?.agentNotes, 1000);
 
 	const db = getFirestore();
 	const showingRef = db.collection("showingRequests").doc(showingRequestId);
@@ -322,8 +330,8 @@ export const confirmShowingRequest = onCall(async (request) => {
 
 export const declineShowingRequest = onCall(async (request) => {
 	const realtorId = requireAuthUid(request);
-	const showingRequestId = asNonEmptyString(request.data?.showingRequestId, "showingRequestId");
-	const agentNotes = asOptionalTrimmedString(request.data?.agentNotes);
+	const showingRequestId = asNonEmptyString(request.data?.showingRequestId, "showingRequestId", 128);
+	const agentNotes = asOptionalTrimmedString(request.data?.agentNotes, 1000);
 
 	const db = getFirestore();
 	const showingRef = db.collection("showingRequests").doc(showingRequestId);
@@ -349,7 +357,7 @@ export const declineShowingRequest = onCall(async (request) => {
 
 export const assignClientRequest = onCall(async (request) => {
 	const realtorId = requireAuthUid(request);
-	const clientId = asNonEmptyString(request.data?.clientId, "clientId");
+	const clientId = asNonEmptyString(request.data?.clientId, "clientId", 128);
 	const db = getFirestore();
 
 	const pendingSnapshot = await db
@@ -383,8 +391,8 @@ export const assignClientRequest = onCall(async (request) => {
 
 export const declineClientRequest = onCall(async (request) => {
 	const realtorId = requireAuthUid(request);
-	const clientId = asNonEmptyString(request.data?.clientId, "clientId");
-	const reasonRaw = typeof request.data?.reason === "string" ? request.data.reason.trim() : "";
+	const clientId = asNonEmptyString(request.data?.clientId, "clientId", 128);
+	const reasonRaw = typeof request.data?.reason === "string" ? request.data.reason.trim().slice(0, 500) : "";
 	const reason = reasonRaw || "No reason provided";
 
 	const db = getFirestore();
@@ -412,7 +420,7 @@ export const declineClientRequest = onCall(async (request) => {
 
 export const releaseClientRequests = onCall(async (request) => {
 	const realtorId = requireAuthUid(request);
-	const clientId = asNonEmptyString(request.data?.clientId, "clientId");
+	const clientId = asNonEmptyString(request.data?.clientId, "clientId", 128);
 	const db = getFirestore();
 
 	const snapshot = await db
@@ -436,7 +444,7 @@ export const releaseClientRequests = onCall(async (request) => {
 
 export const updateClientOfferDetails = onCall(async (request) => {
 	const agentId = requireAuthUid(request);
-	const offerId = asNonEmptyString(request.data?.offerId, "offerId");
+	const offerId = asNonEmptyString(request.data?.offerId, "offerId", 128);
 	const updatesInput = request.data?.updates;
 
 	if (!updatesInput || typeof updatesInput !== "object" || Array.isArray(updatesInput)) {
@@ -510,7 +518,7 @@ export const upsertUserSessionState = onCall(async (request) => {
 
 export const saveUserPushToken = onCall(async (request) => {
 	const userId = requireAuthUid(request);
-	const pushToken = asNonEmptyString(request.data?.pushToken, "pushToken");
+	const pushToken = asNonEmptyString(request.data?.pushToken, "pushToken", 512);
 	const platform = typeof request.data?.platform === "string" ? request.data.platform.trim() : "";
 
 	const db = getFirestore();
@@ -553,22 +561,22 @@ export const submitClientPropertyListing = onCall(async (request) => {
 		assignedAgentId,
 		branchType,
 		status: assignedAgentId ? "Assigned" : "Submitted",
-		addressLine1: asNonEmptyString(request.data?.addressLine1, "addressLine1"),
-		addressLine2: asOptionalTrimmedString(request.data?.addressLine2),
-		city: asNonEmptyString(request.data?.city, "city"),
-		state: asOptionalTrimmedString(request.data?.state),
-		postalCode: asNonEmptyString(request.data?.postalCode, "postalCode"),
-		propertyType: asOptionalTrimmedString(request.data?.propertyType),
+		addressLine1: asNonEmptyString(request.data?.addressLine1, "addressLine1", 200),
+		addressLine2: asOptionalTrimmedString(request.data?.addressLine2, 200),
+		city: asNonEmptyString(request.data?.city, "city", 100),
+		state: asOptionalTrimmedString(request.data?.state, 50),
+		postalCode: asNonEmptyString(request.data?.postalCode, "postalCode", 20),
+		propertyType: asOptionalTrimmedString(request.data?.propertyType, 100),
 		bedrooms: asOptionalNumber(request.data?.bedrooms),
 		bathrooms: asOptionalNumber(request.data?.bathrooms),
 		squareFeet: asOptionalNumber(request.data?.squareFeet),
 		lotSizeSqft: asOptionalNumber(request.data?.lotSizeSqft),
 		yearBuilt: asOptionalNumber(request.data?.yearBuilt),
-		timelineToSell: asOptionalTrimmedString(request.data?.timelineToSell),
-		notes: asOptionalTrimmedString(request.data?.notes),
+		timelineToSell: asOptionalTrimmedString(request.data?.timelineToSell, 100),
+		notes: asOptionalTrimmedString(request.data?.notes, 2000),
 		preferredContactMethod,
-		contactPhone: asOptionalTrimmedString(request.data?.contactPhone),
-		contactEmail: asOptionalTrimmedString(request.data?.contactEmail),
+		contactPhone: asOptionalTrimmedString(request.data?.contactPhone, 20),
+		contactEmail: asOptionalTrimmedString(request.data?.contactEmail, 254),
 		availability: asAvailabilityWindows(request.data?.availability),
 		createdAt: now,
 		updatedAt: now,
@@ -581,9 +589,9 @@ export const submitClientPropertyListing = onCall(async (request) => {
 
 export const createClientOffer = onCall(async (request) => {
 	const agentId = requireAuthUid(request);
-	const clientId = asNonEmptyString(request.data?.clientId, "clientId");
-	const propertyId = asNonEmptyString(request.data?.propertyId, "propertyId");
-	const status = asNonEmptyString(request.data?.status, "status");
+	const clientId = asNonEmptyString(request.data?.clientId, "clientId", 128);
+	const propertyId = asNonEmptyString(request.data?.propertyId, "propertyId", 128);
+	const status = asNonEmptyString(request.data?.status, "status", 50);
 
 	const role = await getRequesterRole(agentId);
 	if (!isAgentRole(role) && !isAdminRole(role)) {
@@ -643,9 +651,9 @@ export const createClientOffer = onCall(async (request) => {
 
 export const appendOfferFileMetadata = onCall(async (request) => {
 	const actorUid = requireAuthUid(request);
-	const offerId = asNonEmptyString(request.data?.offerId, "offerId");
-	const url = asNonEmptyString(request.data?.url, "url");
-	const name = asOptionalTrimmedString(request.data?.name) || null;
+	const offerId = asNonEmptyString(request.data?.offerId, "offerId", 128);
+	const url = asNonEmptyString(request.data?.url, "url", 2048);
+	const name = asOptionalTrimmedString(request.data?.name, 255) || null;
 	const metadata = request.data?.metadata && typeof request.data.metadata === "object" && !Array.isArray(request.data.metadata)
 		? request.data.metadata as Record<string, unknown>
 		: {};

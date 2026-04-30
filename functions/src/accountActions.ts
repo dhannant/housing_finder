@@ -10,16 +10,23 @@ function requireAuthUid(request: { auth?: { uid?: string } }) {
 	return uid;
 }
 
-function asNonEmptyString(value: unknown, fieldName: string) {
+function asNonEmptyString(value: unknown, fieldName: string, maxLength = 100) {
 	if (typeof value !== "string" || !value.trim()) {
 		throw new HttpsError("invalid-argument", `${fieldName} is required.`);
 	}
-	return value.trim();
+	const trimmed = value.trim();
+	if (trimmed.length > maxLength) {
+		throw new HttpsError("invalid-argument", `${fieldName} exceeds maximum length of ${maxLength}.`);
+	}
+	return trimmed;
 }
 
-function asOptionalTrimmedString(value: unknown) {
+function asOptionalTrimmedString(value: unknown, maxLength = 100) {
 	if (typeof value !== "string") return null;
 	const trimmed = value.trim();
+	if (trimmed.length > maxLength) {
+		throw new HttpsError("invalid-argument", `Value exceeds maximum length of ${maxLength}.`);
+	}
 	return trimmed.length > 0 ? trimmed : null;
 }
 
@@ -73,8 +80,8 @@ async function deleteCollectionDocsByField(collectionName: string, fieldName: st
 
 export const toggleFavorite = onCall(async (request) => {
 	const actorUid = requireAuthUid(request);
-	const targetUserId = asNonEmptyString(request.data?.userId, "userId");
-	const propertyId = asNonEmptyString(request.data?.propertyId, "propertyId");
+	const targetUserId = asNonEmptyString(request.data?.userId, "userId", 128);
+	const propertyId = asNonEmptyString(request.data?.propertyId, "propertyId", 128);
 
 	const allowed = await canManageClient(actorUid, targetUserId);
 	if (!allowed) {
@@ -115,7 +122,7 @@ export const toggleFavorite = onCall(async (request) => {
 
 export const deleteFavorite = onCall(async (request) => {
 	const actorUid = requireAuthUid(request);
-	const favoriteDocId = asNonEmptyString(request.data?.favoriteDocId, "favoriteDocId");
+	const favoriteDocId = asNonEmptyString(request.data?.favoriteDocId, "favoriteDocId", 256);
 
 	const db = getFirestore();
 	const favoriteRef = db.collection("clientFavorites").doc(favoriteDocId);
@@ -141,13 +148,13 @@ export const deleteFavorite = onCall(async (request) => {
 
 export const updateOwnProfile = onCall(async (request) => {
 	const userId = requireAuthUid(request);
-	const firstName = asNonEmptyString(request.data?.firstName, "firstName");
-	const lastName = asNonEmptyString(request.data?.lastName, "lastName");
-	const email = asNonEmptyString(request.data?.email, "email").toLowerCase();
-	const phoneNumber = asOptionalTrimmedString(request.data?.phoneNumber);
-	const teamMemberId = asOptionalTrimmedString(request.data?.teamMemberId);
-	const profileImageUrl = asOptionalTrimmedString(request.data?.profileImageUrl);
-	const bioImageUrl = asOptionalTrimmedString(request.data?.bioImageUrl);
+	const firstName = asNonEmptyString(request.data?.firstName, "firstName", 100);
+	const lastName = asNonEmptyString(request.data?.lastName, "lastName", 100);
+	const email = asNonEmptyString(request.data?.email, "email", 254).toLowerCase();
+	const phoneNumber = asOptionalTrimmedString(request.data?.phoneNumber, 20);
+	const teamMemberId = asOptionalTrimmedString(request.data?.teamMemberId, 100);
+	const profileImageUrl = asOptionalTrimmedString(request.data?.profileImageUrl, 2048);
+	const bioImageUrl = asOptionalTrimmedString(request.data?.bioImageUrl, 2048);
 
 	const auth = getAuth();
 	const existingAuthUser = await auth.getUser(userId);

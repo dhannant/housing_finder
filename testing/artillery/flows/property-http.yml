@@ -1,0 +1,21 @@
+config:
+  target: "{{ $processEnvironment.TARGET_BASE_URL }}"
+  phases:
+    - duration: 30
+      arrivalRate: 1
+      name: warm-up
+    - duration: 120
+      arrivalRate: 5
+      rampTo: 20
+      name: ramp
+  defaults:
+    headers:
+      Content-Type: application/json
+
+scenarios:
+  - name: Property details HTTP endpoint
+    flow:
+      - get:
+          url: "/getPropertyDetailsHttp?propertyId=O1234567890"
+          expect:
+            - statusCode: [200, 401, 403, 404]

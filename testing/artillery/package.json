@@ -1,0 +1,14 @@
+{
+  "name": "housing-finder-load-tests",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test:load": "artillery run flows/property-http.yml",
+    "test:smoke": "artillery run --count 1 flows/property-http.yml",
+    "report": "artillery report"
+  },
+  "devDependencies": {
+    "artillery": "^2.0.23",
+    "artillery-plugin-expect": "^2.12.0"
+  }
+}

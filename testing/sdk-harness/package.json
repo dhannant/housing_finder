@@ -1,0 +1,17 @@
+{
+  "name": "housing-finder-sdk-harness",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "node harness.mjs",
+    "run:emulator": "cross-env TEST_TARGET=emulator node harness.mjs",
+    "run:staging": "cross-env TEST_TARGET=staging node harness.mjs"
+  },
+  "dependencies": {
+    "firebase": "^12.8.0"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3"
+  }
+}
