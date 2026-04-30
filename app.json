@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.hitsolutions.leadingedgerealtyapp",
-      "googleServicesFile": "./GoogleService-Info.plist",
+      "appleTeamId": "TFTHP9VLGN",
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -34,6 +34,14 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useModularHeaders": true
+          }
+        }
+      ],
       [
         "expo-splash-screen",
         {

@@ -20,8 +20,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   ios: {
     ...config.ios,
+    appleTeamId: 'TFTHP9VLGN',
     googleServicesFile:
-      config.ios?.googleServicesFile ??
       process.env.GOOGLE_SERVICE_INFO_PLIST ??
       './GoogleService-Info.plist',
   },
