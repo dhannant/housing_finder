@@ -382,20 +382,6 @@ export default function RealtorDashboard() {
 												}}>
 												<Text style={[agentDashboardStyles.actionButtonText, { color: '#fff' }]}>Decline</Text>
 											</TouchableOpacity>
-											<DeclineReasonModal
-												visible={declineModalVisible}
-												reason={declineReason}
-												setReason={setDeclineReason}
-												onCancel={() => setDeclineModalVisible(false)}
-												onSubmit={async () => {
-													if (declineClientId && declineReason.trim()) {
-														await handleDeclineRequest(declineClientId, declineReason.trim());
-														setDeclineModalVisible(false);
-													} else {
-														Alert.alert('Reason required', 'Please enter a reason for declining.');
-													}
-												}}
-											/>
 										</View>
 									</View>
 								);
@@ -484,6 +470,20 @@ export default function RealtorDashboard() {
 					<Text style={agentDashboardStyles.navigateButtonText}>View Properties</Text>
 				</TouchableOpacity>
 			</ScrollView>
+			<DeclineReasonModal
+				visible={declineModalVisible}
+				reason={declineReason}
+				setReason={setDeclineReason}
+				onCancel={() => setDeclineModalVisible(false)}
+				onSubmit={async () => {
+					if (declineClientId && declineReason.trim()) {
+						await handleDeclineRequest(declineClientId, declineReason.trim());
+						setDeclineModalVisible(false);
+					} else {
+						Alert.alert('Reason required', 'Please enter a reason for declining.');
+					}
+				}}
+			/>
 		</SafeAreaView>
 	);
 }

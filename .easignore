@@ -1,0 +1,48 @@
+# Exclude non-app artifacts from EAS build upload context.
+# This reduces upload size and build startup time.
+
+# Dependencies and local caches
+node_modules/
+.expo/
+
+# Build outputs
+/dist/
+/web-build/
+
+# Native generated folders (managed workflow)
+/ios/
+/android/
+
+# Documentation and notes
+/documentation/
+README.md
+AGENTS.md
+todos.md
+knowledge-skills-log.md
+
+# Backend-only workspace (deployed separately)
+/functions/
+firebase.json
+firestore.rules
+firestore.indexes.json
+storage.rules
+
+# Testing and local harnesses
+/testing/
+
+# Local scripts not needed for mobile app build
+/scripts/
+
+# IDE/system files
+.idea/
+.DS_Store
+
+# Secrets/local env
+.env*.local
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.jks
+
+# Keep app runtime folders included (app, assets, components, contexts, hooks, utils, constants)

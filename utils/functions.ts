@@ -1,4 +1,4 @@
-import { db } from '@/components/firebaseConfig';
+import { auth, db } from '@/components/firebaseConfig';
 import {
     collection,
     doc,
@@ -516,11 +516,43 @@ export async function upsertUserSessionState(payload: {
 	await callable(payload);
 }
 
-export async function saveUserPushToken(userId: string, pushToken: string): Promise<void> {
-	if (!userId || !pushToken) return;
+export async function saveUserPushToken(userId: string, pushToken: string | null, fcmToken: string | null): Promise<void> {
+	if (!userId || (!pushToken && !fcmToken)) return;
 	const functions = getFunctions();
 	const callable = httpsCallable(functions, 'saveUserPushToken');
-	await callable({ pushToken, platform: Platform.OS });
+	await callable({ pushToken: pushToken ?? null, fcmToken: fcmToken ?? null, platform: Platform.OS });
+}
+
+export async function fetchAdminPropertyAnalytics(): Promise<any | null> {
+	const currentUser = auth.currentUser;
+	if (!currentUser) {
+		console.warn('[fetchAdminPropertyAnalytics] No authenticated user yet; skipping analytics fetch.');
+		return null;
+	}
+
+	await currentUser.getIdToken();
+
+	const functions = getFunctions();
+	const callable = httpsCallable(functions, 'getAdminPropertyAnalytics');
+	try {
+		const response: any = await callable({});
+		return response?.data ?? null;
+	} catch (error: any) {
+		const code = String(error?.code || '');
+		if (code === 'functions/not-found' || code === 'not-found') {
+			console.warn('[fetchAdminPropertyAnalytics] Callable not deployed yet; using empty analytics.');
+			return null;
+		}
+		if (code === 'functions/unauthenticated' || code === 'unauthenticated') {
+			console.warn('[fetchAdminPropertyAnalytics] Auth token not ready for callable; using empty analytics for now.');
+			return null;
+		}
+		if (code === 'functions/internal' || code === 'internal') {
+			console.warn('[fetchAdminPropertyAnalytics] Callable internal error; using empty analytics fallback.');
+			return null;
+		}
+		throw error;
+	}
 }
 
 export async function updateOwnProfile(payload: {

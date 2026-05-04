@@ -1,8 +1,8 @@
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
-import { onCall, onRequest } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { upsertPropertiesForPage } from "./propertyIngestShared";
 
 export const rapidApiKeySecret = defineSecret("RAPIDAPI_KEY");
@@ -145,6 +145,225 @@ function computeBackoffMs(attemptNumber: number): number {
 	const jitter = Math.floor(Math.random() * 400);
 	return exponential + jitter;
 }
+
+function parseAnalyticsDateToMs(value: any): number | null {
+	if (!value) return null;
+	if (typeof value === "string") {
+		const parsed = Date.parse(value);
+		return Number.isFinite(parsed) ? parsed : null;
+	}
+	if (value instanceof Date) {
+		const parsed = value.getTime();
+		return Number.isFinite(parsed) ? parsed : null;
+	}
+	if (typeof value?.toDate === "function") {
+		try {
+			const parsed = value.toDate().getTime();
+			return Number.isFinite(parsed) ? parsed : null;
+		} catch {
+			return null;
+		}
+	}
+	if (typeof value?.seconds === "number") {
+		return value.seconds * 1000;
+	}
+	return null;
+}
+
+function getAnalyticsDaysListed(property: Record<string, any>, nowMs: number): number | null {
+	const listDateMs =
+		parseAnalyticsDateToMs(property?.list_date) ??
+		parseAnalyticsDateToMs(property?.listDate) ??
+		parseAnalyticsDateToMs(property?.apiFirstSeenDate);
+
+	if (!listDateMs || listDateMs > nowMs) return null;
+	const days = Math.floor((nowMs - listDateMs) / (1000 * 60 * 60 * 24));
+	return Number.isFinite(days) && days >= 0 ? days : null;
+}
+
+function getAnalyticsPrice(property: Record<string, any>): number | null {
+	const candidates = [
+		property?.list_price,
+		property?.price,
+		property?.price?.list_price,
+		property?.price?.value,
+	];
+
+	for (const candidate of candidates) {
+		const numeric = Number(candidate);
+		if (Number.isFinite(numeric) && numeric > 0) return numeric;
+	}
+
+	return null;
+}
+
+function getAnalyticsPropertyAge(property: Record<string, any>, currentYear: number): number | null {
+	const ageCandidate = Number(property?.property_age ?? property?.description?.property_age ?? Number.NaN);
+	if (Number.isFinite(ageCandidate) && ageCandidate >= 0) return ageCandidate;
+
+	const yearBuiltCandidate = Number(property?.year_built ?? property?.description?.year_built ?? Number.NaN);
+	if (Number.isFinite(yearBuiltCandidate) && yearBuiltCandidate > 0 && yearBuiltCandidate <= currentYear) {
+		return currentYear - yearBuiltCandidate;
+	}
+
+	return null;
+}
+
+function getAnalyticsZip(property: Record<string, any>): string | null {
+	const rawZip =
+		property?.location?.address?.postal_code ??
+		property?.postal_code ??
+		property?.address?.postal_code ??
+		null;
+
+	if (!rawZip) return null;
+	const normalized = String(rawZip).trim();
+	const match = normalized.match(/\d{5}/);
+	return match ? match[0] : normalized || null;
+}
+
+export const getAdminPropertyAnalytics = onCall({
+	timeoutSeconds: 300,
+	memory: "1GiB",
+}, async (request) => {
+	try {
+		const uid = request.auth?.uid;
+		if (!uid) {
+			throw new HttpsError("unauthenticated", "Authentication is required.");
+		}
+
+		const db = getFirestore();
+		const userSnap = await db.collection("users").doc(uid).get();
+		const role = String(userSnap.data()?.role || "").trim();
+		if (role !== "Admin") {
+			throw new HttpsError("permission-denied", "Admin access is required.");
+		}
+
+		// Read only the fields needed for analytics to reduce payload and processing overhead.
+		const propertiesQuery = db.collection("properties").select(
+			"list_date",
+			"listDate",
+			"apiFirstSeenDate",
+			"list_price",
+			"price",
+			"property_age",
+			"year_built",
+			"description.property_age",
+			"description.year_built",
+			"location.address.postal_code",
+			"postal_code",
+			"address.postal_code",
+		);
+		const snapshot = await propertiesQuery.get();
+		const nowMs = Date.now();
+		const currentYear = new Date().getFullYear();
+
+		const priceBuckets = [
+		{ label: "Under $250k", min: 0, max: 250000, count: 0, daysTotal: 0, stale90: 0 },
+		{ label: "$250k - $500k", min: 250000, max: 500000, count: 0, daysTotal: 0, stale90: 0 },
+		{ label: "$500k - $750k", min: 500000, max: 750000, count: 0, daysTotal: 0, stale90: 0 },
+		{ label: "$750k - $1M", min: 750000, max: 1000000, count: 0, daysTotal: 0, stale90: 0 },
+		{ label: "Over $1M", min: 1000000, max: null as number | null, count: 0, daysTotal: 0, stale90: 0 },
+		];
+
+		const ageBuckets = [
+		{ label: "0-5 yrs", count: 0 },
+		{ label: "6-15 yrs", count: 0 },
+		{ label: "16-30 yrs", count: 0 },
+		{ label: "31-50 yrs", count: 0 },
+		{ label: "51-75 yrs", count: 0 },
+		{ label: "76+ yrs", count: 0 },
+		];
+
+		const zipMap = new Map<string, { count: number; daysTotal: number; daysCount: number; priceTotal: number; priceCount: number }>();
+
+		let withDaysListed = 0;
+		let stale30 = 0;
+		let stale60 = 0;
+		let stale90 = 0;
+
+		snapshot.forEach((doc) => {
+		const property = doc.data() as Record<string, any>;
+		const daysListed = getAnalyticsDaysListed(property, nowMs);
+		const price = getAnalyticsPrice(property);
+		const age = getAnalyticsPropertyAge(property, currentYear);
+		const zip = getAnalyticsZip(property);
+
+		if (daysListed !== null) {
+			withDaysListed += 1;
+			if (daysListed >= 30) stale30 += 1;
+			if (daysListed >= 60) stale60 += 1;
+			if (daysListed >= 90) stale90 += 1;
+		}
+
+		if (daysListed !== null && price !== null) {
+			const bucket = priceBuckets.find((b) => price >= b.min && (b.max === null || price < b.max));
+			if (bucket) {
+				bucket.count += 1;
+				bucket.daysTotal += daysListed;
+				if (daysListed >= 90) bucket.stale90 += 1;
+			}
+		}
+
+		if (age !== null) {
+			if (age <= 5) ageBuckets[0].count += 1;
+			else if (age <= 15) ageBuckets[1].count += 1;
+			else if (age <= 30) ageBuckets[2].count += 1;
+			else if (age <= 50) ageBuckets[3].count += 1;
+			else if (age <= 75) ageBuckets[4].count += 1;
+			else ageBuckets[5].count += 1;
+		}
+
+		if (zip) {
+			const existing = zipMap.get(zip) ?? { count: 0, daysTotal: 0, daysCount: 0, priceTotal: 0, priceCount: 0 };
+			existing.count += 1;
+			if (daysListed !== null) {
+				existing.daysTotal += daysListed;
+				existing.daysCount += 1;
+			}
+			if (price !== null) {
+				existing.priceTotal += price;
+				existing.priceCount += 1;
+			}
+			zipMap.set(zip, existing);
+		}
+		});
+
+		const topZips = Array.from(zipMap.entries())
+		.map(([zip, stats]) => ({
+			zip,
+			count: stats.count,
+			avgDays: stats.daysCount > 0 ? Math.round(stats.daysTotal / stats.daysCount) : 0,
+			avgPrice: stats.priceCount > 0 ? Math.round(stats.priceTotal / stats.priceCount) : 0,
+		}))
+		.sort((a, b) => b.count - a.count)
+		.slice(0, 10);
+
+		return {
+		totalProperties: snapshot.size,
+		withDaysListed,
+		stale30,
+		stale60,
+		stale90,
+		priceDaysBuckets: priceBuckets.map((bucket) => ({
+			label: bucket.label,
+			min: bucket.min,
+			max: bucket.max,
+			count: bucket.count,
+			avgDays: bucket.count > 0 ? Math.round(bucket.daysTotal / bucket.count) : 0,
+			stale90: bucket.stale90,
+		})),
+		ageDistribution: ageBuckets,
+		topZips,
+ 		};
+	} catch (error) {
+		if (error instanceof HttpsError) {
+			throw error;
+		}
+		console.error("getAdminPropertyAnalytics failed:", error);
+		throw new HttpsError("internal", "Failed to compute admin property analytics.");
+	}
+});
 
 // ===== Property Details =====
 

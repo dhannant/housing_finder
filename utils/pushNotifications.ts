@@ -2,7 +2,8 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 export type PushRegistrationResult = {
-	token: string | null;
+	token: string | null;       // Expo push token (iOS) or null
+	fcmToken: string | null;    // Native FCM device token (Android) or null
 	reason:
 		| 'success'
 		| 'web'
@@ -16,13 +17,14 @@ export type PushRegistrationResult = {
 
 export async function registerForPushNotificationsDetailedAsync(): Promise<PushRegistrationResult> {
 	if (Platform.OS === 'web') {
-		return { token: null, reason: 'web' };
+		return { token: null, fcmToken: null, reason: 'web' };
 	}
 
 	if (Constants.appOwnership === 'expo') {
 		console.warn('[Push] Skipping remote push token registration in Expo Go. Use a development build for push notifications.');
 		return {
 			token: null,
+			fcmToken: null,
 			reason: 'expo_go',
 			appOwnership: String(Constants.appOwnership),
 		};
@@ -39,7 +41,7 @@ export async function registerForPushNotificationsDetailedAsync(): Promise<PushR
 	}
 
 	if (finalStatus !== 'granted') {
-		return { token: null, reason: 'permission_denied' };
+		return { token: null, fcmToken: null, reason: 'permission_denied' };
 	}
 
 	if (Platform.OS === 'android') {
@@ -55,21 +57,44 @@ export async function registerForPushNotificationsDetailedAsync(): Promise<PushR
 		Constants?.expoConfig?.extra?.eas?.projectId ??
 		Constants?.easConfig?.projectId;
 
+	// Android: get native FCM device token — sent directly via Firebase Admin SDK (no EAS FCM credentials needed)
+	if (Platform.OS === 'android') {
+		try {
+			const deviceToken = await Notifications.getDevicePushTokenAsync();
+			return {
+				token: null,
+				fcmToken: deviceToken.data || null,
+				reason: deviceToken.data ? 'success' : 'token_error',
+			};
+		} catch (error) {
+			console.warn('[Push] Failed to get Android FCM device token:', error);
+			return {
+				token: null,
+				fcmToken: null,
+				reason: 'token_error',
+				details: error instanceof Error ? error.message : String(error),
+			};
+		}
+	}
+
+	// iOS: get Expo push token — Expo handles APNs forwarding
 	if (!projectId) {
 		console.warn('[Push] Missing EAS projectId; cannot get Expo push token.');
-		return { token: null, reason: 'missing_project_id' };
+		return { token: null, fcmToken: null, reason: 'missing_project_id' };
 	}
 
 	try {
 		const tokenResponse = await Notifications.getExpoPushTokenAsync({ projectId });
 		return {
 			token: tokenResponse.data || null,
+			fcmToken: null,
 			reason: tokenResponse.data ? 'success' : 'token_error',
 		};
 	} catch (error) {
 		console.warn('[Push] Failed to get Expo push token:', error);
 		return {
 			token: null,
+			fcmToken: null,
 			reason: 'token_error',
 			details: error instanceof Error ? error.message : String(error),
 		};

@@ -128,6 +128,10 @@ export interface Property {
 	address: string;
 	beds: number | null;
 	baths: number | null;
+	year_built?: number | null;
+	property_age?: number | null;
+	is_foreclosure?: boolean | null;
+	is_new_construction?: boolean | null;
 	latitude: number | null;
 	longitude: number | null;
 	listingId: string;

@@ -1,16 +1,15 @@
-import { query, where, limit , collection, getDocs } from "firebase/firestore";
 import { db } from '@/components/firebaseConfig';
 import PropertyModal from '@/components/modules/PropertyModal';
 import { mapStyles } from '@/constants/styles';
-import type { ClientData , Property } from '@/utils/interfaces';
 import { useAuth } from '@/contexts/AuthContext';
 import * as Functions from '@/utils/functions';
+import type { ClientData, Property } from '@/utils/interfaces';
+import { collection, getDocs, query, where } from "firebase/firestore";
 
-import { Picker } from '@react-native-picker/picker';
 import * as Location from "expo-location";
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from 'react-native';
 import { default as MapView, Marker, default as RNMapView, type Region } from 'react-native-maps';
 
 import PropertyFilters, { type PropertyFilterOptions } from "../property_filters";
@@ -53,6 +52,10 @@ function mapFirestoreProperty(docId: string, data: any): House | null {
 
 	const photos = toPhotoArray(data?.photos);
 	const primaryPhoto = data?.primary_photo?.href ?? data?.primaryPhoto ?? photos[0]?.href ?? null;
+	const yearBuiltRaw = data?.description?.year_built ?? data?.year_built ?? null;
+	const yearBuilt = typeof yearBuiltRaw === 'number' ? yearBuiltRaw : yearBuiltRaw !== null ? Number(yearBuiltRaw) : null;
+	const propertyAgeRaw = data?.description?.property_age ?? data?.property_age ?? null;
+	const propertyAge = typeof propertyAgeRaw === 'number' ? propertyAgeRaw : propertyAgeRaw !== null ? Number(propertyAgeRaw) : null;
 
 	const mapped: any = {
 		id: docId,
@@ -71,10 +74,17 @@ function mapFirestoreProperty(docId: string, data: any): House | null {
 		address: fullAddress,
 		beds: data?.description?.beds ?? data?.beds ?? null,
 		baths: data?.description?.baths ?? data?.baths ?? null,
+		year_built: Number.isFinite(yearBuilt) ? yearBuilt : null,
+		property_age: Number.isFinite(propertyAge) ? propertyAge : null,
+		is_foreclosure: data?.is_foreclosure ?? data?.flags?.is_foreclosure ?? null,
+		is_new_construction: data?.is_new_construction ?? data?.flags?.is_new_construction ?? null,
 		latitude: typeof lat === 'number' ? lat : Number(lat),
 		longitude: typeof lon === 'number' ? lon : Number(lon),
 		lot_sqft: data?.description?.lot_sqft ?? data?.lot_sqft ?? null,
 		status: data?.status ?? data?.status_code ?? null,
+		list_date: data?.list_date ?? data?.listDate ?? null,
+		listDate: data?.listDate ?? data?.list_date ?? null,
+		apiFirstSeenDate: data?.apiFirstSeenDate ?? null,
 		sqft: data?.description?.sqft ?? data?.sqft ?? null,
 		type: data?.description?.type ?? data?.type ?? null,
 		photos,
@@ -83,6 +93,58 @@ function mapFirestoreProperty(docId: string, data: any): House | null {
 
 	if (!Number.isFinite(mapped.latitude) || !Number.isFinite(mapped.longitude)) return null;
 	return mapped as House;
+}
+
+function getHomeAge(house: House): number | null {
+	if (typeof house.property_age === 'number' && Number.isFinite(house.property_age) && house.property_age >= 0) {
+		return house.property_age;
+	}
+
+	if (typeof house.year_built === 'number' && Number.isFinite(house.year_built) && house.year_built > 0) {
+		const currentYear = new Date().getFullYear();
+		const calculated = currentYear - house.year_built;
+		if (calculated >= 0) return calculated;
+	}
+
+	return null;
+}
+
+function parseDateToMs(value: any): number | null {
+	if (!value) return null;
+	if (typeof value === 'string') {
+		const parsed = Date.parse(value);
+		return Number.isFinite(parsed) ? parsed : null;
+	}
+	if (value instanceof Date) {
+		const parsed = value.getTime();
+		return Number.isFinite(parsed) ? parsed : null;
+	}
+	if (typeof value?.toDate === 'function') {
+		try {
+			const parsed = value.toDate().getTime();
+			return Number.isFinite(parsed) ? parsed : null;
+		} catch {
+			return null;
+		}
+	}
+	if (typeof value?.seconds === 'number') {
+		return value.seconds * 1000;
+	}
+	return null;
+}
+
+function getDaysListed(house: House): number | null {
+	const listedMs =
+		parseDateToMs((house as any).list_date) ??
+		parseDateToMs((house as any).listDate) ??
+		parseDateToMs((house as any).apiFirstSeenDate);
+
+	if (!listedMs) return null;
+	const nowMs = Date.now();
+	if (listedMs > nowMs) return null;
+
+	const days = Math.floor((nowMs - listedMs) / (1000 * 60 * 60 * 24));
+	return Number.isFinite(days) && days >= 0 ? days : null;
 }
 
 // Utility: Build a bounding box polygon around user's location
@@ -210,6 +272,18 @@ export default function HomeScreen() {
 	// Apply filters to the house list
 	function applyFilters(houses: House[], filters: PropertyFilterOptions): House[] {
 		return houses.filter((house) => {
+			const daysListed = getDaysListed(house);
+			if (filters.minListedDays !== undefined && (daysListed === null || daysListed < filters.minListedDays)) return false;
+
+			const homeAge = getHomeAge(house);
+			if (filters.minAge !== undefined && (homeAge === null || homeAge < filters.minAge)) return false;
+			if (filters.maxAge !== undefined && (homeAge === null || homeAge > filters.maxAge)) return false;
+
+			if (filters.foreclosureStatus === 'foreclosure_only' && (house as any).is_foreclosure !== true) return false;
+			if (filters.foreclosureStatus === 'exclude_foreclosure' && (house as any).is_foreclosure === true) return false;
+
+			if (filters.newConstructionOnly === true && (house as any).is_new_construction !== true) return false;
+
 			if (filters.minBedrooms !== undefined && (house.beds === null || house.beds < filters.minBedrooms)) return false;
 			if (filters.maxBedrooms !== undefined && (house.beds === null || house.beds > filters.maxBedrooms)) return false;
 			if (filters.minBathrooms !== undefined && (house.baths === null || house.baths < filters.minBathrooms)) return false;

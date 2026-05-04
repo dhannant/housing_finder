@@ -2,12 +2,13 @@ import { auth, db } from '@/components/firebaseConfig';
 import { agentDashboardStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  fetchActiveOfferForClient,
-  fetchAgentClientRequests,
-  fetchClients,
-  fetchPropertyData,
-  fetchRealtors,
-  formatDate,
+    fetchActiveOfferForClient,
+    fetchAdminPropertyAnalytics,
+    fetchAgentClientRequests,
+    fetchClients,
+    fetchPropertyData,
+    fetchRealtors,
+    formatDate,
 } from '@/utils/functions';
 import type { ClientRequest } from '@/utils/interfaces';
 import { useRouter } from 'expo-router';
@@ -79,6 +80,38 @@ type AdminJourneyStats = {
   totalSavedHomes: number;
 };
 
+type PriceDaysBucket = {
+  label: string;
+  min: number;
+  max: number | null;
+  count: number;
+  avgDays: number;
+  stale90: number;
+};
+
+type AgeDistributionBucket = {
+  label: string;
+  count: number;
+};
+
+type ZipAnalyticsRow = {
+  zip: string;
+  count: number;
+  avgDays: number;
+  avgPrice: number;
+};
+
+type AdminPropertyAnalytics = {
+  totalProperties: number;
+  withDaysListed: number;
+  stale30: number;
+  stale60: number;
+  stale90: number;
+  priceDaysBuckets: PriceDaysBucket[];
+  ageDistribution: AgeDistributionBucket[];
+  topZips: ZipAnalyticsRow[];
+};
+
 const emptyApiStats: AdminApiStats = {
   totalBatchesForRun: 0,
   lastRunId: 'n/a',
@@ -114,8 +147,32 @@ const emptyJourneyStats: AdminJourneyStats = {
   totalSavedHomes: 0,
 };
 
+const emptyPropertyAnalytics: AdminPropertyAnalytics = {
+  totalProperties: 0,
+  withDaysListed: 0,
+  stale30: 0,
+  stale60: 0,
+  stale90: 0,
+  priceDaysBuckets: [
+    { label: 'Under $250k', min: 0, max: 250000, count: 0, avgDays: 0, stale90: 0 },
+    { label: '$250k - $500k', min: 250000, max: 500000, count: 0, avgDays: 0, stale90: 0 },
+    { label: '$500k - $750k', min: 500000, max: 750000, count: 0, avgDays: 0, stale90: 0 },
+    { label: '$750k - $1M', min: 750000, max: 1000000, count: 0, avgDays: 0, stale90: 0 },
+    { label: 'Over $1M', min: 1000000, max: null, count: 0, avgDays: 0, stale90: 0 },
+  ],
+  ageDistribution: [
+    { label: '0-5 yrs', count: 0 },
+    { label: '6-15 yrs', count: 0 },
+    { label: '16-30 yrs', count: 0 },
+    { label: '31-50 yrs', count: 0 },
+    { label: '51-75 yrs', count: 0 },
+    { label: '76+ yrs', count: 0 },
+  ],
+  topZips: [],
+};
+
 export default function AdminDashboardScreen() {
-  const { userData, role } = useAuth();
+  const { user, userData, role, loading: authLoading } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [agents, setAgents] = useState<AdminAgentRow[]>([]);
@@ -123,6 +180,7 @@ export default function AdminDashboardScreen() {
   const [clientListFilter, setClientListFilter] = useState<ClientListFilter>('active');
   const [apiStats, setApiStats] = useState<AdminApiStats>(emptyApiStats);
   const [journeyStats, setJourneyStats] = useState<AdminJourneyStats>(emptyJourneyStats);
+  const [propertyAnalytics, setPropertyAnalytics] = useState<AdminPropertyAnalytics>(emptyPropertyAnalytics);
 
   useEffect(() => {
     if (role && role !== 'Admin') {
@@ -178,15 +236,20 @@ export default function AdminDashboardScreen() {
       try {
         setLoading(true);
 
-        const [agentUsers, clientUsers, latestApiStats, offersSnap, favoritesSnap] = await Promise.all([
+        const [agentUsers, clientUsers, latestApiStats, propertyStats, offersSnap, favoritesSnap] = await Promise.all([
           fetchRealtors(),
           fetchClients(),
           loadApiStats(),
+          fetchAdminPropertyAnalytics().catch((error) => {
+            console.error('[AdminDashboard] Failed loading property analytics:', error);
+            return null;
+          }),
           getDocs(collection(db, 'clientOffers')),
           getDocs(collection(db, 'clientFavorites')),
         ]);
 
         setApiStats(latestApiStats);
+        setPropertyAnalytics(propertyStats ?? emptyPropertyAnalytics);
 
         const clientNameMap = new Map<string, { name: string; email: string }>();
         clientUsers.forEach((client) => {
@@ -336,10 +399,14 @@ export default function AdminDashboardScreen() {
       }
     }
 
-    if (userData?.role === 'Admin') {
+    if (authLoading) {
+      return;
+    }
+
+    if (user?.uid && userData?.role === 'Admin') {
       loadAdminData();
     }
-  }, [userData?.role]);
+  }, [authLoading, user?.uid, userData?.role]);
 
   const filteredClients = useMemo(() => {
     if (clientListFilter === 'active') {
@@ -425,6 +492,24 @@ export default function AdminDashboardScreen() {
       widthPercent: `${Math.max((bar.value / safeMax) * 100, 4)}%` as `${number}%`,
     }));
   }, [journeyStats]);
+
+  const propertyAgeBars = useMemo(() => {
+    const maxCount = propertyAnalytics.ageDistribution.reduce((max, bucket) => Math.max(max, bucket.count), 0);
+    const safeMax = maxCount > 0 ? maxCount : 1;
+    return propertyAnalytics.ageDistribution.map((bucket) => ({
+      ...bucket,
+      widthPercent: `${Math.max((bucket.count / safeMax) * 100, 4)}%` as `${number}%`,
+    }));
+  }, [propertyAnalytics.ageDistribution]);
+
+  const priceDaysBars = useMemo(() => {
+    const maxDays = propertyAnalytics.priceDaysBuckets.reduce((max, bucket) => Math.max(max, bucket.avgDays), 0);
+    const safeMax = maxDays > 0 ? maxDays : 1;
+    return propertyAnalytics.priceDaysBuckets.map((bucket) => ({
+      ...bucket,
+      widthPercent: `${Math.max((bucket.avgDays / safeMax) * 100, 4)}%` as `${number}%`,
+    }));
+  }, [propertyAnalytics.priceDaysBuckets]);
 
   const handleLogout = async () => {
     try {
@@ -560,6 +645,90 @@ export default function AdminDashboardScreen() {
                 </View>
               </View>
             ))}
+          </View>
+        </View>
+
+        <View style={agentDashboardStyles.section}>
+          <Text style={agentDashboardStyles.sectionTitle}>Property Freshness & Inventory Health</Text>
+          <Text style={agentDashboardStyles.sectionDescription}>
+            Aggregated from properties: staleness trends, price band velocity, age mix, and ZIP concentration.
+          </Text>
+
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 14, gap: 10 }}>
+            <View style={{ backgroundColor: '#EEF5FF', borderRadius: 10, padding: 12, minWidth: 150 }}>
+              <Text style={{ fontSize: 12, color: '#4B6278', fontWeight: '600' }}>Total Properties</Text>
+              <Text style={{ fontSize: 20, color: '#17324A', fontWeight: '800', marginTop: 2 }}>{propertyAnalytics.totalProperties.toLocaleString()}</Text>
+            </View>
+            <View style={{ backgroundColor: '#EEF5FF', borderRadius: 10, padding: 12, minWidth: 150 }}>
+              <Text style={{ fontSize: 12, color: '#4B6278', fontWeight: '600' }}>With Days Listed</Text>
+              <Text style={{ fontSize: 20, color: '#17324A', fontWeight: '800', marginTop: 2 }}>{propertyAnalytics.withDaysListed.toLocaleString()}</Text>
+            </View>
+            <View style={{ backgroundColor: '#FFF4E8', borderRadius: 10, padding: 12, minWidth: 150 }}>
+              <Text style={{ fontSize: 12, color: '#7A4E1D', fontWeight: '600' }}>Stale 30+ Days</Text>
+              <Text style={{ fontSize: 20, color: '#5A3413', fontWeight: '800', marginTop: 2 }}>{propertyAnalytics.stale30.toLocaleString()}</Text>
+            </View>
+            <View style={{ backgroundColor: '#FFEDED', borderRadius: 10, padding: 12, minWidth: 150 }}>
+              <Text style={{ fontSize: 12, color: '#8A2C2C', fontWeight: '600' }}>Stale 90+ Days</Text>
+              <Text style={{ fontSize: 20, color: '#6A1B1B', fontWeight: '800', marginTop: 2 }}>{propertyAnalytics.stale90.toLocaleString()}</Text>
+            </View>
+          </View>
+
+          <View style={{ marginTop: 18, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#EFEFEF' }}>
+            <Text style={agentDashboardStyles.chartTitle}>Average Days Listed by Price Band</Text>
+            {priceDaysBars.map((bucket) => (
+              <View key={bucket.label} style={{ marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <Text style={{ fontSize: 13, color: '#3D3D3D', fontWeight: '600' }}>{bucket.label}</Text>
+                  <Text style={{ fontSize: 13, color: '#3D3D3D', fontWeight: '700' }}>
+                    Avg {bucket.avgDays}d | {bucket.count.toLocaleString()} homes | {bucket.stale90.toLocaleString()} stale
+                  </Text>
+                </View>
+                <View style={{ height: 12, borderRadius: 999, backgroundColor: '#E9EDF2', overflow: 'hidden' }}>
+                  <View style={{ height: '100%', borderRadius: 999, width: bucket.widthPercent, backgroundColor: '#2A6F97' }} />
+                </View>
+              </View>
+            ))}
+          </View>
+
+          <View style={{ marginTop: 18, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#EFEFEF' }}>
+            <Text style={agentDashboardStyles.chartTitle}>Property Age Distribution</Text>
+            {propertyAgeBars.map((bucket) => (
+              <View key={bucket.label} style={{ marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <Text style={{ fontSize: 13, color: '#3D3D3D', fontWeight: '600' }}>{bucket.label}</Text>
+                  <Text style={{ fontSize: 13, color: '#3D3D3D', fontWeight: '700' }}>{bucket.count.toLocaleString()}</Text>
+                </View>
+                <View style={{ height: 12, borderRadius: 999, backgroundColor: '#E9EDF2', overflow: 'hidden' }}>
+                  <View style={{ height: '100%', borderRadius: 999, width: bucket.widthPercent, backgroundColor: '#5C8D89' }} />
+                </View>
+              </View>
+            ))}
+          </View>
+
+          <View style={{ marginTop: 18, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#EFEFEF' }}>
+            <Text style={agentDashboardStyles.chartTitle}>Top ZIP Codes in Inventory</Text>
+            {propertyAnalytics.topZips.length === 0 ? (
+              <Text style={{ fontSize: 13, color: '#777777' }}>No ZIP code data found in the current property set.</Text>
+            ) : (
+              propertyAnalytics.topZips.map((row) => (
+                <View
+                  key={row.zip}
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    paddingVertical: 8,
+                    borderBottomWidth: 1,
+                    borderBottomColor: '#F0F0F0',
+                  }}
+                >
+                  <Text style={{ fontSize: 13, color: '#1A1A1A', fontWeight: '700' }}>{row.zip}</Text>
+                  <Text style={{ fontSize: 13, color: '#4E4E4E' }}>{row.count.toLocaleString()} homes</Text>
+                  <Text style={{ fontSize: 13, color: '#4E4E4E' }}>Avg {row.avgDays}d</Text>
+                  <Text style={{ fontSize: 13, color: '#4E4E4E' }}>${row.avgPrice.toLocaleString()}</Text>
+                </View>
+              ))
+            )}
           </View>
         </View>
 

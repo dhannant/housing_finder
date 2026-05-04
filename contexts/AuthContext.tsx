@@ -26,18 +26,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // [REMOVED LOG]
       setUser(firebaseUser);
       if (firebaseUser) {
-        try {
-          await upsertUserSessionState({});
-
-          const data = await fetchUserData(firebaseUser.uid);
-          setUserData(data);
-          setRole(data?.role ?? null);
-          // [REMOVED LOG]
-
+        // Run non-critical session and push updates in the background so routing is not delayed.
+        void (async () => {
           try {
+            await upsertUserSessionState({});
+
             const pushResult = await registerForPushNotificationsDetailedAsync();
-            if (pushResult.token) {
-              await saveUserPushToken(firebaseUser.uid, pushResult.token);
+            if (pushResult.token || pushResult.fcmToken) {
+              await saveUserPushToken(firebaseUser.uid, pushResult.token, pushResult.fcmToken);
             }
             await upsertUserSessionState({
               pushTokenStatus: pushResult.reason,
@@ -46,8 +42,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             });
             // [REMOVED LOG]
           } catch (pushError) {
-            console.error('[AuthContext] Push token registration failed:', pushError);
+            console.error('[AuthContext] Push token/session update failed:', pushError);
           }
+        })();
+
+        try {
+          const data = await fetchUserData(firebaseUser.uid);
+          setUserData(data);
+          setRole(data?.role ?? null);
+          // [REMOVED LOG]
         } catch (error) {
           console.error('[AuthContext] Failed to fetch user data:', error);
           setUserData(null);

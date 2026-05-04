@@ -1,12 +1,13 @@
 import { mapStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserData } from '@/hooks/useFunctions';
-import type { PropertyDetails } from '@/utils/interfaces';
+import { checkIfFavorite, toggleFavorite } from '@/utils/functions';
+import type { Property, PropertyDetails } from '@/utils/interfaces';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
 import { db } from '../../components/firebaseConfig';
@@ -44,6 +45,12 @@ function toPhotoArray(photos: any, primaryPhoto: string | null): { href: string 
   return primaryPhoto ? [{ href: primaryPhoto }] : [];
 }
 
+function formatLotSizeAcres(lotSqft: number | null | undefined): string {
+  if (typeof lotSqft !== 'number' || !Number.isFinite(lotSqft) || lotSqft <= 0) return 'N/A';
+  const acres = lotSqft / 43560;
+  return `${acres.toLocaleString(undefined, { maximumFractionDigits: 2 })} acres`;
+}
+
 
 const PropertyDetailsScreen = () => {
   const router = useRouter();
@@ -61,11 +68,17 @@ const PropertyDetailsScreen = () => {
   const [failedEnhancedPhotoUrls, setFailedEnhancedPhotoUrls] = useState<Record<string, true>>({});
   const [showCommunity, setShowCommunity] = useState(false);
   const [showLocal, setShowLocal] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
 
   const photos = useMemo(() => {
     if (!propertyDetails) return [] as { href: string }[];
     return toPhotoArray(propertyDetails.photos, (propertyDetails as any).primary_photo?.href ?? null);
   }, [propertyDetails]);
+
+  const favoritePropertyId = useMemo(() => {
+    return String((propertyDetails as any)?.property_id ?? propertyIdStr ?? '').trim();
+  }, [propertyDetails, propertyIdStr]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -114,6 +127,69 @@ const PropertyDetailsScreen = () => {
     };
     fetchProperty();
   }, [propertyIdStr, authLoading, user]);
+
+  useEffect(() => {
+    const hydrateFavoriteStatus = async () => {
+      if (!user?.uid || !favoritePropertyId) {
+        setIsFavorite(false);
+        return;
+      }
+
+      setFavoriteLoading(true);
+      try {
+        const status = await checkIfFavorite(user.uid, favoritePropertyId);
+        setIsFavorite(status);
+      } catch {
+        setIsFavorite(false);
+      } finally {
+        setFavoriteLoading(false);
+      }
+    };
+
+    void hydrateFavoriteStatus();
+  }, [user?.uid, favoritePropertyId]);
+
+  const handleFavoritePress = async () => {
+    if (!user?.uid) {
+      Alert.alert('Please log in', 'You must be logged in to save favorites.');
+      return;
+    }
+
+    if (!favoritePropertyId || !propertyDetails) {
+      Alert.alert('Unavailable', 'Unable to save this property as a favorite right now.');
+      return;
+    }
+
+    setFavoriteLoading(true);
+    try {
+      const lat = propertyDetails.latitude ?? (propertyDetails as any)?.location?.address?.coordinate?.lat ?? null;
+      const lon = propertyDetails.longitude ?? (propertyDetails as any)?.location?.address?.coordinate?.lon ?? null;
+      const propertyForFavorite: Property = {
+        id: favoritePropertyId,
+        listingId: String(propertyDetails.listing_id ?? ''),
+        price: propertyDetails.list_price ?? null,
+        address: propertyDetails.location?.address?.line ?? propertyDetails.address ?? 'Address not available',
+        beds: propertyDetails.beds ?? propertyDetails.description?.beds ?? null,
+        baths: propertyDetails.baths ?? propertyDetails.description?.baths ?? null,
+        latitude: typeof lat === 'number' ? lat : lat !== null ? Number(lat) : null,
+        longitude: typeof lon === 'number' ? lon : lon !== null ? Number(lon) : null,
+        lot_sqft: propertyDetails.lot_sqft ?? propertyDetails.description?.lot_sqft ?? null,
+        status: propertyDetails.status ?? null,
+        sqft: propertyDetails.sqft ?? propertyDetails.description?.sqft ?? null,
+        type: propertyDetails.type ?? propertyDetails.description?.type ?? null,
+        photos,
+        primaryPhoto: (propertyDetails as any).primary_photo?.href ?? propertyDetails.primaryPhoto ?? photos[0]?.href ?? null,
+      };
+
+      const newStatus = await toggleFavorite(user.uid, propertyForFavorite);
+      setIsFavorite(newStatus);
+    } catch (error) {
+      console.error('[PropertyDetailsScreen] Failed to toggle favorite:', error);
+      Alert.alert('Error', 'Failed to update favorite status. Please try again.');
+    } finally {
+      setFavoriteLoading(false);
+    }
+  };
 
   if (loading || authLoading) {
     return <ActivityIndicator style={{ flex: 1 }} size="large" />;
@@ -169,6 +245,8 @@ const PropertyDetailsScreen = () => {
     propertyDetails.description?.name ??
     (propertyDetails as any)?.location?.neighborhoods?.[0] ??
     'Not available';
+  const lotSqft = propertyDetails.lot_sqft ?? propertyDetails.description?.lot_sqft ?? null;
+  const lotAcresText = formatLotSizeAcres(lotSqft);
   const communityDescription =
     community?.description ??
     propertyDetails.description?.text ??
@@ -339,7 +417,9 @@ const PropertyDetailsScreen = () => {
             <Text style={{ fontSize: 22, fontWeight: 'bold' }}>{propertyDetails.location?.address?.line || 'Address not available'}</Text>
             <Text style={{ fontSize: 16, color: '#666', marginBottom: 8 }}>{propertyDetails.location?.address?.city}, {propertyDetails.location?.address?.state_code} {propertyDetails.location?.address?.postal_code}</Text>
             <Text style={{ fontSize: 20, fontWeight: '600', marginBottom: 8 }}>${propertyDetails.list_price?.toLocaleString() || 'N/A'}</Text>
-            <Text style={{ fontSize: 16, marginBottom: 8 }}>{propertyDetails.beds || propertyDetails.description?.beds} Beds • {propertyDetails.baths || propertyDetails.description?.baths} Baths • {propertyDetails.sqft || propertyDetails.description?.sqft} Sqft</Text>
+            <Text style={{ fontSize: 16, marginBottom: 8 }}>
+              {propertyDetails.beds || propertyDetails.description?.beds} Beds • {propertyDetails.baths || propertyDetails.description?.baths} Baths • {propertyDetails.sqft || propertyDetails.description?.sqft} Sqft • Lot {lotAcresText}
+            </Text>
             {/* Status badges */}
             <View style={{ flexDirection: 'row', marginBottom: 8 }}>
               {propertyDetails.flags?.is_new_construction && <Text style={{ backgroundColor: '#e8f5e9', color: '#2e7d32', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginRight: 8 }}>New Construction</Text>}
@@ -351,9 +431,25 @@ const PropertyDetailsScreen = () => {
             )}
             {/* Favorite & Showing Buttons */}
             <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
-              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8f9fa', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#eee' }}>
-                <Ionicons name="heart-outline" size={20} color="#e74c3c" />
-                <Text style={{ marginLeft: 8, color: '#333', fontWeight: '600' }}>Save as Favorite</Text>
+              <TouchableOpacity
+                onPress={handleFavoritePress}
+                disabled={favoriteLoading}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: isFavorite ? '#fdecec' : '#f8f9fa',
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: isFavorite ? '#f5b7b1' : '#eee',
+                  opacity: favoriteLoading ? 0.7 : 1,
+                }}
+              >
+                <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={20} color="#e74c3c" />
+                <Text style={{ marginLeft: 8, color: '#333', fontWeight: '600' }}>
+                  {favoriteLoading ? 'Saving...' : isFavorite ? 'Saved to Favorites' : 'Save as Favorite'}
+                </Text>
               </TouchableOpacity>
               {canRequestShowing && (
                 <TouchableOpacity

@@ -510,13 +510,19 @@ export const upsertUserSessionState = onCall(async (request) => {
 
 export const saveUserPushToken = onCall(async (request) => {
 	const userId = requireAuthUid(request);
-	const pushToken = asNonEmptyString(request.data?.pushToken, "pushToken");
+	const pushToken = typeof request.data?.pushToken === "string" && request.data.pushToken.trim().length > 0
+		? request.data.pushToken.trim().slice(0, 512)
+		: null;
+	const fcmToken = typeof request.data?.fcmToken === "string" && request.data.fcmToken.trim().length > 0
+		? request.data.fcmToken.trim().slice(0, 512)
+		: null;
 	const platform = typeof request.data?.platform === "string" ? request.data.platform.trim() : "";
 
 	const db = getFirestore();
 	await db.collection("users").doc(userId).set({
-		pushToken,
-		expoPushToken: pushToken,
+		pushToken: pushToken ?? null,
+		expoPushToken: pushToken ?? null,
+		fcmToken: fcmToken ?? null,
 		pushTokenPlatform: platform || null,
 		pushTokenUpdatedAt: new Date(),
 	}, { merge: true });

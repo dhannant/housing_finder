@@ -82,7 +82,7 @@ export const getCalendarEvents = onCall<GetCalendarEventsInput>(async (request) 
 
 		const propertyIds = new Set<string>();
 		const clientIds = new Set<string>();
-		const showingDocs: Array<{ id: string; data: FirebaseFirestore.DocumentData }> = [];
+		const showingDocs: { id: string; data: FirebaseFirestore.DocumentData }[] = [];
 
 		for (const s of showingsSnap.docs) {
 			const d = s.data();

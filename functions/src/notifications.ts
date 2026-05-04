@@ -1,4 +1,5 @@
 import { getFirestore } from "firebase-admin/firestore";
+import { getMessaging } from "firebase-admin/messaging";
 import { onDocumentCreated, onDocumentDeleted, onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 
@@ -15,6 +16,7 @@ type PushSendResult = {
 	reason: "sent" | "missing_token" | "invalid_token" | "http_error" | "expo_error" | "exception";
 	userId: string;
 	tokenPreview?: string;
+	ticketId?: string;
 	details?: string;
 };
 
@@ -61,14 +63,19 @@ function formatShowingBlock(block: any): string {
 	return start || end;
 }
 
-async function getUserPushToken(userId: string): Promise<string | null> {
-	if (!userId) return null;
+type UserTokens = { pushToken: string | null; fcmToken: string | null };
+
+async function getUserTokens(userId: string): Promise<UserTokens> {
+	if (!userId) return { pushToken: null, fcmToken: null };
 	const db = getFirestore();
 	const userSnap = await db.collection("users").doc(userId).get();
-	if (!userSnap.exists) return null;
-	const token = userSnap.data()?.pushToken ?? userSnap.data()?.expoPushToken;
-	if (typeof token !== "string" || token.trim().length === 0) return null;
-	return token.trim();
+	if (!userSnap.exists) return { pushToken: null, fcmToken: null };
+	const data = userSnap.data();
+	const pushToken = typeof data?.pushToken === "string" && data.pushToken.trim().length > 0
+		? data.pushToken.trim() : null;
+	const fcmToken = typeof data?.fcmToken === "string" && data.fcmToken.trim().length > 0
+		? data.fcmToken.trim() : null;
+	return { pushToken, fcmToken };
 }
 
 function isLikelyExpoPushToken(token: string): boolean {
@@ -76,7 +83,35 @@ function isLikelyExpoPushToken(token: string): boolean {
 }
 
 async function sendExpoPushToUser(userId: string, payload: NotificationPayload): Promise<PushSendResult> {
-	const token = await getUserPushToken(userId);
+	const { pushToken, fcmToken } = await getUserTokens(userId);
+
+	// Android path: send directly via Firebase Admin SDK using native FCM device token
+	if (fcmToken) {
+		try {
+			await getMessaging().send({
+				token: fcmToken,
+				notification: { title: payload.title, body: payload.body },
+				data: payload.data ? Object.fromEntries(
+					Object.entries(payload.data).map(([k, v]) => [k, String(v)])
+				) : {},
+				android: { priority: "high", notification: { channelId: "default", sound: "default" } },
+			});
+			console.log(`[Push] FCM direct sent user=${userId}, title=${payload.title}`);
+			return {
+				ok: true,
+				reason: "sent",
+				userId,
+				tokenPreview: `${fcmToken.slice(0, 10)}...`,
+				details: "deliveryPath=fcm_direct",
+			};
+		} catch (error: any) {
+			console.warn(`[Push] FCM direct send failed user=${userId}:`, error?.message || error);
+			return { ok: false, reason: "exception", userId, details: error?.message || String(error) };
+		}
+	}
+
+	// iOS path: send via Expo push API using Expo push token
+	const token = pushToken;
 	if (!token) {
 		console.warn(`[Push] Missing push token for user=${userId}`);
 		return { ok: false, reason: "missing_token", userId };
@@ -100,6 +135,8 @@ async function sendExpoPushToUser(userId: string, payload: NotificationPayload):
 		},
 		body: JSON.stringify({
 			to: token,
+			channelId: "default",
+			priority: "high",
 			sound: "default",
 			title: payload.title,
 			body: payload.body,
@@ -120,8 +157,11 @@ async function sendExpoPushToUser(userId: string, payload: NotificationPayload):
 	}
 
 	const json = await response.json().catch(() => null);
-	const ticket = json?.data;
-	const isExpoError = ticket?.status === "error";
+	const ticketRaw = json?.data;
+	const ticket = Array.isArray(ticketRaw) ? ticketRaw[0] : ticketRaw;
+	const ticketId = typeof ticket?.id === "string" ? ticket.id : undefined;
+	const ticketStatus = typeof ticket?.status === "string" ? ticket.status : "unknown";
+	const isExpoError = ticketStatus === "error";
 	if (isExpoError) {
 		const expoMessage = ticket?.message || "Unknown Expo push ticket error";
 		console.warn(`[Push] Expo ticket error user=${userId}, message=${expoMessage}`);
@@ -130,17 +170,45 @@ async function sendExpoPushToUser(userId: string, payload: NotificationPayload):
 			reason: "expo_error",
 			userId,
 			tokenPreview: `${token.slice(0, 10)}...`,
+			ticketId,
 			details: String(expoMessage),
 		};
 	}
 
-	console.log(`[Push] Sent user=${userId}, title=${payload.title}`);
+	console.log(`[Push] Sent user=${userId}, title=${payload.title}, ticketId=${ticketId || "n/a"}, ticketStatus=${ticketStatus}`);
 
 	return {
 		ok: true,
 		reason: "sent",
 		userId,
 		tokenPreview: `${token.slice(0, 10)}...`,
+		ticketId,
+		details: ticketId
+			? "deliveryPath=expo"
+			: `deliveryPath=expo; No ticket id in Expo response. ticketStatus=${ticketStatus}`,
+	};
+}
+
+async function getExpoPushReceipts(ticketIds: string[]) {
+	const ids = Array.from(new Set(ticketIds.filter((id) => typeof id === "string" && id.trim().length > 0)));
+	if (ids.length === 0) {
+		return { ok: false, message: "No valid ticket IDs provided." };
+	}
+
+	const response = await fetch("https://exp.host/--/api/v2/push/getReceipts", {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			Accept: "application/json",
+		},
+		body: JSON.stringify({ ids }),
+	});
+
+	const body = await response.json().catch(() => null);
+	return {
+		ok: response.ok,
+		status: response.status,
+		body,
 	};
 }
 
@@ -274,6 +342,7 @@ export const sendPushTestToUser = onRequest(async (req, res) => {
 
 		const title = String(req.query.title || req.body?.title || "Push Test").trim() || "Push Test";
 		const body = String(req.query.body || req.body?.body || "Test notification from Firebase Functions").trim() || "Test notification from Firebase Functions";
+		const userTokens = await getUserTokens(userId);
 
 		const result = await sendExpoPushToUser(userId, {
 			title,
@@ -283,11 +352,46 @@ export const sendPushTestToUser = onRequest(async (req, res) => {
 
 		res.status(result.ok ? 200 : 400).json({
 			ok: result.ok,
+			debug: {
+				hasFcmToken: Boolean(userTokens.fcmToken),
+				hasExpoPushToken: Boolean(userTokens.pushToken),
+				fcmPreview: userTokens.fcmToken ? `${userTokens.fcmToken.slice(0, 10)}...` : null,
+				expoPreview: userTokens.pushToken ? `${userTokens.pushToken.slice(0, 10)}...` : null,
+			},
 			result,
 		});
 		return;
 	} catch (error: any) {
 		console.error("sendPushTestToUser failed:", error);
+		res.status(500).json({ ok: false, message: error?.message || "Unknown error" });
+		return;
+	}
+});
+
+// Manual receipt check endpoint for debugging Expo ticket outcomes.
+export const getPushReceiptStatus = onRequest(async (req, res) => {
+	try {
+		const ticketIdParam = String(req.query.ticketId || req.body?.ticketId || "").trim();
+		const ticketIdsParam = String(req.query.ticketIds || req.body?.ticketIds || "").trim();
+
+		const ids = [
+			...ticketIdParam ? [ticketIdParam] : [],
+			...ticketIdsParam ? ticketIdsParam.split(",").map((id) => id.trim()) : [],
+		].filter((id) => id.length > 0);
+
+		if (ids.length === 0) {
+			res.status(400).json({
+				ok: false,
+				message: "Provide ticketId or ticketIds (comma-separated).",
+			});
+			return;
+		}
+
+		const receiptResponse = await getExpoPushReceipts(ids);
+		res.status(receiptResponse.ok ? 200 : 400).json(receiptResponse);
+		return;
+	} catch (error: any) {
+		console.error("getPushReceiptStatus failed:", error);
 		res.status(500).json({ ok: false, message: error?.message || "Unknown error" });
 		return;
 	}

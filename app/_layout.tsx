@@ -1,6 +1,8 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
+import Constants from "expo-constants";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
 import "react-native-reanimated";
 
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -8,6 +10,24 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 
 export default function RootLayout() {
 	const colorScheme = useColorScheme();
+
+	useEffect(() => {
+		if (Constants.appOwnership === "expo") {
+			return;
+		}
+
+		void (async () => {
+			const Notifications = await import("expo-notifications");
+			Notifications.setNotificationHandler({
+				handleNotification: async () => ({
+					shouldShowBanner: true,
+					shouldShowList: true,
+					shouldPlaySound: true,
+					shouldSetBadge: false,
+				}),
+			});
+		})();
+	}, []);
 
 	return (
 		<AuthProvider>

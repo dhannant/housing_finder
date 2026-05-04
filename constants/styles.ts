@@ -853,13 +853,13 @@ export const propertyFilter_styles = StyleSheet.create({
   
   // Each filter section (bedrooms, bathrooms, etc.)
   section: {
-    marginBottom: 30,
+    marginBottom: 2,
   },
   
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 12,
+    marginBottom: 2,
     color: '#333',
   },
   
@@ -873,22 +873,31 @@ export const propertyFilter_styles = StyleSheet.create({
   // Container for a single input field
   inputContainer: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   
-  // Label above input (Min, Max, etc.)
+  // Label inline with input (Min:, Max:, Status:)
   inputLabel: {
     fontSize: 12,
     color: '#666',
-    marginBottom: 4,
+    marginRight: 8,
+    minWidth: 44,
   },
   
   // Text input field
   input: {
-    borderWidth: 1,
-    borderColor: '#D1D1D6',
+    flex: 1,
+    borderWidth: 2,
+    borderColor: '#0b0b0b',
     borderRadius: 8,
-    padding: 12,
+    height: 36,
+    minHeight: 36,
+    paddingHorizontal: 1,
+    paddingVertical: 0,
     fontSize: 16,
+    color: '#1A1A1A',
+    backgroundColor: '#eeeeee',
   },
   
   // "to" text between min and max
@@ -924,6 +933,13 @@ export const propertyFilter_styles = StyleSheet.create({
   sliderSection: {
     marginBottom: 20,
   },
+
+  // Row layout for slider with value textbox on the right
+  sliderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   
   sliderLabel: {
     fontSize: 14,
@@ -933,7 +949,7 @@ export const propertyFilter_styles = StyleSheet.create({
   
   // The slider itself
   slider: {
-    width: '100%',
+    flex: 1,
     height: 40,
   },
   
@@ -944,7 +960,18 @@ export const propertyFilter_styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    marginTop: 8,
+    color: '#1A1A1A',
+    backgroundColor: '#FFFFFF',
+  },
+
+  // Compact fixed-width textbox to the right of slider
+  sliderInputInline: {
+    width: 126,
+    minWidth: 126,
+    maxWidth: 126,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    textAlign: 'center',
   },
   
   // Footer with buttons

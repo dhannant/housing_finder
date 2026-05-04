@@ -87,7 +87,7 @@ export default function LandingScreen() {
               <Text style={landingStyles.logoSubtitle}>Real Estate</Text>
             </View>
           </View>
-          {user && (
+          {!loading && user && (
             <View>
               <TouchableOpacity style={landingStyles.dashboardButton} onPress={handleDashboard}>
                 <Text style={landingStyles.dashboardButtonText}>Dashboard</Text>
@@ -96,7 +96,7 @@ export default function LandingScreen() {
           )}
 
           {/* Login/Logout button */}
-          {!user && (
+          {!loading && !user && (
             <View>
               <TouchableOpacity style={landingStyles.loginButton} onPress={handleAuthButton}>
                 <Text style={landingStyles.loginButtonText}>Login</Text>

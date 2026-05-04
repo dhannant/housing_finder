@@ -1,12 +1,13 @@
 import { mapStyles } from '@/constants/styles';
 import { useAuth } from '@/contexts/AuthContext';
 import * as Functions from '@/utils/functions';
-import type { Property , ClientData } from '@/utils/interfaces';
+import type { ClientData, Property } from '@/utils/interfaces';
 import { useRouter } from 'expo-router';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, Image, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Image, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type PropertyDetails = Property & {
 	id?: string;
@@ -59,6 +60,12 @@ function toPhotoArray(photos: any, primaryPhoto: string | null): { href: string 
 		if (normalized.length > 0) return normalized;
 	}
 	return primaryPhoto ? [{ href: primaryPhoto }] : [];
+}
+
+function formatLotSizeAcres(lotSqft: number | null | undefined): string {
+	if (typeof lotSqft !== 'number' || !Number.isFinite(lotSqft) || lotSqft <= 0) return 'N/A';
+	const acres = lotSqft / 43560;
+	return `${acres.toLocaleString(undefined, { maximumFractionDigits: 2 })} acres`;
 }
 
 export default function PropertyModal({
@@ -197,8 +204,8 @@ export default function PropertyModal({
 	return (
 		<>
 			<Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-				<View style={mapStyles.modalContainer}>
-					<View style={mapStyles.modalHeader}>
+				<SafeAreaView style={mapStyles.modalContainer} edges={['top', 'bottom']}>
+					<View style={[mapStyles.modalHeader, { paddingTop: 12 }]}>
 						<TouchableOpacity onPress={onClose} style={mapStyles.closeButton}>
 							<Text style={mapStyles.closeButtonText}>✕</Text>
 						</TouchableOpacity>
@@ -214,8 +221,13 @@ export default function PropertyModal({
 						</View>
 					</View>
 
+					<ScrollView
+						style={{ flex: 1 }}
+						contentContainerStyle={{ paddingBottom: 24 }}
+						showsVerticalScrollIndicator={false}
+					>
 					{photos.length > 0 ? (
-						<View style={mapStyles.photoContainer}>
+						<View style={[mapStyles.photoContainer, { flex: undefined, height: 300 }]}>
 							<Image
 								source={{ uri: currentPhotoUri ?? photos[clampedPhotoIndex].href }}
 								style={mapStyles.photo}
@@ -268,7 +280,7 @@ export default function PropertyModal({
 							Type: {property.type ? property.type.replace(/_/g, ' ') : 'N/A'}
 						</Text>
 						<Text style={mapStyles.details}>
-							Sqft: {property.sqft !== null ? property.sqft.toLocaleString() : 'N/A'} • Lot: {property.lot_sqft !== null ? property.lot_sqft.toLocaleString() : 'N/A'}
+							Sqft: {property.sqft !== null ? property.sqft.toLocaleString() : 'N/A'} • Lot: {formatLotSizeAcres(property.lot_sqft)}
 						</Text>
 						<Text style={mapStyles.status}>Status: {property.status?.replace('_', ' ') || 'N/A'}</Text>
 						<TouchableOpacity
@@ -314,7 +326,8 @@ export default function PropertyModal({
 							</TouchableOpacity>
 						)}
 					</View>
-				</View>
+					</ScrollView>
+				</SafeAreaView>
 			</Modal>
 
 			{/* Agent Assign Modal */}
